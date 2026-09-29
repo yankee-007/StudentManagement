@@ -8,6 +8,7 @@ class DictTableModel(QAbstractTableModel):
     StudentIdRole = Qt.UserRole + 1
     RecordKeyRole = Qt.UserRole + 2
     ExpiredCellRole = Qt.UserRole + 3
+    StaleRowRole = Qt.UserRole + 4
     def __init__(self, columns: list[tuple[str, str]], parent=None):
         super().__init__(parent)
         self.columns = columns
@@ -28,6 +29,9 @@ class DictTableModel(QAbstractTableModel):
             return self.rows[index.row()].get('_record_key',self.rows[index.row()].get('student_id',''))
         if role == self.ExpiredCellRole:
             return bool(self.columns[index.column()][0]=='exemption_text' and self.rows[index.row()].get('exemption_expired'))
+        if role == self.StaleRowRole:
+            # Display-only: the row no longer satisfies the applied filter but stays visible (ADR-007).
+            return bool(self.rows[index.row()].get('_filter_stale'))
         if not 0 <= index.column() < len(self.columns):
             return None
         key = self.columns[index.column()][0]
@@ -52,7 +56,8 @@ class DictTableModel(QAbstractTableModel):
 
     def roleNames(self):
         # Stable scalar roles: never marshal the complete profile for a cell.
-        return {Qt.DisplayRole: b"display", self.StudentIdRole: b"studentId", self.RecordKeyRole:b"recordKey", self.ExpiredCellRole:b"expiredCell"}
+        return {Qt.DisplayRole: b"display", self.StudentIdRole: b"studentId", self.RecordKeyRole:b"recordKey", self.ExpiredCellRole:b"expiredCell",
+                self.StaleRowRole: b"staleRow"}
 
     def set_rows(self, rows: list[dict]):
         self.beginResetModel()

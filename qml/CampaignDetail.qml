@@ -10,6 +10,9 @@ ColumnLayout {
     property bool loadingDraft: false
     property var draftEditor: null
     property bool hasStudent: !!service.selected.student_id
+    property bool showContactAction: true
+    property bool showName: true
+    property bool compact: false
     property var fields: []
     spacing: 8
 
@@ -39,28 +42,29 @@ ColumnLayout {
         function onChanged() { card.loadSelection(false) }
     }
     Label {
+        visible: card.showName
         text: card.service.selected.name || (card.hasStudent ? "姓名待补全" : "选择学员")
-        font.pixelSize: 21; font.bold: true; color: "#17213a"
+        font.pixelSize: card.compact ? 16 : 21; font.bold: true; color: "#17213a"
     }
     CampaignContactAction {
-        visible: card.hasStudent && card.service.canEdit
+        visible: card.showContactAction && card.hasStudent && card.service.canEdit
         Layout.fillWidth: true; service: card.service
     }
     ScrollView {
         id: details; Layout.fillWidth: true; Layout.fillHeight: true
         contentWidth: availableWidth; clip: true
         ColumnLayout {
-            width: details.availableWidth - 12; spacing: 10
+            width: details.availableWidth - (card.compact ? 4 : 12); spacing: card.compact ? 6 : 10
             enabled: card.hasStudent
             Repeater {
                 model: card.fields.filter(function(field) { return field.key !== "name" })
                 ColumnLayout {
                     required property var modelData
-                    Layout.fillWidth: true; spacing: 6
+                    Layout.fillWidth: true; spacing: card.compact ? 4 : 6
                     Label {
                         visible: modelData.key !== "feedback" && modelData.key !== "exemption_text"
                         text: modelData.label + "：" + (card.service.selected[modelData.key] || "—")
-                        Layout.fillWidth: true; wrapMode: Text.Wrap; color: "#344054"
+                        Layout.fillWidth: true; wrapMode: Text.Wrap; color: "#344054"; font.pixelSize: card.compact ? 11 : 12
                     }
                     ColumnLayout {
                         visible: modelData.key === "feedback"

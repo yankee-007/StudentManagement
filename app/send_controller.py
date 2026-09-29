@@ -140,7 +140,7 @@ class SendController(QObject):
             receipts.save_config(self.wf.store,self.wf._batch,prefix,template)
             self._preview=receipts.plan(self.wf.store,self.wf._batch)
             self._context=(str(self.wf.store.db.path),self.wf._batch)
-            self.wf.reload_rows()
+            self.wf.reload_rows(keep_query=True)
             self._status=f'本轮将发送 {len(self._preview)} 人；不受表格搜索或列筛选影响'
             self.changed.emit()
             return bool(self._preview)
@@ -218,7 +218,7 @@ class SendController(QObject):
         if self.active or editor_key!=self.wf.editorKey or not self.wf.canEdit:return False
         try:
             receipts.resolve(self.wf.store,self.wf._batch,self.wf.selected['student_id'],was_sent)
-            self.wf.reload_rows()
+            self.wf.reload_rows(keep_query=True)
             self._status='已保存人工核实结果';self.changed.emit();return True
         except Exception as exc:
             self._status=str(exc);self.changed.emit();return False
@@ -227,7 +227,7 @@ class SendController(QObject):
     def _on_progress(self,text):self._status=text;self.changed.emit()
     @Slot()
     def _on_row_finished(self):
-        if not self._test_mode:self.wf.reload_rows()
+        if not self._test_mode:self.wf.reload_rows(keep_query=True)
         self.changed.emit()
     @Slot()
     def _on_paused(self):
@@ -240,7 +240,7 @@ class SendController(QObject):
         self._hotkey.close()
         if worker:worker.deleteLater()
         receipts.recover(self._dispatch_store.db)
-        if not self._test_mode:self.wf.reload_rows()
+        if not self._test_mode:self.wf.reload_rows(keep_query=True)
         self.changed.emit()
 
     def shutdown(self):

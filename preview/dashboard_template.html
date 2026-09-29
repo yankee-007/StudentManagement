@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>催办工作台 · 学习数据看板（py169 · 32 课时模拟）</title>
+<style>
+  :root { --blue:#2f6fed; --green:#12b76a; --orange:#f79009; --red:#d92d20; --ink:#17213a; --sub:#667085; --line:#e4e7ec; --bg:#f5f7fb; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:13px/1.5 "Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif; }
+  .wrap { max-width:1560px; margin:0 auto; padding:10px 14px 16px; }
+  .panel { background:#fff; border:1px solid var(--line); border-radius:10px; }
+  .head { display:flex; align-items:center; gap:10px; padding:9px 12px; }
+  .head h1 { font-size:15px; margin:0; }
+  .head .meta { color:var(--sub); font-size:12px; flex:1; }
+  .head label { color:#475467; font-size:12px; }
+  select { font:12px/1.4 inherit; padding:3px 6px; border:1px solid var(--line); border-radius:6px; background:#fff; color:var(--ink); }
+  .pill { display:inline-block; padding:1px 8px; border-radius:10px; background:#eef4ff; color:var(--blue); font-size:11px; }
+  .badge { display:inline-block; padding:2px 10px; border-radius:999px; color:#fff; font-size:12px; font-weight:600; }
+  .cards { display:grid; grid-template-columns:repeat(6,1fr); gap:8px; margin:8px 0; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:8px 10px; }
+  .card b { display:block; font-size:19px; line-height:1.25; }
+  .card span { color:var(--sub); font-size:11px; }
+  .card em { font-style:normal; font-size:11px; margin-left:6px; }
+  .up { color:#027a48; } .down { color:#b54708; } .flat { color:var(--sub); }
+  .bands { display:flex; gap:10px; align-items:center; margin:0 0 8px; flex-wrap:wrap; }
+  .bands .strip { display:flex; height:26px; border-radius:8px; overflow:hidden; border:1px solid var(--line); background:#fff; }
+  .bands .seg { display:flex; align-items:center; justify-content:center; color:#fff; font-size:11px; font-weight:600; padding:0 12px; }
+  .bands .note { color:var(--sub); font-size:11px; }
+  .row { display:grid; grid-template-columns:13fr 9fr; gap:10px; }
+  .chart { width:100%; }
+  .hint { color:#98a2b3; font-size:11px; padding:0 12px 8px; }
+  .legend { display:flex; gap:14px; padding:0 12px 6px; color:var(--sub); font-size:11px; align-items:center; flex-wrap:wrap; }
+  .legend i { display:inline-block; width:14px; height:10px; border-radius:2px; margin-right:4px; vertical-align:-1px; }
+  .tabs { display:flex; gap:6px; padding:8px 12px 0; }
+  .tabs button { font:12px/1.4 inherit; padding:4px 10px; border:1px solid var(--line); background:#fff; border-radius:999px; color:#475467; cursor:pointer; }
+  .tabs button.on { background:#eef4ff; border-color:#c7d7fe; color:var(--blue); font-weight:600; }
+  .detail { padding:0 12px 10px; color:var(--sub); font-size:12px; }
+  .detail b { color:var(--ink); }
+  .foot { color:#98a2b3; font-size:11px; margin-top:8px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <div class="panel">
+    <div class="head">
+      <h1>本次催办 · 学习数据看板</h1>
+      <span class="pill" id="classPill">班级 169</span>
+      <div class="meta">仅统计<b>在读</b>真实学员 <b id="total">171</b> 人（不含退课／冻结／补位）· 累计口径：第 1～N 节全部完成 ÷ 在读人数</div>
+      <label>对比基线</label>
+      <select id="baseline"></select>
+      <span class="badge" id="gradeBadge">—</span>
+    </div>
+    <div class="legend" style="padding-top:0">
+      <span>差值考核线：</span>
+      <span><i style="background:var(--green)"></i>优秀 ≤5pp</span>
+      <span><i style="background:var(--blue)"></i>良好 ≤10pp</span>
+      <span><i style="background:var(--orange)"></i>及格 ≤15pp</span>
+      <span><i style="background:var(--red)"></i>不合格 &gt;15pp（会被约谈）</span>
+    </div>
+  </div>
+
+  <div class="cards" id="cards"></div>
+  <div class="bands" id="bands"></div>
+
+  <div class="row">
+    <div class="panel">
+      <div class="tabs"><span style="padding:4px 0;font-weight:600">各节累计完课率 / 作业率</span><span class="hint" style="padding:5px 0 0 8px">拖动下方滑块可平移／缩放 32 节</span></div>
+      <div class="legend"><span><i style="background:var(--blue)"></i>累计完课率</span><span><i style="background:var(--green)"></i>累计作业率</span><span style="color:#98a2b3">差值（含 5/10/15pp 考核线）见下方「累计差值走势」</span></div>
+      <div id="chart-rate" class="chart" style="height:400px"></div>
+      <div class="hint">柱状＝累计完成人数结构（已完成第 1～N 节 / 已开课但未达标 / 一节未完成）；折线＝累计比率。差值越小越好。</div>
+    </div>
+
+    <div class="panel">
+      <div class="tabs"><span style="padding:4px 0;font-weight:600">完课率 / 作业率 人员结构</span></div>
+      <div class="legend"><span><i style="background:var(--blue)"></i>已完成第 1～N 节</span><span><i style="background:#b8cdfb"></i>已开课但未达标</span><span><i style="background:var(--orange)"></i>一节未完成</span><span style="color:#98a2b3">三段合计恒为 <span id="total2">171</span></span></div>
+      <div id="chart-funnel" class="chart" style="height:370px"></div>
+      <div class="detail" id="detail">点柱或移动滑块查看该节明细</div>
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:10px">
+    <div class="panel">
+      <div class="tabs" style="padding-bottom:2px">
+        <span class="hint" style="padding:5px 8px 0 0">各节（已开课 <b id="openCount">4</b> 节）</span>
+        <button class="on" data-tab="gap">累计差值走势（考核线 5/10/15pp）</button>
+        <button data-tab="pending">累计欠交人数</button>
+        <button data-tab="single">单节边际完成人数</button>
+      </div>
+      <div id="chart-bottom" class="chart" style="height:236px"></div>
+    </div>
+    <div class="panel">
+      <div class="tabs" style="padding-bottom:2px">
+        <span class="hint" style="padding:5px 8px 0 0">最近 5 次催办</span>
+        <button class="on" data-trend="gap">末节累计差值</button>
+        <button data-trend="course">末节累计完课率</button>
+        <button data-trend="homework">末节累计作业率</button>
+        <button data-trend="pending">末节累计欠交作业</button>
+      </div>
+      <div id="chart-trend" class="chart" style="height:236px"></div>
+      <div class="hint" style="padding-top:0">末节 = 该次催办时最新已开课的节次（本班为第 4 节），各次的分母见括号人数</div>
+    </div>
+  </div>
+
+  <div class="foot" id="foot"></div>
+</div>
+
+<script>/*__ECHARTS__*/</script>
+<script>
+const DATA = /*__DATA__*/;
+const $ = (id) => document.getElementById(id);
+const fmt = (v, d = 2) => Number(v).toFixed(d);
+const cls = (v) => v > 0 ? 'up' : v < 0 ? 'down' : 'flat';
+const sign = (v, d = 2) => (v > 0 ? '+' : '') + Number(v).toFixed(d);
+const lessons = DATA.lessonsList.map((n) => '第' + n + '节');
+const TOTAL_LESSONS = DATA.targetLessons;
+const gradeOf = (v) => DATA.grades.find(g => g.max !== null && v <= g.max) || DATA.grades[DATA.grades.length - 1];
+const slider = { type: 'slider', bottom: 2, height: 14, borderColor: '#e4e7ec', fillerColor: 'rgba(47,111,237,.12)',
+                 handleStyle: {color: '#2f6fed'}, textStyle: {color: '#98a2b3', fontSize: 10}, brushSelect: true };
+const zoom = (start, end) => Object.assign({start: start, end: end, minValueSpan: 4}, slider);
+
+$('total').textContent = DATA.total;
+$('total2').textContent = DATA.total;
+$('openCount').textContent = DATA.openLessons;
+$('classPill').textContent = '班级 ' + DATA.className + ' · 已开课 ' + DATA.openLessons + ' / ' + DATA.targetLessons + ' 节';
+$('foot').textContent = '数据口径：班级 ' + DATA.className + ' 真实在读 ' + DATA.total + ' 人（不含退课／冻结／补位）；当前已开课 ' +
+  DATA.openLessons + ' 节（第 ' + DATA.lessonsList.join('、') + ' 节），全部取最近一次催办的真实冻结快照；' +
+  '未开课节次不写入、不参与统计；历史批次只读，不受后续获取影响。';
+
+DATA.trend.forEach((b, i) => {
+  const option = document.createElement('option');
+  option.value = String(i);
+  option.textContent = b.name + ' · ' + b.label + '（' + b.total + ' 人 · 末节差值 ' + fmt(b.gap) + 'pp）';
+  if (i === DATA.trend.length - 2) option.selected = true;
+  $('baseline').appendChild(option);
+});
+
+const last = DATA.last;
+const badge = $('gradeBadge');
+badge.textContent = '第' + last.lesson + '节差值 ' + fmt(last.gap) + 'pp · ' + last.grade;
+badge.style.background = gradeOf(last.gap).color;
+
+$('cards').innerHTML = [
+  ['第' + last.lesson + '节累计完课率', fmt(last.course) + '%', sign(last.dCourse, 2) + 'pp', cls(last.dCourse)],
+  ['第' + last.lesson + '节累计作业率', fmt(last.homework) + '%', sign(last.dHomework, 2) + 'pp', cls(last.dHomework)],
+  ['第' + last.lesson + '节累计差值（考核线 15pp）', fmt(last.gap) + 'pp', last.grade, cls(last.dGap)],
+  ['第' + last.lesson + '节累计欠交课', last.pending + ' 人', '', 'flat'],
+  ['第' + last.lesson + '节累计欠交作业', last.pendingHomework + ' 人', '', 'flat'],
+  ['最大单节差值（第' + DATA.worst.lesson + '节）', fmt(DATA.worst.gap) + 'pp', DATA.worst.grade, 'down']
+].map(c => '<div class="card"><span>' + c[0] + '</span><b>' + c[1] + '<em class="' + c[3] + '">' + c[2] + '</em></b></div>').join('');
+
+(function renderBands() {
+  const counts = DATA.gradeCounts;
+  const segments = DATA.grades.filter(g => counts[g.key]).map(g =>
+    '<div class="seg" style="background:' + g.color + '">' + g.label + ' ' + counts[g.key] + ' 节</div>').join('');
+  $('bands').innerHTML = '<div class="strip">' + segments + '</div>' +
+    '<div class="note">已开课 ' + DATA.openLessons + ' 节的差值考核分布：' + DATA.gradeSummary +
+    '　·　考核线 优秀 ≤5pp / 良好 ≤10pp / 及格 ≤15pp / 不合格 &gt;15pp' +
+    '　·　课程总节数 ' + DATA.targetLessons + ' 节，未开课节次不参与统计</div>';
+})();
+
+const chartRate = echarts.init($('chart-rate'));
+const chartFunnel = echarts.init($('chart-funnel'));
+const chartBottom = echarts.init($('chart-bottom'));
+const chartTrend = echarts.init($('chart-trend'));
+
+chartRate.setOption({
+  animation: false,
+  grid: {left: 56, right: 22, top: 20, bottom: 46},
+  tooltip: {trigger: 'axis', axisPointer: {type: 'cross'},
+    formatter: (ps) => {
+      const i = ps[0].dataIndex, f = DATA.funnel[i], g = gradeOf(DATA.gap[i]);
+      return '<b>' + lessons[i] + '</b>　<span style="color:' + g.color + '">' + g.label + '</span><br>' +
+             '累计完课率 <b>' + fmt(DATA.course[i]) + '%</b>（' + f.done + ' 人）<br>' +
+             '累计作业率 <b>' + fmt(DATA.homework[i]) + '%</b>（' + DATA.completed_homework[i] + ' 人）<br>' +
+             '累计差值 <b>' + fmt(DATA.gap[i]) + 'pp</b>（考核线 15pp）<br>' +
+             '累计欠交课 ' + f.pending + ' 人 · 欠交作业 ' + f.pending_homework + ' 人';
+    }},
+  xAxis: {type: 'category', data: lessons, axisLabel: {fontSize: 10, interval: 0, rotate: 0, color: '#667085', margin: 8},
+          axisTick: {show: false}, axisLine: {lineStyle: {color: '#e4e7ec'}}},
+  yAxis: {type: 'value', min: 10, max: 95, axisLabel: {formatter: '{value}%', fontSize: 10, color: '#667085'}, splitLine: {lineStyle: {color: '#eef1f6'}}},
+  dataZoom: [zoom(0, 100), {type: 'inside', start: 0, end: 100}],
+  series: [
+    {name: '累计完课率', type: 'line', symbol: 'circle', symbolSize: 5, sampling: 'lttb',
+     lineStyle: {width: 2, color: '#2f6fed'}, itemStyle: {color: '#2f6fed'}, data: DATA.course},
+    {name: '累计作业率', type: 'line', symbol: 'circle', symbolSize: 5, sampling: 'lttb',
+     lineStyle: {width: 2, color: '#12b76a'}, itemStyle: {color: '#12b76a'}, data: DATA.homework},
+    {name: '差值趋势（辅助）', type: 'line', symbol: 'none', sampling: 'lttb', silent: true,
+     lineStyle: {width: 1.4, color: '#f79009', type: 'dashed', opacity: .55}, data: DATA.gap}
+  ]
+});
+
+chartFunnel.setOption({
+  animation: false,
+  grid: {left: 56, right: 16, top: 26, bottom: 46},
+  tooltip: {trigger: 'axis', axisPointer: {type: 'shadow'},
+    formatter: (ps) => {
+      const i = ps[0].dataIndex, row = DATA.funnel[i];
+      return '<b>' + lessons[i] + '</b>　全班 ' + DATA.total + ' 人<br>' +
+             '已完成第 1～' + (i + 1) + '节 <b>' + row.done + ' 人</b><br>' +
+             '已开课但未达标 <b>' + row.partial + ' 人</b><br>' +
+             '一节未完成 <b>' + row.zero + ' 人</b><br>合计 <b>' + (row.done + row.partial + row.zero) + ' 人</b>';
+    }},
+  xAxis: {type: 'category', data: lessons, axisLabel: {fontSize: 10, interval: 0, rotate: 0, color: '#667085', margin: 8}, axisTick: {show: false}},
+  yAxis: {type: 'value', min: 0, max: DATA.total, axisLabel: {fontSize: 10, color: '#667085'}, splitLine: {lineStyle: {color: '#eef1f6'}}},
+  dataZoom: [zoom(0, 100), {type: 'inside', start: 0, end: 100}],
+  series: [
+    {name: '已完成第 1～N 节', type: 'bar', barMaxWidth: 22, itemStyle: {color: '#2f6fed'}, data: DATA.funnel.map(r => r.done)},
+    {name: '已开课但未达标', type: 'bar', stack: 'rest', barMaxWidth: 22, itemStyle: {color: '#b8cdfb'}, data: DATA.funnel.map(r => r.partial)},
+    {name: '一节未完成', type: 'bar', stack: 'rest', barMaxWidth: 22, itemStyle: {color: '#f79009'}, data: DATA.funnel.map(r => r.zero)}
+  ]
+});
+
+function bandAreas() {
+  return [{from: 0, to: 5, color: 'rgba(18,183,106,.10)'},
+          {from: 5, to: 10, color: 'rgba(47,111,237,.10)'},
+          {from: 10, to: 15, color: 'rgba(247,144,9,.10)'},
+          {from: 15, to: 26, color: 'rgba(217,45,32,.08)'}]
+    .map(b => [{yAxis: b.from, itemStyle: {color: b.color}}, {yAxis: b.to}]);
+}
+
+function bottomOption(tab) {
+  const base = DATA.trend[Number($('baseline').value)] || DATA.trend[0];
+  if (tab === 'gap') {
+    return {
+      animation: false,
+      grid: {left: 56, right: 22, top: 24, bottom: 52},
+      tooltip: {trigger: 'axis', formatter: (ps) => {
+        const i = ps[0].dataIndex, g = gradeOf(DATA.gap[i]);
+        return lessons[i] + '<br>累计差值 <b>' + fmt(DATA.gap[i]) + 'pp</b>　<span style="color:' + g.color + '">' + g.label + '</span>';
+      }},
+      xAxis: {type: 'category', data: lessons, axisLabel: {fontSize: 10, interval: 0, rotate: 0, color: '#667085', margin: 8}, axisTick: {show: false}},
+      yAxis: {type: 'value', min: 0, max: 26, axisLabel: {fontSize: 10, color: '#667085'}, splitLine: {lineStyle: {color: '#eef1f6'}}},
+      dataZoom: [zoom(0, 100), {type: 'inside', start: 0, end: 100}],
+      series: [{name: '累计差值', type: 'line', symbol: 'circle', symbolSize: 4, lineStyle: {width: 2.4, color: '#f79009'},
+                itemStyle: {color: '#f79009'}, data: DATA.gap,
+                markArea: {silent: true, data: bandAreas()},
+                markLine: {silent: true, symbol: 'none', data: DATA.grades.filter(g => g.max !== null).map(g => ({
+                  yAxis: g.max, lineStyle: {color: g.color, type: 'dashed', width: 1},
+                  label: {formatter: g.label + ' ≤' + g.max + 'pp', position: 'insideStartTop', fontSize: 10, color: g.color}}))}}]
+    };
+  }
+  if (tab === 'pending') {
+    return {
+      animation: false,
+      grid: {left: 56, right: 66, top: 20, bottom: 52},
+      tooltip: {trigger: 'axis', formatter: (ps) => {
+        const i = ps[0].dataIndex, f = DATA.funnel[i];
+        return '<b>' + lessons[i] + '</b><br>累计欠交课 <b>' + f.pending + ' 人</b><br>累计欠交作业 <b>' + f.pending_homework + ' 人</b>';
+      }},
+      xAxis: {type: 'category', data: lessons, axisLabel: {fontSize: 10, interval: 0, rotate: 0, color: '#667085', margin: 8}, axisTick: {show: false}},
+      yAxis: [
+        {type: 'value', min: 0, max: DATA.total, axisLabel: {fontSize: 10, color: '#2f6fed'}, splitLine: {lineStyle: {color: '#eef1f6'}}},
+        {type: 'value', min: 0, max: DATA.total, axisLabel: {fontSize: 10, color: '#12b76a'}, splitLine: {show: false}}
+      ],
+      dataZoom: [zoom(0, 100), {type: 'inside', start: 0, end: 100}],
+      series: [
+        {name: '累计欠交课', type: 'line', areaStyle: {opacity: .12, color: '#2f6fed'}, lineStyle: {width: 2, color: '#2f6fed'}, symbol: 'circle', symbolSize: 4, data: DATA.funnel.map(r => r.pending)},
+        {name: '累计欠交作业', type: 'line', yAxisIndex: 1, areaStyle: {opacity: .12, color: '#12b76a'}, lineStyle: {width: 2, color: '#12b76a'}, symbol: 'circle', symbolSize: 4, data: DATA.funnel.map(r => r.pending_homework)}
+      ]
+    };
+  }
+  const singleCourse = DATA.completed.map((v, i) => i ? Math.max(DATA.completed[i - 1] - v, 0) : v);
+  const singleHomework = DATA.completed_homework.map((v, i) => i ? Math.max(DATA.completed_homework[i - 1] - v, 0) : v);
+  return {
+    animation: false,
+    grid: {left: 56, right: 22, top: 24, bottom: 52},
+    tooltip: {trigger: 'axis', formatter: (ps) => lessons[ps[0].dataIndex] + '<br>本节新完成课程 <b>' + singleCourse[ps[0].dataIndex] + ' 人</b><br>本节新完成作业 <b>' + singleHomework[ps[0].dataIndex] + ' 人</b>'},
+    xAxis: {type: 'category', data: lessons, axisLabel: {fontSize: 10, interval: 0, rotate: 0, color: '#667085', margin: 8}, axisTick: {show: false}},
+    yAxis: {type: 'value', axisLabel: {fontSize: 10, color: '#667085'}, splitLine: {lineStyle: {color: '#eef1f6'}}},
+    dataZoom: [zoom(0, 100), {type: 'inside', start: 0, end: 100}],
+    series: [
+      {name: '单节完课人数', type: 'bar', barMaxWidth: 16, itemStyle: {color: '#2f6fed'}, data: singleCourse},
+      {name: '单节作业人数', type: 'bar', barMaxWidth: 16, itemStyle: {color: '#12b76a'}, data: singleHomework}
+    ]
+  };
+}
+chartBottom.setOption(bottomOption('gap'));
+
+function trendOption(metric) {
+  const names = DATA.trend.map(b => b.name + '\n' + b.label);
+  const map = {
+    gap: {label: '末节累计差值', color: '#f79009', data: DATA.trend.map(b => b.gap), max: 26, suffix: 'pp'},
+    course: {label: '末节累计完课率', color: '#2f6fed', data: DATA.trend.map(b => b.courseRate), max: 100, suffix: '%'},
+    homework: {label: '末节累计作业率', color: '#12b76a', data: DATA.trend.map(b => b.homeworkRate), max: 100, suffix: '%'},
+    pending: {label: '末节累计欠交作业', color: '#b54708',
+              data: DATA.trend.map(b => b.total - Math.round(b.total * b.homeworkRate / 100)), max: 171, suffix: ' 人'}
+  }[metric];
+  return {
+    animation: false,
+    grid: {left: 52, right: 30, top: 30, bottom: 46},
+    tooltip: {trigger: 'axis', formatter: (ps) => {
+      const i = ps[0].dataIndex, b = DATA.trend[i], g = gradeOf(b.gap);
+      return b.name + ' · ' + b.label + '（' + b.total + ' 人）<br>' + map.label + ' <b>' + fmt(ps[0].value) + map.suffix + '</b>' +
+             (metric === 'gap' ? '<br>考核：<span style="color:' + g.color + '">' + g.label + '</span>' : '');
+    }},
+    xAxis: {type: 'category', data: names, axisLabel: {fontSize: 10, color: '#667085', lineHeight: 14}, axisTick: {show: false}},
+    yAxis: {type: 'value', min: 0, max: map.max, axisLabel: {fontSize: 10, color: '#667085'}, splitLine: {lineStyle: {color: '#eef1f6'}}},
+    dataZoom: [zoom(0, 100), {type: 'inside', start: 0, end: 100}],
+    series: [{name: map.label, type: 'line', symbol: 'circle', symbolSize: 8, lineStyle: {width: 2.5, color: map.color},
+              itemStyle: {color: map.color}, label: {show: true, position: 'top', fontSize: 10, color: '#475467',
+              formatter: (p) => fmt(p.value)}, data: map.data,
+              markLine: metric === 'gap' ? {silent: true, symbol: 'none',
+                data: DATA.grades.filter(g => g.max !== null).map(g => ({
+                  yAxis: g.max, lineStyle: {color: g.color, type: 'dashed', width: 1},
+                  label: {formatter: g.label + ' ' + g.max + 'pp', fontSize: 9, color: g.color, position: 'insideEndTop'}}))} : undefined}]
+  };
+}
+chartTrend.setOption(trendOption('gap'));
+
+function showDetail(index) {
+  const f = DATA.funnel[index], g = gradeOf(DATA.gap[index]);
+  const base = DATA.trend[Number($('baseline').value)] || DATA.trend[0];
+  $('detail').innerHTML = '<b>' + lessons[index] + '明细</b>　累计完课率 <b>' + fmt(DATA.course[index]) + '%</b>（' + f.done + ' 人）' +
+    '　累计作业率 <b>' + fmt(DATA.homework[index]) + '%</b>' +
+    '　累计差值 <b style="color:' + g.color + '">' + fmt(DATA.gap[index]) + 'pp · ' + g.label + '</b><br>' +
+    '累计欠交课 <b>' + f.pending + ' 人</b>　累计欠交作业 <b>' + f.pending_homework + ' 人</b>' +
+    '　（对比基线 ' + base.name + ' 末节差值 ' + fmt(base.gap) + 'pp）';
+}
+showDetail(DATA.openLessons - 1);
+
+chartRate.on('dataZoom', () => {
+  const range = chartRate.getOption().dataZoom[0];
+  showDetail(Math.min(DATA.openLessons - 1, Math.round(range.start / 100 * (DATA.openLessons - 1))));
+});
+chartRate.on('click', (p) => showDetail(p.dataIndex));
+chartFunnel.on('click', (p) => showDetail(p.dataIndex));
+$('baseline').onchange = () => {
+  chartBottom.setOption(bottomOption(document.querySelector('.tabs button[data-tab].on').dataset.tab), true);
+  showDetail(DATA.openLessons - 1);
+};
+document.querySelectorAll('.tabs button[data-tab]').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.tabs button[data-tab]').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    chartBottom.setOption(bottomOption(btn.dataset.tab), true);
+  };
+});
+document.querySelectorAll('.tabs button[data-trend]').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.tabs button[data-trend]').forEach(b => b.classList.remove('on'));
+    btn.classList.add('on');
+    chartTrend.setOption(trendOption(btn.dataset.trend), true);
+  };
+});
+window.addEventListener('resize', () => { chartRate.resize(); chartFunnel.resize(); chartBottom.resize(); chartTrend.resize(); });
+</script>
+</body>
+</html>

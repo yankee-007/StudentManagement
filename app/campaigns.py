@@ -1,4 +1,7 @@
-"""Immutable class snapshots and student-linked campaign feedback."""
+"""Class snapshots and student-linked campaign feedback.
+
+Only the newest batch follows later fetches; every older batch keeps the snapshot it was created with.
+"""
 import json
 import re
 from datetime import date, datetime
@@ -48,6 +51,30 @@ def lessons(value):
     return ','.join(re.findall(r'\d+', str(value)))
 
 
+def learning_snapshot(flags):
+    """Learning columns for one student's T/F/N/U flags.
+
+    Single shared derivation: snapshot creation and newest-batch refresh must never disagree.
+    """
+    courses = ','.join(str(i) for i in range(1,33) if flags.get(f'c{i}') == 'F')
+    homework = ','.join(str(i) for i in range(1,33) if flags.get(f'z{i}') == 'F')
+    ctotal = sum(flags.get(f'c{i}') == 'T' for i in range(1,33))
+    ztotal = sum(flags.get(f'z{i}') == 'T' for i in range(1,33))
+    missing = f'{len(courses.split(",")) if courses else 0}/{len(homework.split(",")) if homework else 0}'
+    completed = f'{ctotal}/{ztotal}'
+    if 'U' in flags.values():
+        missing_parts = missing.split('/')
+        if any(flags.get(f'c{i}') == 'U' for i in range(1,33)):
+            courses, ctotal, missing_parts[0] = '未获取', None, '—'
+        if any(flags.get(f'z{i}') == 'U' for i in range(1,33)):
+            homework, ztotal, missing_parts[1] = '未获取', None, '—'
+        missing = '/'.join(missing_parts)
+        completed = f'{ctotal if ctotal is not None else "—"}/{ztotal if ztotal is not None else "—"}'
+    return dict(courses=courses,homework=homework,missing_total=missing,completed_total=completed,
+                completed_courses='' if ctotal is None else str(ctotal),
+                completed_homework='' if ztotal is None else str(ztotal))
+
+
 class CampaignStore:
     def __init__(self, db, repo):
         self.db, self.repo = db, repo
@@ -67,7 +94,8 @@ class CampaignStore:
             row=conn.execute('SELECT data FROM campaign_dashboards WHERE batch_id=?',(batch,)).fetchone()
         if row:
             data=json.loads(row['data'])
-            notice=f'第 {batch} 次催办 · 创建时的数据快照'
+            notice=(f"第 {batch} 次催办 · 学习数据已跟随 {data['refreshed_at']} 的获取刷新"
+                    if data.get('refreshed_at') else f'第 {batch} 次催办 · 创建时的数据快照')
             if data.get('version',1)<2:
                 # Old aggregates cannot recover the intersection of students across lessons.
                 for item in data['courses']+data['homework']:
@@ -101,27 +129,12 @@ class CampaignStore:
                 sid = student['student_id']
                 fields = student.get('profile_fields', {})
                 flags = source.get(sid)
-                course = lessons(fields.get('差的课程',student['pending_courses_text']))
-                homework = lessons(fields.get('差的作业',student['pending_homework_text']))
-                ctotal, ztotal = fields.get('合计完课'), fields.get('合计作业')
-                if flags is not None:
-                    course = ','.join(str(i) for i in range(1,33) if flags.get(f'c{i}') == 'F')
-                    homework = ','.join(str(i) for i in range(1,33) if flags.get(f'z{i}') == 'F')
-                    ctotal = sum(flags.get(f'c{i}') == 'T' for i in range(1,33))
-                    ztotal = sum(flags.get(f'z{i}') == 'T' for i in range(1,33))
+                learning = learning_snapshot(flags) if flags is not None else None
+                if learning is None:
+                    course=homework=missing=completed=''
                 else:
-                    course=homework=''
-                    ctotal=ztotal=None
-                missing = f'{len(course.split(",")) if course else 0}/{len(homework.split(",")) if homework else 0}' if flags is not None else ''
-                completed = f'{ctotal}/{ztotal}' if flags is not None else ''
-                if flags is not None and 'U' in flags.values():
-                    missing_parts = missing.split('/')
-                    if any(flags.get(f'c{i}') == 'U' for i in range(1,33)):
-                        course, ctotal, missing_parts[0] = '未获取', None, '—'
-                    if any(flags.get(f'z{i}') == 'U' for i in range(1,33)):
-                        homework, ztotal, missing_parts[1] = '未获取', None, '—'
-                    missing = '/'.join(missing_parts)
-                    completed = f'{ctotal if ctotal is not None else "—"}/{ztotal if ztotal is not None else "—"}'
+                    course,homework = learning['courses'],learning['homework']
+                    missing,completed = learning['missing_total'],learning['completed_total']
                 placeholder = student.get('is_placeholder',False)
                 if placeholder:
                     course=homework=missing=completed=''
@@ -133,8 +146,8 @@ class CampaignStore:
                           else '姓名或备注缺失' if not student['name'] or not remark.strip()
                           else '微信未添加' if fields.get('微信') != '是' else '')
                 snap = dict(courses=course,homework=homework,missing_total=missing,completed_total=completed,
-                            completed_courses='' if placeholder or ctotal is None else str(ctotal),
-                            completed_homework='' if placeholder or ztotal is None else str(ztotal),
+                            completed_courses='' if placeholder or learning is None else learning['completed_courses'],
+                            completed_homework='' if placeholder or learning is None else learning['completed_homework'],
                             position=position,priority=0 if not course and homework else 1,
                             source_sync=(student.get('last_sync_at') or '') if flags is not None else '',matched=flags is not None,
                             exemption_end=student.get('exemption_date') or '',exemption_date=student.get('exemption_date') or '',is_placeholder=placeholder,
@@ -143,6 +156,51 @@ class CampaignStore:
                 conn.execute('INSERT INTO campaign_students VALUES(?,?,?,?,?,?,?,?,?,NULL)',
                              (batch,sid,student['name'],remark,json.dumps(snap,ensure_ascii=False),int(not reason),reason,message,'待发送' if not reason else '不发送'))
         return batch
+
+    def refresh_latest_learning(self):
+        """Follow the newest batch with the current learning data; older snapshots stay frozen.
+
+        Membership, feedback, drafts, exemption and send state are never touched here, and a student
+        missing from this fetch keeps the data already obtained instead of being blanked.
+        """
+        batches = self.batches()
+        if not batches:return 0
+        latest = batches[0]['id']
+        source = self.repo.learning_source()
+        if not source:return 0
+        student_list = self.repo.list_students()
+        students = {r['student_id']:r for r in student_list}
+        refreshed = 0
+        with self.db.connect() as conn:
+            batch = list(conn.execute('SELECT student_id,snapshot FROM campaign_students WHERE batch_id=?',(latest,)))
+            stamps = [students.get(r['student_id'],{}).get('last_sync_at') or '' for r in batch if r['student_id'] in source]
+            for record in batch:
+                flags = source.get(record['student_id'])
+                if flags is None:continue
+                learning = learning_snapshot(flags)
+                learning['source_sync'] = students.get(record['student_id'],{}).get('last_sync_at') or ''
+                snapshot = json.loads(record['snapshot'])
+                if all(snapshot.get(key) == value for key,value in learning.items()):continue
+                snapshot.update(learning)
+                conn.execute('UPDATE campaign_students SET snapshot=? WHERE batch_id=? AND student_id=?',
+                             (json.dumps(snapshot,ensure_ascii=False),latest,record['student_id']))
+                refreshed += 1
+            stamp = (max(stamps) if stamps else datetime.now().isoformat(timespec='seconds')) if refreshed else ''
+            if refreshed:
+                # 最新批次的时间跟随最近一次获取；历史批次的时间不动。
+                conn.execute('UPDATE campaigns SET created_at=? WHERE id=?',(stamp,latest))
+            # A missing dashboard row is not resurrected: 丢失快照仍显示"无法准确还原"。
+            row = conn.execute('SELECT data FROM campaign_dashboards WHERE batch_id=?',(latest,)).fetchone()
+            if row and stamps:
+                stored = json.loads(row['data'])
+                data = learning_dashboard(student_list,source)
+                if refreshed:
+                    data['refreshed_at'] = stamp
+                elif stored.get('refreshed_at'):
+                    data['refreshed_at'] = stored['refreshed_at']
+                if stored != data:
+                    conn.execute('UPDATE campaign_dashboards SET data=? WHERE batch_id=?',(json.dumps(data,ensure_ascii=False),latest))
+        return refreshed
 
     def sync_current_identity(self):
         """Only the newest batch follows current identity; prior snapshots are frozen."""

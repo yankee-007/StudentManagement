@@ -6,6 +6,8 @@ ScrollView {
     id: editor
     property var fields: []
     property var saveTarget
+    property bool deferTextSave: false
+    property bool compact: false
     clip: true
     contentWidth: availableWidth
     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
@@ -19,8 +21,8 @@ ScrollView {
         } else editor.forceActiveFocus()
     }
     ColumnLayout {
-        width: editor.availableWidth - 10
-        spacing: 8
+        width: editor.availableWidth - (editor.compact ? 4 : 10)
+        spacing: editor.compact ? 5 : 8
         Repeater {
             id: fieldRows
             model: editor.fields
@@ -28,6 +30,8 @@ ScrollView {
                 required property var modelData
                 required property int index
                 saveTarget: editor.saveTarget
+                deferTextSave: editor.deferTextSave
+                compact: editor.compact
                 studentId: modelData.studentId
                 recordKey: modelData.recordKey
                 caption: modelData.label

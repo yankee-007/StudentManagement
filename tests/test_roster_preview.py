@@ -38,5 +38,13 @@ class RosterPreviewTests(unittest.TestCase):
             batch=w._batch
             b.repo.set_setting('snapshot',json.dumps([{'student_id':'001','flags':{'c1':'T','c2':'T','z1':'T'}}]))
             w.refresh_live()
-            self.assertEqual(w.tableModel.rows[0]['completed_total'],'1/0')
+            # The newest batch follows later learning data.
+            self.assertEqual(w.tableModel.rows[0]['completed_total'],'2/1')
             self.assertEqual(w._batch,batch)
+            w.createBatch()
+            newest=w._batch
+            self.assertNotEqual(newest,batch)
+            b.repo.set_setting('snapshot',json.dumps([{'student_id':'001','flags':{'c1':'F','z1':'F'}}]))
+            w.refresh_live()
+            self.assertEqual(w.store.rows(newest)[0]['missing_total'],'1/1')
+            self.assertEqual(w.store.rows(batch)[0]['completed_total'],'2/1')

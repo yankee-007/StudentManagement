@@ -6,6 +6,7 @@ ColumnLayout {
     id: panel
     property var service: backend.termsModule
     property string selectedId: ""
+    ClassSwitchOverlay { id: termSwitch }
     spacing: 10
     RowLayout {
         Layout.fillWidth: true
@@ -22,10 +23,21 @@ ColumnLayout {
                 Layout.fillWidth: true
                 Label { text: "班期"; color: "#475467" }
                 ComboBox {
+                    objectName: "termClassSelector"
+                    popup.objectName: "termClassSelectorPopup"
                     model: service.terms; textRole: "label"; currentIndex: service.termIndex
                     Layout.preferredWidth: 250; enabled: !service.busy && !backend.busy
                     displayText: currentIndex < 0 ? "正在初始化班期" : currentText
-                    onActivated: { panel.selectedId = ""; service.selectTerm(currentIndex) }
+                    onActivated: function(index) {
+                        popup.close()
+                        if (index === service.termIndex) return
+                        var name = service.terms[index].label
+                        var size = service.termRosterSize(index)
+                        termSwitch.begin(name, function() {
+                            panel.selectedId = ""
+                            service.selectTerm(index)
+                        }, size < 0 || size >= 300)
+                    }
                 }
                 Item { Layout.fillWidth: true }
                 Button { text: "导出当前显示 XLSX"; enabled: service.visibleCount > 0; onClicked: service.exportRoster() }

@@ -55,5 +55,35 @@ class SettingsTests(unittest.TestCase):
                 self.assertEqual(b.workflow.registry.get_setting('homework_admin_id'),'test-homework')
                 self.assertFalse(b.fetchData())  # No term/binding means no network request.
 
+    def test_homework_classes_survive_restart_for_the_same_account(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / 'test.db'
+            b = Backend(path)
+            b.workflow.registry.set_setting('homework_admin_id', 'hw-admin')
+            b.workflow._classes[0]['term_id'] = '551'
+            settings = b.settingsModule
+            settings._classes_loaded([{'id': 23, 'name': '正式课py169', 'course_ids': [2]},
+                                      {'id': 31, 'name': '正式课py175', 'course_ids': [5]}])
+            self.assertTrue(settings.saveBinding('551', 23), settings.notice)
+            self.assertEqual(settings.bindingFor('551')['course_id'], 2)
+            # 也不应依赖界面传课程：自动取该班级第一个课程。
+            self.assertTrue(settings.saveBinding('551', 31))
+            self.assertEqual(settings.bindingFor('551')['course_id'], 5)
+            self.assertFalse(settings.saveBinding('551', 99))
+
+            # 平台没有返回课程时不允许确认，避免写出无效课程 ID。
+            settings._homework_classes = [{'id': 40, 'name': '无课程班级', 'course_ids': []}]
+            self.assertFalse(settings.saveBinding('551', 40))
+            self.assertIn('课程', settings.notice)
+
+            reopened = Backend(path)
+            restored = reopened.settingsModule
+            self.assertEqual([c['id'] for c in restored.homeworkClasses], [23, 31])
+            self.assertEqual(restored.homeworkClasses[0]['course_ids'], [2])
+            self.assertEqual(restored.bindingFor('551')['class_id'], 31)
+            # 换账号后不再复用上一个账号的班级目录。
+            restored.saveAccount('homework', 'other-admin', 'password')
+            self.assertEqual(restored.homeworkClasses, [])
+
 
 if __name__=='__main__':unittest.main()

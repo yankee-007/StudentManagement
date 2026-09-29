@@ -11,7 +11,7 @@ from .profiles import import_profiles
 from .campaigns import CampaignStore, EXPORT_COLUMNS, TEST_TEMPLATE, lessons
 from .qt_models import DictTableModel
 from .xlsx_export import export_table
-from .table_query import matches, sort_value
+from .table_query import matches, sort_value, next_cursor
 from .profile_storage import set_exemption
 
 TABLE_COLUMNS = EXPORT_COLUMNS + [('reply_state','反馈状态')]
@@ -35,6 +35,8 @@ class Workflow(QObject):
         self._filter = 'all'
         self._search = ''
         self._column_filters = {}
+        self._frozen = None
+        self._stale_changed = set()
         self._sort_column = -1
         self._sort_key = ''
         self._sort_descending = False
@@ -96,6 +98,18 @@ class Workflow(QObject):
         return False
     @Property(int,notify=selectionChanged)
     def visibleCount(self): return self._model.rowCount()
+    @Property(int,notify=changed)
+    def matchedCount(self): return sum(1 for r in self._model.rows if not r.get('_filter_stale'))
+    @Property(int,notify=changed)
+    def staleCount(self): return sum(1 for r in self._model.rows if r.get('_filter_stale'))
+    @Property(bool,notify=changed)
+    def hasStale(self): return any(r.get('_filter_stale') for r in self._model.rows)
+    @Property(str,notify=selectionChanged)
+    def cursorText(self):
+        sid=self._selected.get('student_id')
+        index=next((i for i,r in enumerate(self._model.rows) if r['student_id']==sid),-1)
+        if index<0:return ''
+        return f"正在处理 第 {index+1} / {len(self._model.rows)} 条 · {self._selected.get('name','')}"
     @Property(int,notify=queryChanged)
     def sortColumnIndex(self): return next((i for i,c in enumerate(self._model.columns) if c[0]==self._sort_key),-1) if self._sort_key else next((i for i,c in enumerate(self._model.columns) if c[0]==('missing_total' if self._filter=='targets' else 'student_id')),0)
     @Property(bool,notify=queryChanged)
@@ -112,17 +126,24 @@ class Workflow(QObject):
     def recipientKeys(self):
         if not self._batch:return []
         return [json.dumps([str(self.owner.db.path),self._batch,r['student_id']],ensure_ascii=False)
-                for r in self._model.rows if r.get('student_id') and str(r.get('name') or '').strip() and not r.get('is_placeholder')]
+                for r in self._scope_rows() if r.get('student_id') and str(r.get('name') or '').strip() and not r.get('is_placeholder')]
 
     def _searched_rows(self):
-        rows=self._rows
-        if self._batch and self._filter=='pending':rows=[r for r in rows if r['reply_state']=='待反馈']
-        if self._filter=='targets':rows=[r for r in rows if r.get('wechat')=='是' and not r.get('is_placeholder') and r.get('roster_status','') in ('','在读') and self.missing_count(r)>0 and (not self._batch or r.get('current_eligible',r['eligible']))]
-        if self._batch and self._filter=='failed':rows=[r for r in rows if r['send_state'] in ('未发送失败','结果待确认','模拟失败')]
-        if self._search.strip():
-            needle=self._search.strip().lower()
-            rows=[r for r in rows if needle in (r['student_id']+' '+r['name']+' '+r['remark']).lower()]
-        return rows
+        return [r for r in self._rows if self._matches_view(r) and self._matches_search(r)]
+
+    def _matches_view(self,row):
+        if self._batch and self._filter=='pending' and row['reply_state']!='待反馈':return False
+        if self._filter=='targets' and not (row.get('wechat')=='是' and not row.get('is_placeholder') and row.get('roster_status','') in ('','在读')
+                                            and self.missing_count(row)>0 and (not self._batch or row.get('current_eligible',row['eligible']))):return False
+        if self._batch and self._filter=='failed' and row['send_state'] not in ('未发送失败','结果待确认','模拟失败'):return False
+        return True
+
+    def _matches_search(self,row):
+        needle=self._search.strip().lower()
+        return not needle or needle in (row['student_id']+' '+row['name']+' '+row['remark']).lower()
+
+    def _row_matches_query(self,row):
+        return self._matches_view(row) and self._matches_search(row) and self._matches_filters(row)
 
     def _matches_filters(self,row,skip=None):
         for key,rule in self._column_filters.items():
@@ -131,6 +152,35 @@ class Workflow(QObject):
                 if str(row.get(key) or '') not in rule['values']:return False
             elif not matches(row,{key:rule}):return False
         return True
+
+    def _query_active(self):
+        if self._column_filters or self._search.strip():return True
+        if self._filter=='targets':return True
+        return bool(self._batch) and self._filter in ('pending','failed')
+
+    def _matched_rows(self):return [r for r in self._rows if self._row_matches_query(r)]
+
+    def _recompute_freeze(self):
+        # ADR-007: 冻结本次应用筛选时命中的学员；没有查询条件时保持实时视图。
+        self._frozen={r['student_id'] for r in self._matched_rows()} if self._query_active() else None
+
+    def _visible_rows(self):
+        if self._frozen is None:return self._matched_rows()
+        return [r for r in self._rows if r['student_id'] in self._frozen]
+
+    def _mark_stale(self,rows):
+        # 行数据变化后不重新筛选，只标记“已不符合当前筛选”；只有重新应用筛选才会移除。
+        changed=set()
+        for row in rows:
+            stale=not self._row_matches_query(row)
+            if '_filter_stale' not in row or bool(row['_filter_stale'])!=stale:
+                row['_filter_stale']=stale
+                changed.add(row['student_id'])
+        return changed
+
+    def _scope_rows(self):
+        # 业务范围（名单生成、批量未回复）只取真正匹配筛选的学员，过期行仅供显示。
+        return [r for r in self.display_rows() if not r.get('_filter_stale')]
 
     @Slot(int,result='QVariantMap')
     def columnFilterInfo(self,index):
@@ -154,7 +204,7 @@ class Workflow(QObject):
         if not -1 <= index < len(self._model.columns): return
         self._sort_column, self._sort_descending = index, descending
         self._sort_key=self._model.columns[index][0] if index>=0 else ''
-        self.apply_filter()
+        self.apply_filter(recompute=False)
         self.queryChanged.emit()
 
     @Slot(str,bool)
@@ -236,21 +286,21 @@ class Workflow(QObject):
             if '学员学习反馈' in key and value:lines.append(key+'：'+str(value))
         return '\n'.join(lines) or '暂无以往反馈'
 
-    def reload_batches(self, batch=None):
+    def reload_batches(self, batch=None, students=None):
         self._batches = self.store.batches()
         self._batch = batch if batch is not None else (self._batches[0]['id'] if self._batches else 0)
-        self.reload_rows()
+        self.reload_rows(students=students)
 
-    def reload_rows(self, prefer=None):
+    def reload_rows(self, prefer=None, students=None, keep_query=False):
         self._model.columns = self.batch_columns([(key,dict(TABLE_COLUMNS)[key]) for key in self._field_order()])
         self.refresh_dashboard()
-        self._rows = self.store.rows(self._batch) if self._batch else self.live_roster()
-        self.apply_filter(prefer)
+        self._rows = self.store.rows(self._batch) if self._batch else self.live_roster(students)
+        self.apply_filter(prefer, recompute=not keep_query)
         self.changed.emit()
 
-    def live_roster(self):
+    def live_roster(self, students=None):
         """Read-only preview: viewing the roster must not create a campaign."""
-        students=self.owner.repo.list_students()
+        students=students if students is not None else self.owner.repo.list_students()
         source=self.owner.repo.learning_source()
         with self.owner.db.connect() as conn:
             contacts={r['student_id']:r['remark'] for r in conn.execute('SELECT * FROM student_contacts')}
@@ -292,17 +342,20 @@ class Workflow(QObject):
                 rows[-1].update(courses='',homework='',missing_total='',completed_total='',completed_courses='',completed_homework='')
         return rows
 
-    @Slot()
-    def refresh_live(self):
-        # New imports/fetches update the preview, never an existing snapshot.
+    @Slot(result=int)
+    def refresh_live(self, keep_query=False):
+        # New imports/fetches update the preview and follow the newest batch; older snapshots stay frozen.
+        refreshed = self.store.refresh_latest_learning()
         self.store.sync_current_identity()
-        if not self._batch or self.canEdit:self.reload_rows()
+        if refreshed:self._batches = self.store.batches()
+        if not self._batch or self.canEdit:self.reload_rows(keep_query=keep_query)
         else:
             self.refresh_dashboard()
             self.changed.emit()
+        return refreshed
 
     def display_rows(self):
-        rows = [r for r in self._searched_rows() if self._matches_filters(r)]
+        rows = self._visible_rows()
         if self._sort_key:
             key = self._sort_key
             rows = sorted(rows,key=lambda r:self.missing_count(r) if key=='missing_total' else sort_value(r,key),reverse=self._sort_descending)
@@ -310,18 +363,26 @@ class Workflow(QObject):
             rows = sorted(rows,key=lambda r:(-self.missing_count(r),r['student_id']))
         else:
             rows = sorted(rows,key=lambda r:r['student_id'])
+        self._stale_changed = self._mark_stale(rows)
         return rows
 
     @staticmethod
     def missing_count(row):
         return sum(int(v) for v in str(row.get('missing_total') or '').split('/') if v.isdigit())
 
-    def apply_filter(self, prefer=None):
+    def apply_filter(self, prefer=None, recompute=True):
+        previous = [r['student_id'] for r in self._model.rows]
+        if recompute:self._recompute_freeze()
         rows = self.display_rows()
         self._model.set_rows(rows)
         sid = prefer if prefer is not None else self._selected.get('student_id')
-        self._selected = next((r for r in rows if r['student_id']==sid), rows[0] if rows else {})
+        self._selected = next_cursor(rows, lambda r: r['student_id'], sid or '', previous)
         self.selectionChanged.emit()
+
+    @Slot()
+    def reapplyFilters(self):
+        self.apply_filter()
+        self.queryChanged.emit()
 
     @Slot(str,str)
     def filterRows(self, view, search):
@@ -337,6 +398,11 @@ class Workflow(QObject):
         if 0<=row<len(self._model.rows):
             self._selected=self._model.rows[row]
             self.selectionChanged.emit()
+
+    @Slot()
+    def activate(self):
+        # 进入模块只重读数据，不重新筛选：处理中的名单不因切换页面而改变（ADR-007）。
+        self.refresh_live(keep_query=True)
 
     @Slot(int)
     def selectBatch(self,index):
@@ -408,8 +474,8 @@ class Workflow(QObject):
     def markUnreplied(self):
         if not self.canEdit or self._filter not in ('targets','pending'):return
         try:
-            count=self.store.mark_unreplied(self._batch,[r['student_id'] for r in self._model.rows])
-            self.reload_rows()
+            count=self.store.mark_unreplied(self._batch,[r['student_id'] for r in self._scope_rows()])
+            self.reload_rows(keep_query=True)
             self.owner.toast.emit(f'已标记 {count} 人未回复；有反馈或草稿者已跳过')
         except Exception as exc:self.owner.toast.emit(str(exc))
 
@@ -424,8 +490,8 @@ class Workflow(QObject):
             return
         try:
             set_exemption(self.owner.db,self._selected['student_id'],value)
-            self.reload_rows()
-            self.owner.profilesModule.refresh()
+            self.reload_rows(keep_query=True)
+            self.owner.profilesModule.refresh(keep_query=True)
             self.owner.toast.emit('免催日期已保存，包含当天；到期后恢复催办')
         except Exception as exc:self.owner.toast.emit(str(exc))
 
@@ -433,8 +499,8 @@ class Workflow(QObject):
     def clearLeave(self):
         if not self.canSetExemption or not self._selected:return
         set_exemption(self.owner.db,self._selected['student_id'],'')
-        self.reload_rows()
-        self.owner.profilesModule.refresh()
+        self.reload_rows(keep_query=True)
+        self.owner.profilesModule.refresh(keep_query=True)
         self.owner.toast.emit('已清除免催日期，当前催办重新判断')
 
     @Slot(str,str,result=bool)
@@ -546,13 +612,48 @@ class Workflow(QObject):
             self.owner.toast.emit(f'已导出全班 {count} 人，不受筛选影响')
         except Exception as exc:self.owner.toast.emit('导出失败：'+str(exc))
 
+    @Slot(int, result=int)
+    def classRosterSize(self, index):
+        """Cached roster size of a class, known before a switch so the loading hint is not a lie.
+
+        Read-only probe: never constructs/migrates the target class database. -1 means unknown.
+        """
+        if not 0 <= index < len(self._classes):
+            return -1
+        path = self._classes[index]['path']
+        if not hasattr(self, '_class_sizes'):
+            self._class_sizes = {}
+        if path not in self._class_sizes:
+            size = -1
+            try:
+                import sqlite3
+                conn = sqlite3.connect(Path(path).as_uri() + '?mode=ro', uri=True)
+                try:
+                    size = conn.execute('SELECT count(*) FROM class_roster WHERE active=1').fetchone()[0]
+                finally:
+                    conn.close()
+            except Exception:
+                size = -1
+            self._class_sizes[path] = size
+        return self._class_sizes[path]
+
     @Slot(int)
     def selectClass(self,index):
         if self.owner.busy or self.send_busy or not 0<=index<len(self._classes):return
         if hasattr(self.owner,'_terms_module') and self.owner.termsModule.busy:return
         entry=self._classes[index]
-        self.owner.db=Database(entry['path'])
-        self.owner.repo=StudentRepository(self.owner.db)
+        if not hasattr(self, '_class_contexts'):
+            self._class_contexts={str(self.owner.db.path):(self.owner.db,self.owner.repo,self.store)}
+        context=self._class_contexts.get(entry['path'])
+        if context is None:
+            db=Database(entry['path'])
+            repo=StudentRepository(db)
+            store=CampaignStore(db,repo)
+            from .sending_store import recover
+            recover(db)
+            context=(db,repo,store)
+            self._class_contexts[entry['path']]=context
+        self.owner.db,self.owner.repo,self.store=context
         self.owner.fetchIssuesChanged.emit()
         self.owner._selected={}
         self.class_index=index
@@ -561,11 +662,9 @@ class Workflow(QObject):
         self._sort_column = -1
         self._sort_key = ''
         self.queryChanged.emit()
-        self.store=CampaignStore(self.owner.db,self.owner.repo)
-        from .sending_store import recover
-        recover(self.store.db)
-        self.owner.refresh()
-        self.reload_batches()
+        students=self.owner.refresh()
+        self.reload_batches(students=students)
+        self.owner._refresh_statistics(students)
         if hasattr(self.owner,'_terms_module') and entry.get('term_id'):
             self.owner.termsModule.alignTerm(entry['term_id'])
 

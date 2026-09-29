@@ -4,13 +4,13 @@ import json
 from PySide6.QtCore import QObject, Property, QTimer, Signal, Slot
 
 from .profile_storage import set_exemption
+from .contact_match import name_in_chat_title
 
 
 class CampaignCompanion(QObject):
     changed = Signal()
     selectionChanged = Signal()
     noticeChanged = Signal()
-    lockedChanged = Signal()
 
     def __init__(self, owner):
         super().__init__(owner)
@@ -18,7 +18,6 @@ class CampaignCompanion(QObject):
         self._selected = {}
         self._context = None
         self._notice = '打开企业微信的学员聊天窗口以自动识别'
-        self._locked = False
         self._editing = False
         self._last_title = ''
         self._timer = QTimer(self)
@@ -45,9 +44,6 @@ class CampaignCompanion(QObject):
             self._selected = {}
             self.changed.emit()
             self.selectionChanged.emit()
-        if self._locked:
-            self._locked = False
-            self.lockedChanged.emit()
         self._set_notice('请先选择当前最新催办批次' if not context else '班期或批次已切换，请重新识别学员')
         return bool(context)
 
@@ -64,10 +60,8 @@ class CampaignCompanion(QObject):
                     self.selectionChanged.emit()
             else:
                 self._selected = {}
-                self._locked = False
                 self.changed.emit()
                 self.selectionChanged.emit()
-                self.lockedChanged.emit()
 
     @staticmethod
     def _real(row):
@@ -125,11 +119,6 @@ class CampaignCompanion(QObject):
     def notice(self):
         return self._notice
 
-    @Property(bool, notify=lockedChanged)
-    def locked(self):
-        self._sync_context()
-        return self._locked
-
     @Slot()
     def open(self):
         self._sync_context()
@@ -144,16 +133,9 @@ class CampaignCompanion(QObject):
     def setEditing(self, value):
         self._editing = bool(value)
 
-    @Slot(bool)
-    def setLocked(self, value):
-        if not self._sync_context():
-            return
-        self._locked = bool(value) and bool(self._selected)
-        self.lockedChanged.emit()
-
     @Slot()
     def refreshContact(self):
-        if not self._sync_context() or self._locked:
+        if not self._sync_context():
             return
         title = self.owner.profileCompanion._active_wecom_title()
         if not title:
@@ -167,9 +149,6 @@ class CampaignCompanion(QObject):
     def retryContact(self):
         if not self._sync_context():
             return
-        if self._locked:
-            self._set_notice('请先解除学员锁定，再重新识别')
-            return
         title = self.owner.profileCompanion._active_wecom_title() or self._last_title
         if title:
             self._match_title(title)
@@ -179,7 +158,7 @@ class CampaignCompanion(QObject):
     def _match_title(self, title):
         if not self._sync_context():
             return
-        candidates = [r for r in self.owner.workflow._rows if self._real(r) and r['name'].strip() in title] if title not in ('企业微信', 'WeCom') else []
+        candidates = [r for r in self.owner.workflow._rows if self._real(r) and name_in_chat_title(r['name'], title)]
         if len(candidates) != 1:
             if self._selected:
                 self._selected = {}
@@ -213,7 +192,7 @@ class CampaignCompanion(QObject):
                 wf.store.draft(wf._batch, sid, value)
             else:
                 wf.store.submit(wf._batch, sid, value)
-            wf.reload_rows(prefer=wf._selected.get('student_id'))
+            wf.reload_rows(prefer=wf._selected.get('student_id'),keep_query=True)
             self._workflow_changed()
             self._set_notice('草稿已保存' if kind == 'draft' else '反馈已记录')
             return True
@@ -244,8 +223,8 @@ class CampaignCompanion(QObject):
         try:
             sid = self._selected['student_id']
             set_exemption(self.owner.db, sid, value)
-            self.owner.workflow.reload_rows(prefer=self.owner.workflow._selected.get('student_id'))
-            self.owner.profilesModule.refresh()
+            self.owner.workflow.reload_rows(prefer=self.owner.workflow._selected.get('student_id'),keep_query=True)
+            self.owner.profilesModule.refresh(keep_query=True)
             self._workflow_changed()
             self._set_notice('免催日期已保存' if value else '已清除免催日期')
         except Exception as exc:

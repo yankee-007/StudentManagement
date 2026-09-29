@@ -25,7 +25,8 @@ Item {
         RowLayout {
             Layout.fillWidth: true
             TextField { id: searchInput; placeholderText: "搜索班期、学号、姓名"; Layout.fillWidth: true; onTextEdited: timer.restart(); Timer { id: timer; interval: 180; onTriggered: profiles.search(searchInput.text) } }
-            Label { text: "显示 " + profiles.visibleCount + " / " + profiles.total + " 人"; color: "#667085" }
+            Label { text: "显示 " + profiles.visibleCount + " / " + profiles.total + " 人" + (profiles.hasStale ? "（" + profiles.staleCount + " 人已不符合当前筛选）" : "") + (profiles.cursorText.length > 0 ? " · " + profiles.cursorText : ""); color: profiles.hasStale ? "#b54708" : "#667085"; elide: Text.ElideRight; Layout.maximumWidth: 420 }
+            Button { objectName: "profileReapplyFilter"; text: "重新应用筛选"; visible: profiles.hasStale; onClicked: profiles.reapplyFilters() }
             Button { text: "新建名单到群发中心"; enabled: profiles.recipientKeys.length > 0 && !backend.groupCenter.active; onClicked: profileGroupDialog.open() }
             Button { text: "清除筛选"; visible: profiles.filteredKeys.length > 0; onClicked: profiles.clearFilters() }
         }
@@ -37,7 +38,7 @@ Item {
                 background: Rectangle { color: "white"; radius: 10; border.color: "#e4e7ec" }
                 ColumnLayout {
                     anchors.fill: parent
-                    Label { text: "点击表头筛选或排序；可组合多个字段条件"; font.pixelSize: 11; color: "#667085" }
+                    Label { text: "点击表头筛选或排序；可组合多个字段条件。修改字段不会把学员移出当前筛选，需点「重新应用筛选」或清除筛选。"; font.pixelSize: 11; color: "#667085" }
                     Item {
                         Layout.fillWidth: true; Layout.fillHeight: true; clip: true
                         HorizontalHeaderView {
@@ -64,9 +65,10 @@ Item {
                                 required property string display
                                 required property string recordKey
                                 required property bool expiredCell
+                                required property bool staleRow
                                 implicitHeight: 20; implicitWidth: 115
-                                color: recordKey === (page.student._record_key || "") ? "#dce6ff" : row % 2 ? "#f8faff" : "white"
-                                Text { anchors.fill: parent; anchors.leftMargin: 6; text: display; elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter; font.pixelSize: 10; color: expiredCell ? "#98a2b3" : "#344054" }
+                                color: recordKey === (page.student._record_key || "") ? "#dce6ff" : staleRow ? "#fff4e5" : row % 2 ? "#f8faff" : "white"
+                                Text { anchors.fill: parent; anchors.leftMargin: 6; text: display; elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter; font.pixelSize: 10; color: expiredCell ? "#98a2b3" : staleRow ? "#b54708" : "#344054" }
                                 TapHandler { onTapped: profiles.selectRow(row) }
                             }
                         }
@@ -134,7 +136,7 @@ Item {
         onOpened: resetSelection(false)
         ColumnLayout {
             anchors.fill: parent
-            Label { text: "导出当前筛选的 " + profiles.visibleCount + " 位学员，保持当前排序。\n字段选择独立于表格显示设置。"; wrapMode: Text.Wrap; Layout.fillWidth: true }
+            Label { text: "导出当前筛选的 " + profiles.matchedCount + " 位学员，保持当前排序；已不符合当前筛选的行不计入。\n字段选择独立于表格显示设置。"; wrapMode: Text.Wrap; Layout.fillWidth: true }
             RowLayout {
                 Button { text: "默认字段"; onClicked: exportDialog.resetSelection(false) }
                 Button { text: "全选"; onClicked: exportDialog.resetSelection(true) }

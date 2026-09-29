@@ -1,10 +1,14 @@
 """Account names in the registry database; passwords only in Windows Vault."""
+import json
+
 from PySide6.QtCore import QObject, Property, Signal, Slot, QCoreApplication
 
 from .credentials import get_password, set_password
 from .acquisition.tasks import AcquisitionTask
 
 ACCOUNT_KEYS = {'completion':'completion_username','homework':'homework_admin_id'}
+# 作业平台班级目录缓存：重启后无需联网重新获取即可显示已确认的对应关系。
+HOMEWORK_CLASSES_KEY = 'homework_classes'
 
 
 class SettingsModule(QObject):
@@ -15,11 +19,13 @@ class SettingsModule(QObject):
         self.owner=owner
         self._accounts={}
         self._homework_classes=[]
+        self._homework_admin=''
         self._busy=False
         self._task=None
         self._verification={}
         self._verifying_platform=''
         self._notice='此页保存的账号写入本工具数据库，密码写入当前 Windows 用户的凭据管理器。'
+        self._load_saved_classes()
         app=QCoreApplication.instance()
         if app:app.aboutToQuit.connect(self.shutdown)
         self.refresh()
@@ -123,6 +129,8 @@ class SettingsModule(QObject):
 
     def _classes_loaded(self,classes):
         self._homework_classes=classes;self._busy=False
+        self._homework_admin=self.owner.workflow.registry.get_setting(ACCOUNT_KEYS['homework'],'')
+        self._persist_classes()
         self._notice=f'已获取 {len(classes)} 个作业平台班级；请选择并确认对应关系。'
         self.changed.emit()
 
@@ -130,12 +138,20 @@ class SettingsModule(QObject):
         self._busy=False;self._notice=message;self.changed.emit()
 
     @Slot(str,int,int,result=bool)
-    def saveBinding(self,term_id,class_id,course_id):
+    def saveBinding(self,term_id,class_id,course_id=0):
+        """课程由平台主课程决定：调用方传 0 时自动绑定该班级的主课程。"""
         try:
             if not term_id or not any(str(r.get('term_id'))==str(term_id) for r in self.owner.workflow._classes):
                 raise ValueError('请选择追光鲸鱼班期。')
             entry=next((r for r in self._homework_classes if r['id']==class_id),None)
-            if not entry or course_id not in entry['course_ids']:
+            if not entry:
+                raise ValueError('请选择有效的作业班级。')
+            courses=[int(v) for v in entry['course_ids']]
+            if not course_id:
+                if not courses:
+                    raise ValueError('平台未返回该作业班级的课程，请重新获取作业班级。')
+                course_id=courses[0]
+            elif course_id not in courses:
                 raise ValueError('请选择有效的作业班级和课程。')
             with self.owner.workflow.registry.db.connect() as conn:
                 conn.execute('CREATE TABLE IF NOT EXISTS homework_bindings (term_id TEXT PRIMARY KEY, class_id INTEGER NOT NULL, course_id INTEGER NOT NULL, class_name TEXT NOT NULL)')
@@ -157,6 +173,32 @@ class SettingsModule(QObject):
             self._notice='无法访问 Windows 凭据管理器，请检查当前用户的凭据服务。'
         self.changed.emit()
 
+    def _load_saved_classes(self):
+        """只载入当前作业账号自己缓存的班级目录，换账号后不误用旧目录。"""
+        admin=self.owner.workflow.registry.get_setting(ACCOUNT_KEYS['homework'],'')
+        self._homework_admin=admin
+        self._homework_classes=[]
+        saved=self.owner.workflow.registry.get_setting(HOMEWORK_CLASSES_KEY,'')
+        if not admin or not saved:return
+        try:
+            payload=json.loads(saved)
+            if not isinstance(payload,dict) or payload.get('admin')!=admin:return
+            rows=payload.get('classes')
+            if not isinstance(rows,list):return
+            self._homework_classes=[{'id':int(r['id']),'name':str(r.get('name') or ''),
+                                     'course_ids':[int(v) for v in r.get('course_ids') or []]}
+                                    for r in rows if isinstance(r,dict) and r.get('id') is not None]
+        except Exception:
+            self._homework_classes=[]
+
+    def _persist_classes(self):
+        if not self._homework_classes:return
+        try:
+            self.owner.workflow.registry.set_setting(HOMEWORK_CLASSES_KEY,
+                json.dumps({'admin':self._homework_admin,'classes':self._homework_classes},ensure_ascii=False))
+        except Exception:
+            self._notice='作业班级目录已获取，但未能写入本地缓存；重启后需要重新获取。'
+
     @Slot(str,str,str,result=bool)
     def saveAccount(self,platform,username,password):
         if self._busy:return False
@@ -171,6 +213,8 @@ class SettingsModule(QObject):
                 raise ValueError('请填写密码；更换账号时需重新输入密码')
             self.owner.workflow.registry.set_setting(ACCOUNT_KEYS[platform],username)
             self._notice='已保存。此页输入的密码已写入 Windows 凭据管理器，下次从界面获取数据时生效。'
+            if platform=='homework' and username!=self._homework_admin:
+                self._load_saved_classes()
             self.refresh()
             return True
         except Exception as exc:

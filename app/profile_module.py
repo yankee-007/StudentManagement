@@ -11,6 +11,7 @@ from .qt_models import DictTableModel
 from .profile_fields import CHOICES, DISPLAY_LABELS, REMOVED_FIELDS, PROFILE_INPUT_LABELS
 from .table_query import sort_value
 from .table_query import matches
+from .table_query import next_cursor
 from .profile_fields import BASE_PROFILE_LABELS
 from .profile_storage import definitions, set_exemption
 from .xlsx_export import export_table
@@ -31,6 +32,8 @@ class ProfileModule(QObject):
         self._selected={}
         self._search=''
         self._filters={}
+        self._frozen=None
+        self._stale_changed=set()
         self._context_path=str(owner.db.path)
         self._all=False
         self._sort=-1
@@ -46,10 +49,22 @@ class ProfileModule(QObject):
     def total(self):return len(self._rows)
     @Property(int,notify=changed)
     def visibleCount(self):return len(self._model.rows)
+    @Property(int,notify=changed)
+    def matchedCount(self):return sum(1 for r in self._model.rows if not r.get('_filter_stale'))
+    @Property(int,notify=changed)
+    def staleCount(self):return sum(1 for r in self._model.rows if r.get('_filter_stale'))
+    @Property(bool,notify=changed)
+    def hasStale(self):return any(r.get('_filter_stale') for r in self._model.rows)
+    @Property(str,notify=selectionChanged)
+    def cursorText(self):
+        key=self._selected.get('_record_key')
+        index=next((i for i,r in enumerate(self._model.rows) if r['_record_key']==key),-1)
+        if index<0:return ''
+        return f"正在处理 第 {index+1} / {len(self._model.rows)} 条 · {self._selected.get('name','')}"
     @Property('QVariantList',notify=changed)
     def filteredKeys(self):return list(self._filters)
     @Property('QVariantList',notify=changed)
-    def recipientKeys(self):return [r['_record_key'] for r in self._model.rows if r.get('name','').strip() and not r.get('is_placeholder')]
+    def recipientKeys(self):return [r['_record_key'] for r in self._scope_rows() if r.get('name','').strip() and not r.get('is_placeholder')]
     @Property('QVariantList',notify=changed)
     def messagePlaceholders(self):
         labels=['姓名','学号','班期','状态','免催日期']+list(BASE_PROFILE_LABELS)
@@ -64,6 +79,34 @@ class ProfileModule(QObject):
                 if value not in rule['values']:return False
             elif not matches(row,{key:rule}):return False
         return True
+
+    def _row_key(self,row):return row.get('_record_key') or row.get('student_id','')
+
+    def _query_active(self):return bool(self._filters) or bool(self._search.strip())
+
+    def _matched_rows(self):return [r for r in self._rows if self._row_matches_query(r)]
+
+    def _recompute_freeze(self):
+        # ADR-007: 冻结本次应用筛选时命中的学员；没有查询条件时保持实时视图，新学员照常出现。
+        self._frozen={self._row_key(r) for r in self._matched_rows()} if self._query_active() else None
+
+    def _visible_rows(self):
+        if self._frozen is None:return self._matched_rows()
+        return [r for r in self._rows if self._row_key(r) in self._frozen]
+
+    def _mark_stale(self,rows):
+        # 行数据变化后不重新筛选，只标记“已不符合当前筛选”；只有重新应用筛选才会移除。
+        changed=set()
+        for row in rows:
+            stale=not self._row_matches_query(row)
+            if '_filter_stale' not in row or bool(row['_filter_stale'])!=stale:
+                row['_filter_stale']=stale
+                changed.add(self._row_key(row))
+        return changed
+
+    def _scope_rows(self):
+        # 业务范围（名单生成、导出）只取真正匹配筛选的学员，过期行仅供显示。
+        return [r for r in self._display_rows() if not r.get('_filter_stale')]
 
     @Slot(int,result='QVariantMap')
     def columnFilterInfo(self,index):
@@ -87,7 +130,7 @@ class ProfileModule(QObject):
     def sortField(self,key,descending):
         self._sort=next((i for i,c in enumerate(self._model.columns) if c[0]==key),-1)
         self._descending=descending
-        self.apply()
+        self.apply(recompute=False)
 
     @Slot()
     def clearFilters(self):self._filters.clear();self.apply()
@@ -139,9 +182,10 @@ class ProfileModule(QObject):
         keys=list(dict.fromkeys(keys))
         if not keys:raise ValueError('请至少选择一个导出字段')
         if any(k not in allowed for k in keys):raise ValueError('导出字段已变更，请重新选择')
-        if not self._model.rows:raise ValueError('当前没有可导出的学员')
+        rows=self._scope_rows()
+        if not rows:raise ValueError('当前没有可导出的学员')
         model=DictTableModel([(k,allowed[k]) for k in keys])
-        model.set_rows([dict(r) for r in self._model.rows])
+        model.set_rows([dict(r) for r in rows])
         return export_table(model,path,set())
 
     @Slot('QVariantList',result=bool)
@@ -260,11 +304,12 @@ class ProfileModule(QObject):
         return [dict(lesson=i,course=labels.get(flags.get('c'+str(i)),'未获取'),homework=labels.get(flags.get('z'+str(i)),'未获取')) for i in range(1,33)]
 
     @Slot()
-    def refresh(self):
+    def refresh(self, current_students=None, keep_query=False):
         if self._context_path!=str(self.owner.db.path):
             self._context_path=str(self.owner.db.path)
             self._filters.clear()
             self._sort=-1
+            keep_query=False
         entries=self.owner.workflow._classes if self._all else [self.owner.workflow._classes[self.owner.workflow.class_index]]
         rows=[]
         headers=[]
@@ -274,7 +319,9 @@ class ProfileModule(QObject):
             with repo.db.connect() as conn:
                 exists=conn.execute("SELECT 1 FROM sqlite_master WHERE name='student_contacts'").fetchone()
                 contacts={r['student_id']:r['remark'] for r in conn.execute('SELECT * FROM student_contacts')} if exists else {}
-            for r in repo.list_students():
+            students = current_students if current_students is not None and entry['path'] == str(self.owner.db.path) else repo.list_students()
+            for r in students:
+                r = dict(r)
                 r.update(class_name=entry['name'],remark=contacts.get(r['student_id'],r['name']),
                          _db_path=entry['path'],_record_key=entry['path']+'|'+r['student_id'],_flags=source.get(r['student_id'],{}))
                 rows.append(r)
@@ -285,41 +332,66 @@ class ProfileModule(QObject):
         columns += [('profile:'+r['name'],r['name']) for r in self.extraFields if r['show_column']]
         ranks={r['name']:i for i,r in enumerate(self.managedFields)}
         columns.sort(key=lambda c:ranks.get(c[1],len(ranks)))
-        if columns!=self._model.columns:
+        columns_changed=columns!=self._model.columns
+        if columns_changed:
             self._filters={k:v for k,v in self._filters.items() if k in dict(columns)}
             self._model.beginResetModel()
             self._model.columns=columns
             self._model.endResetModel()
             self._sort=-1
         self._rows=rows
-        self.apply()
+        # 列集合变化时筛选条件可能被裁剪，必须重算，不能沿用旧冻结集。
+        self.apply(recompute=(not keep_query) or columns_changed)
         self.rosterChanged.emit()
 
-    def _searched_rows(self):
+    def _matches_search(self,row):
         query=self._search.strip().casefold()
-        return [r for r in self._rows if not query or query in (r['class_name']+' '+r['student_id']+' '+r['name']+' '+r['remark']).casefold()]
+        return not query or query in (row['class_name']+' '+row['student_id']+' '+row['name']+' '+row['remark']).casefold()
+
+    def _row_matches_query(self,row):
+        return self._matches_search(row) and self._matches_filters(row)
+
+    def _searched_rows(self):
+        return [r for r in self._rows if self._matches_search(r)]
 
     def _display_rows(self):
-        rows=[r for r in self._searched_rows() if self._matches_filters(r)]
+        rows=self._visible_rows()
         if 0<=self._sort<len(self._model.columns):
             key=self._model.columns[self._sort][0]
             rows=sorted(rows,key=lambda r:sort_value(r,key),reverse=self._descending)
+        self._stale_changed=self._mark_stale(rows)
         return rows
 
-    def _refresh_query_after_save(self):
-        # Re-evaluate the table without switching the student under an active editor.
-        if self._filters or self._sort>=0:
-            rows=self._display_rows()
-            if [r['_record_key'] for r in rows]!=[r['_record_key'] for r in self._model.rows]:
-                self._model.set_rows(rows)
+    def _refresh_after_data_change(self):
+        # 值变化不重新筛选：只同步单元格数据与“已不符合当前筛选”标记，也不切换正在编辑的学员。
+        rows=self._display_rows()
+        if [r['_record_key'] for r in rows]!=[r['_record_key'] for r in self._model.rows]:
+            self._model.set_rows(rows)
+            return
+        last=len(self._model.columns)-1
+        for i,row in enumerate(rows):
+            if self._model.rows[i] is not row:
+                self._model.rows[i]=row
+                self._model.dataChanged.emit(self._model.index(i,0),self._model.index(i,last))
+            elif self._row_key(row) in self._stale_changed:
+                self._model.dataChanged.emit(self._model.index(i,0),self._model.index(i,last))
 
-    def apply(self):
+    def apply(self,recompute=True):
+        previous=[self._row_key(r) for r in self._model.rows]
+        if recompute:self._recompute_freeze()
         rows=self._display_rows()
         self._model.set_rows(rows)
-        old=self._selected.get('_record_key')
-        self._selected=next((r for r in rows if r['_record_key']==old),rows[0] if rows else {})
+        self._selected=next_cursor(rows,self._row_key,self._selected.get('_record_key',''),previous)
         self.changed.emit()
         self.selectionChanged.emit()
+
+    @Slot()
+    def reapplyFilters(self):self.apply()
+
+    @Slot()
+    def activate(self):
+        # 进入模块只重读数据，不重新筛选：处理中的名单不因切换页面而改变（ADR-007）。
+        self.refresh(keep_query=True)
 
     @Slot(bool)
     def setAllClasses(self,value):self._all=value;self.refresh()
@@ -334,7 +406,7 @@ class ProfileModule(QObject):
     def sortColumn(self,index):
         self._descending=not self._descending if self._sort==index else False
         self._sort=index
-        self.apply()
+        self.apply(recompute=False)
 
     @Slot(str,str,str,result=bool)
     def saveEditorField(self,record_key,label,value):
@@ -345,7 +417,8 @@ class ProfileModule(QObject):
         return self.autoSaveField(self._selected['student_id'],label,value)
 
     def reflect_saved(self,path,sid):
-        current=StudentRepository(Database(path)).get(sid)
+        repo=self.owner.repo if path==str(self.owner.db.path) else StudentRepository(Database(path))
+        current=repo.get(sid)
         if not current:return
         for row in self._rows:
             if row['_db_path']==path and row['student_id']==sid:row.update(current)
@@ -356,7 +429,7 @@ class ProfileModule(QObject):
         if self._selected.get('_db_path')==path and self._selected.get('student_id')==sid:
             self._selected.update(current)
             self.selectionChanged.emit()
-        self._refresh_query_after_save()
+        self._refresh_after_data_change()
         self.changed.emit()
 
     @Slot(str,str,str,result=bool)
@@ -365,8 +438,8 @@ class ProfileModule(QObject):
         try:
             if label=='免催日期':
                 set_exemption(self.owner.db,sid,value)
-                self.refresh()
-                self.owner.workflow.refresh_live()
+                self.refresh(keep_query=True)
+                self.owner.workflow.refresh_live(keep_query=True)
                 self._notice='免催日期已保存，包含当天；到期后自动恢复催办'
                 self.changed.emit()
                 self.fieldSaved.emit(str(self.owner.db.path),sid,label)
@@ -379,8 +452,8 @@ class ProfileModule(QObject):
             for i,row in enumerate(self._model.rows):
                 if row['student_id']==sid:
                     self._model.dataChanged.emit(self._model.index(i,0),self._model.index(i,len(self._model.columns)-1))
-            self.owner.workflow.refresh_live()
-            self._refresh_query_after_save()
+            self.owner.workflow.refresh_live(keep_query=True)
+            self._refresh_after_data_change()
             self._notice='已自动保存；当前催办身份信息同步，历史批次不变'
             self.changed.emit()
             self.fieldSaved.emit(str(self.owner.db.path),sid,label)

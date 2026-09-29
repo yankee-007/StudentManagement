@@ -31,7 +31,7 @@ Frame {
                 text: "计算说明"; hoverEnabled: true
                 ToolTip.visible: hovered || down
                 ToolTip.timeout: -1
-                ToolTip.text: "分母：创建该批次时的全部在读学员（含请假，不含退课、冻结、补位）。\n第 N 节累计完课率＝第 1～N 节课程全部完成的人数 ÷ 在读人数 × 100%；累计作业率同理。\n差值＝累计完课率 − 累计作业率；负值表示作业率更高。\n无有效数据或旧版快照无法还原的指标显示 —。"
+                ToolTip.text: "分母：该看板数据对应的全部在读学员（含请假，不含退课、冻结、补位）；最新批次跟随最近一次获取刷新，历史批次为创建当时。\n第 N 节累计完课率＝第 1～N 节课程全部完成的人数 ÷ 在读人数 × 100%；累计作业率同理。\n差值＝累计完课率 − 累计作业率；负值表示作业率更高。\n无有效数据或旧版快照无法还原的指标显示 —。"
             }
             ToolButton { text: panel.expanded ? "收起" : "展开"; onClicked: panel.expanded = !panel.expanded }
         }

@@ -97,8 +97,6 @@ def run():
         assert input_for(floating,'学习目的').property('activeFocus')
         floating.setProperty('pinned',False); app.processEvents()
         assert floating.isVisible()
-        c.setLocked(True); app.processEvents()
-        assert c.locked
         b.profilesModule.setFieldVisible('column:profile:QQ',False)
         app.processEvents()
         assert field(floating,'QQ') is None and field(window,'QQ') is None

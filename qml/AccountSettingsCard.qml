@@ -2,61 +2,83 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-Frame {
+// 单个平台的账号设置卡片：账号 / 原始密码 / 验证与保存 / 验证结果。
+SettingsCard {
     id: card
     required property string platform
-    required property string title
     property var service: backend.settingsModule
     property var record: service.accounts[platform] || ({})
     property var verification: service.verification[platform] || ({})
-    Layout.fillWidth: true
-    padding: 16
-    background: Rectangle { color: "white"; radius: 10; border.color: "#e4e7ec" }
-    ColumnLayout {
-        anchors.fill: parent; spacing: 10
-        RowLayout {
-            Layout.fillWidth: true
-            Label { text: card.title; font.pixelSize: 17; font.bold: true; color: "#17213a"; Layout.fillWidth: true }
-            Label { text: card.record.saved ? "密码已保存在凭据管理器" : "尚未保存密码"; color: card.record.saved ? "#027a48" : "#b54708"; font.pixelSize: 12 }
-        }
-        Label { text: card.platform === "completion" ? "追光鲸鱼后台账号" : "作业平台后台账号"; color: "#667085"; font.pixelSize: 12 }
+
+    subtitle: platform === "completion" ? "追光鲸鱼后台账号" : "作业平台后台账号"
+    tag: record.saved ? "密码已保存" : "尚未保存密码"
+    tagColor: record.saved ? "#027a48" : "#b54708"
+    tagBackground: record.saved ? "#ecfdf3" : "#fffaeb"
+
+    headerRight: Rectangle {
+        implicitWidth: tagLabel.implicitWidth + 16
+        implicitHeight: 20
+        radius: 10
+        color: card.tagBackground
+        Label { id: tagLabel; anchors.centerIn: parent; text: card.tag; font.pixelSize: 11; color: card.tagColor }
+    }
+
+    GridLayout {
+        Layout.fillWidth: true
+        columns: 2
+        columnSpacing: 12
+        rowSpacing: 10
+        Label { text: "账号"; color: "#475467"; font.pixelSize: 12; Layout.preferredWidth: 96; Layout.alignment: Qt.AlignVCenter }
         TextField {
-            id: username; objectName: card.platform + "Username"
-            Layout.fillWidth: true; text: card.record.username || ""
+            id: usernameField
+            objectName: card.platform + "Username"
+            Layout.fillWidth: true
+            text: card.record.username || ""
             placeholderText: "账号"; selectByMouse: true
             enabled: !card.service.busy
             onTextEdited: card.service.clearVerification(card.platform)
         }
-        Label { text: "原始密码"; color: "#667085"; font.pixelSize: 12 }
+        Label { text: "原始密码"; color: "#475467"; font.pixelSize: 12; Layout.preferredWidth: 96; Layout.alignment: Qt.AlignVCenter }
         TextField {
-            id: password; objectName: card.platform + "Password"
-            Layout.fillWidth: true; placeholderText: card.record.saved ? "留空则保持现有密码" : "请输入原始密码"
+            id: passwordField
+            objectName: card.platform + "Password"
+            Layout.fillWidth: true
+            placeholderText: card.record.saved ? "留空则保持现有密码" : "请输入原始密码"
             echoMode: TextInput.Password
             enabled: !card.service.busy
             onTextEdited: card.service.clearVerification(card.platform)
         }
-        RowLayout {
-            Layout.fillWidth: true
-            Label { text: "保存后不会在界面回显密码"; color: "#98a2b3"; font.pixelSize: 11; Layout.fillWidth: true }
-            Button {
-                objectName: card.platform + "VerifyLogin"
-                text: card.service.verifyingPlatform === card.platform ? "验证中…" : "验证登录"
-                enabled: !card.service.busy && !backend.busy && !backend.termsModule.busy
-                onClicked: card.service.verifyLogin(card.platform, username.text, password.text)
-            }
-            Button {
-                text: "保存"; highlighted: true
-                enabled: !card.service.busy
-                onClicked: {
-                    if (card.service.saveAccount(card.platform, username.text, password.text)) password.text = ""
-                }
-            }
-        }
+    }
+
+    Label {
+        text: card.verification.message || ""
+        visible: text.length > 0
+        color: card.verification.state === "success" ? "#027a48" : card.verification.state === "error" ? "#b42318" : "#667085"
+        font.pixelSize: 11; wrapMode: Text.Wrap
+        Layout.fillWidth: true
+    }
+
+    footer: RowLayout {
+        Layout.fillWidth: true
+        spacing: 8
         Label {
-            visible: text.length > 0
-            text: card.verification.message || ""
-            color: card.verification.state === "success" ? "#027a48" : card.verification.state === "error" ? "#b42318" : "#667085"
-            font.pixelSize: 12; wrapMode: Text.Wrap; Layout.fillWidth: true
+            text: card.record.saved ? "保存后不会在界面回显密码。" : "保存后不会在界面回显密码，下次获取数据时生效。"
+            color: "#98a2b3"; font.pixelSize: 11
+            elide: Text.ElideRight
+            Layout.fillWidth: true
+        }
+        Button {
+            objectName: card.platform + "VerifyLogin"
+            text: card.service.verifyingPlatform === card.platform ? "验证中…" : "验证登录"
+            enabled: !card.service.busy && !backend.busy && !backend.termsModule.busy
+            onClicked: card.service.verifyLogin(card.platform, usernameField.text, passwordField.text)
+        }
+        Button {
+            text: "保存"; highlighted: true
+            enabled: !card.service.busy
+            onClicked: {
+                if (card.service.saveAccount(card.platform, usernameField.text, passwordField.text)) passwordField.text = ""
+            }
         }
     }
 }

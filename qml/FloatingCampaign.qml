@@ -6,8 +6,9 @@ import QtQuick.Window
 Window {
     id: floating
     objectName: "campaignFloatingWindow"
-    width: 410; height: 550; minimumWidth: 340; minimumHeight: 300
+    width: 246; height: 520; minimumWidth: 230; minimumHeight: 300
     title: "催办反馈 · 跟随聊天"; color: "#f5f7fb"
+    transientParent: null
     property bool pinned: true
     property var companion: backend.campaignCompanion
     flags: Qt.Window | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | Qt.WindowCloseButtonHint | (pinned ? Qt.WindowStaysOnTopHint : 0)
@@ -17,27 +18,24 @@ Window {
         else { companion.close(); companion.setEditing(false) }
     }
     ColumnLayout {
-        anchors.fill: parent; anchors.margins: 12; spacing: 10
+        anchors.fill: parent; anchors.margins: 7; spacing: 5
         RowLayout {
             Layout.fillWidth: true
             Label {
-                text: "催办反馈  ⠿"; font.pixelSize: 18; font.bold: true; color: "#17213a"; Layout.fillWidth: true
+                text: companion.selected.name || "等待识别"; font.pixelSize: 16; font.bold: true; color: "#17213a"; Layout.fillWidth: true; elide: Text.ElideRight
                 MouseArea { anchors.fill: parent; cursorShape: Qt.SizeAllCursor; onPressed: floating.startSystemMove() }
             }
-            ToolButton {
-                text: "锁定学员"; checkable: true; checked: companion.locked
-                enabled: !!companion.selected.student_id
-                onClicked: companion.setLocked(checked)
-            }
-            ToolButton { text: "置顶"; checkable: true; checked: floating.pinned; onClicked: floating.pinned=checked }
-            ToolButton { text: "重试"; onClicked: companion.retryContact() }
+            ToolButton { text: "置顶"; font.pixelSize: 11; checkable: true; checked: floating.pinned; onClicked: floating.pinned=checked }
+            ToolButton { text: "重试"; font.pixelSize: 11; onClicked: companion.retryContact() }
         }
-        Label { text: companion.notice; font.pixelSize: 11; color: "#667085"; wrapMode: Text.Wrap; Layout.fillWidth: true }
+        Label { text: companion.notice; font.pixelSize: 10; color: "#667085"; wrapMode: Text.Wrap; Layout.fillWidth: true }
         Rectangle { Layout.fillWidth: true; height: 1; color: "#e4e7ec" }
         CampaignDetail {
             visible: !!companion.selected.student_id
             Layout.fillWidth: true; Layout.fillHeight: true
             service: companion; workflow: backend.workflow
+            showContactAction: false
+            showName: false; compact: true
         }
         Label {
             visible: !companion.selected.student_id

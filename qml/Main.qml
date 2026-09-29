@@ -10,6 +10,7 @@ ApplicationWindow {
     color: "#f5f7fb"
     property var wf: backend.workflow
     property var sender: backend.groupCenter
+    property var restartService: typeof restartController !== "undefined" ? restartController : null
     onClosing: function(close) {
         if (root.moduleIndex === 4 && !backend.groupCenter.active) groupCenterPage.saveSettings()
         if (backend.contactOpener.active) { close.accepted=false; snack.text="正在打开联系人，请等待完成后关闭"; snack.open() }
@@ -19,8 +20,8 @@ ApplicationWindow {
     property int moduleIndex: 0
     function switchModule(index) {
         moduleIndex = index
-        if (index === 1) backend.profilesModule.refresh()
-        else if (index === 0) wf.refresh_live()
+        if (index === 1) backend.profilesModule.activate()
+        else if (index === 0) wf.activate()
         else if (index === 2) backend.termsModule.activate()
         else if (index === 3) backend.settingsModule.refresh()
         else if (index === 4) backend.groupCenter.refresh()
@@ -30,6 +31,7 @@ ApplicationWindow {
     FloatingCampaign { id: campaignFloat }
     function openColumn(index) { columnDialog.openFor(index) }
     function applyFilter() { wf.filterRows(viewBox.currentValue || "all", search.text) }
+    ClassSwitchOverlay { id: classSwitch }
     header: ToolBar {
         background: Rectangle { color: "white"; border.color: "#e4e7ec" }
         RowLayout {
@@ -39,9 +41,34 @@ ApplicationWindow {
             Button { text: "班期学员"; highlighted: root.moduleIndex === 2; onClicked: root.switchModule(2) }
             Button { text: "设置"; highlighted: root.moduleIndex === 3; onClicked: root.switchModule(3) }
             Button { text: "群发中心"; highlighted: root.moduleIndex === 4; onClicked: root.switchModule(4) }
-            ComboBox { visible: root.moduleIndex === 0 || root.moduleIndex === 1; model: wf.classes; currentIndex: wf.classIndex; enabled: !backend.busy && !sender.active; onActivated: wf.selectClass(currentIndex); Layout.preferredWidth: 125 }
-            Button { objectName: "fetchLearningButton"; visible: root.moduleIndex === 0 && (wf.batchIndex < 0 || wf.canEdit); text: backend.busy ? "获取中…" : "获取数据"; enabled: !backend.busy && !backend.termsModule.busy && !sender.active; onClicked: backend.fetchData() }
+            ComboBox {
+                objectName: "classSelector"
+                popup.objectName: "classSelectorPopup"
+                visible: root.moduleIndex === 0 || root.moduleIndex === 1
+                model: wf.classes; currentIndex: wf.classIndex
+                enabled: !backend.busy && !backend.termsModule.busy && !sender.active && !wf.sender.active && !backend.contactOpener.active
+                Layout.preferredWidth: 125
+                onActivated: function(index) {
+                    popup.close()
+                    if (index === wf.classIndex) return
+                    var name = wf.classes[index]
+                    var size = wf.classRosterSize(index)
+                    classSwitch.begin(name, function() { wf.selectClass(index) }, size < 0 || size >= 300)
+                }
+            }
             Item { Layout.fillWidth: true }
+            Button {
+                objectName: "debugRestartButton"
+                text: "调试重启"
+                visible: root.restartService !== null
+                enabled: !backend.busy && !backend.termsModule.busy && !backend.settingsModule.busy && !sender.active && !wf.sender.active && !backend.contactOpener.active
+                ToolTip.visible: hovered
+                ToolTip.text: "退出后重新启动整个程序，加载已保存的代码修改"
+                onClicked: {
+                    Qt.inputMethod.commit()
+                    root.restartService.requestRestart()
+                }
+            }
             Label { text: backend.systemDate; color: "#667085"; font.pixelSize: 12 }
         }
     }
@@ -52,7 +79,8 @@ ApplicationWindow {
             Layout.fillWidth: true
             Label { text: wf.dataNote; color: "#667085"; Layout.fillWidth: true; elide: Text.ElideRight }
             Button { text: "采集异常明细"; visible: backend.fetchIssues.length > 0; onClicked: fetchIssuesDialog.open() }
-            Button { text: backend.busy ? "正在获取最新数据…" : "新建催办"; highlighted: true; enabled: !backend.busy && !backend.termsModule.busy && !sender.active; onClicked: createDialog.open() }
+            Button { objectName: "fetchLearningButton"; visible: root.moduleIndex === 0 && (wf.batchIndex < 0 || wf.canEdit); text: backend.busy ? "刷新中…" : "刷新数据"; enabled: !backend.busy && !backend.termsModule.busy && !sender.active; onClicked: backend.fetchData() }
+            Button { objectName: "createCampaignButton"; text: backend.busy ? "正在获取最新数据…" : "新建催办"; highlighted: true; enabled: !backend.busy && !backend.termsModule.busy && !sender.active; onClicked: createDialog.open() }
         }
         LearningDashboard { stats: wf.dashboard }
         Frame {
@@ -91,7 +119,8 @@ ApplicationWindow {
                     }
                     RowLayout {
                         Layout.fillWidth: true
-                        Label { text: "当前显示 " + wf.visibleCount + " 人 · 点击表头筛选或排序"; color: "#667085"; font.pixelSize: 11; Layout.fillWidth: true }
+                        Label { text: "当前显示 " + wf.visibleCount + " 人" + (wf.hasStale ? " · " + wf.staleCount + " 人已不符合当前筛选" : " · 点击表头筛选或排序；修改数据不会自动移出行") + (wf.cursorText.length > 0 ? " · " + wf.cursorText : ""); color: wf.hasStale ? "#b54708" : "#667085"; font.pixelSize: 11; elide: Text.ElideRight; Layout.fillWidth: true }
+                        Button { objectName: "campaignReapplyFilter"; text: "重新应用筛选"; visible: wf.hasStale; onClicked: wf.reapplyFilters() }
                         Button { text: "管理字段"; onClicked: fieldDialog.open() }
                         Button { text: "聊天跟随浮窗"; enabled: wf.canEdit; onClicked: campaignFloat.show() }
                         Button { text: "清除列筛选／排序"; visible: wf.hasColumnQuery; onClicked: wf.clearColumnQuery() }
@@ -133,9 +162,10 @@ ApplicationWindow {
                                 required property string display
                                 required property string studentId
                                 required property bool expiredCell
+                                required property bool staleRow
                                 implicitHeight: 20; implicitWidth: 90
-                                color: studentId === wf.selected.student_id ? "#dce6ff" : row % 2 ? "#f8faff" : "white"
-                                Text { anchors.fill: parent; anchors.leftMargin: 6; anchors.rightMargin: 6; text: display; elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter; font.pixelSize: 10; color: expiredCell ? "#98a2b3" : "#344054" }
+                                color: studentId === wf.selected.student_id ? "#dce6ff" : staleRow ? "#fff4e5" : row % 2 ? "#f8faff" : "white"
+                                Text { anchors.fill: parent; anchors.leftMargin: 6; anchors.rightMargin: 6; text: display; elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter; font.pixelSize: 10; color: expiredCell ? "#98a2b3" : staleRow ? "#b54708" : "#344054" }
                                 TapHandler { onTapped: wf.selectRow(row) }
                             }
                         }

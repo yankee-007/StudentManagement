@@ -6,6 +6,8 @@ RowLayout {
     id: field
     property string studentId
     property var saveTarget: backend
+    property bool deferTextSave: false
+    property bool compact: false
     property string caption
     property string displayCaption: caption
     property var options: []
@@ -40,17 +42,17 @@ RowLayout {
     }
     onInitialValueChanged: loadValue()
     Layout.fillWidth: true
-    spacing: 10
-    Label { text: field.displayCaption.replace(/\n/g, " "); Layout.preferredWidth: 76; elide: Text.ElideRight; font.pixelSize: 12; color: "#667085"; ToolTip.visible: labelHover.hovered; ToolTip.text: field.displayCaption; HoverHandler { id: labelHover } }
+    spacing: field.compact ? 5 : 10
+    Label { text: field.displayCaption.replace(/\n/g, " "); Layout.preferredWidth: field.compact ? 56 : 76; elide: Text.ElideRight; font.pixelSize: field.compact ? 11 : 12; color: "#667085"; ToolTip.visible: labelHover.hovered; ToolTip.text: field.displayCaption; HoverHandler { id: labelHover } }
     ComboBox {
         id: choice
         objectName: "profileChoice"
         visible: field.options.length > 0
         enabled: field.editable
         Layout.fillWidth: true
-        implicitHeight: 32
-        font.pixelSize: 13
-        leftPadding: 10
+        implicitHeight: field.compact ? 27 : 32
+        font.pixelSize: field.compact ? 11 : 13
+        leftPadding: field.compact ? 5 : 10
         wheelEnabled: false
         model: field.options
         property string savedValue: field.initialValue
@@ -62,14 +64,14 @@ RowLayout {
             required property string modelData
             required property int index
             width: choice.width; text: modelData || "未填写（清空）"
-            implicitHeight: 34
+            implicitHeight: field.compact ? 29 : 34
             hoverEnabled: true
             highlighted: hovered
             leftPadding: 10
             rightPadding: 10
             contentItem: Text {
                 text: option.text
-                font.pixelSize: 13
+                font.pixelSize: field.compact ? 11 : 13
                 color: option.hovered ? "#335cff" : "#344054"
                 verticalAlignment: Text.AlignVCenter
                 elide: Text.ElideRight
@@ -82,7 +84,10 @@ RowLayout {
             }
         }
         onActivated: {
-            if (field.saveValue(currentText)) savedValue = currentText
+            var picked = currentText
+            if (field.deferTextSave) {
+                if (field.saveTarget.queueEditorField(field.recordKey, field.caption, picked)) savedValue = picked
+            } else if (field.saveValue(picked)) savedValue = picked
             currentIndex = field.options.indexOf(savedValue)
         }
     }
@@ -94,14 +99,15 @@ RowLayout {
         text: ""
         readOnly: !field.editable
         placeholderText: field.editable ? "未填写" : "无记录"
-        font.pixelSize: 13
-        implicitHeight: 32
-        padding: 7
+        font.pixelSize: field.compact ? 11 : 13
+        implicitHeight: field.compact ? 27 : 32
+        padding: field.compact ? 5 : 7
         selectByMouse: true
         background: Rectangle { radius: 6; color: field.editable ? "#f9fafb" : "#f2f4f7"; border.color: input.activeFocus ? "#809aff" : "#e4e7ec" }
         function persist() {
             if (field.ready && !field.loading && field.editable && activeFocus && !inputMethodComposing)
-                field.saveValue(text)
+                field.deferTextSave ? field.saveTarget.queueEditorField(field.recordKey, field.caption, text)
+                                    : field.saveValue(text)
         }
         onTextChanged: persist()
         onInputMethodComposingChanged: persist()
@@ -113,6 +119,7 @@ RowLayout {
         Button {
             id: dateButton
             Layout.fillWidth: true; enabled: field.editable
+            font.pixelSize: field.compact ? 10 : 12
             text: (field.initialValue || "选择日期") + (field.expired ? " · 已到期" : "")
             palette.buttonText: field.expired ? "#98a2b3" : "#344054"
             onClicked: {
@@ -121,7 +128,7 @@ RowLayout {
                 if (capturedKey === field.recordKey && value !== field.initialValue) field.saveValue(value)
             }
         }
-        Button { text: "清除"; enabled: field.editable && field.initialValue.length > 0; onClicked: field.saveValue("") }
+        Button { text: "清除"; enabled: field.editable && field.initialValue.length > 0; font.pixelSize: field.compact ? 10 : 12; onClicked: field.saveValue("") }
     }
     Component.onCompleted: { ready = true; loadValue() }
 }

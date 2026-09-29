@@ -92,13 +92,11 @@ class ClassIsolationRegressions(unittest.TestCase):
             c.retryContact()
             self.assertEqual(c.student['profile_fields']['所在地区'],'北京')
             previous=c.student['_record_key']
-            c.setLocked(True)
             other=Database(Path(folder)/'second.db')
             add_student(other,name='李四')
             b.workflow._classes.append(dict(name='第二班',path=str(other.path)))
             b.workflow.selectClass(1)
             self.assertFalse(c.student)
-            self.assertFalse(c.locked)
             self.assertFalse(c.saveEditorField(previous,'所在地区','误写'))
             c._active_wecom_title=lambda:'李四'
             c.refreshContact()
@@ -106,6 +104,25 @@ class ClassIsolationRegressions(unittest.TestCase):
             c._active_wecom_title=lambda:'企业微信'
             c.refreshContact()
             self.assertFalse(c.student)
+
+    def test_profile_float_does_not_match_prefix_of_another_name(self):
+        with tempfile.TemporaryDirectory() as folder:
+            b = Backend(Path(folder) / 'first.db')
+            add_student(b.db, '001', '测试甲')
+            c = b.profileCompanion
+            c._active_wecom_title = lambda: '测试甲乙'
+            c.refreshContact()
+            self.assertFalse(c.student)
+            add_student(b.db, '002', '测试甲乙')
+            c.refreshContact()
+            self.assertEqual(c.student['student_id'], '002')
+            c._active_wecom_title = lambda: 'py169测试甲（备注）'
+            c.refreshContact()
+            self.assertEqual(c.student['student_id'], '001')
+            c._active_wecom_title = lambda: '其他测试甲'
+            c.refreshContact()
+            self.assertFalse(c.student)
+            self.assertFalse(c.saveEditorField(str(b.db.path) + '|001', '所在地区', '误写'))
 
     def test_feedback_date_headers_content_only_and_custom_export(self):
         with seeded(2) as b, tempfile.TemporaryDirectory() as folder:

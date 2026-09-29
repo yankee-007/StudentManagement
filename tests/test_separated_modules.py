@@ -85,7 +85,8 @@ class SeparatedModulesTests(unittest.TestCase):
             write_data(True)
             import_csv(b.db,source)
             w.refresh_live()
-            self.assertEqual(w.store.rows(batch,sid(2))[0]['missing_total'],'1/4')
+            # The newest batch follows the new import instead of keeping the creation snapshot.
+            self.assertEqual(w.store.rows(batch,sid(2))[0]['missing_total'],'0/0')
             w.createBatch()
             w.filterRows('targets','')
             self.assertEqual(w.visibleCount,0)

@@ -35,14 +35,20 @@ class ProfileGroupFlowTests(unittest.TestCase):
             p.setColumnFilter('name','contains',[],'2')
             self.assertEqual(p.selected['name'],'学员2')
 
-    def test_filter_rechecks_after_edit_without_switching_editor(self):
+    def test_edit_keeps_row_in_frozen_filter_without_switching_editor(self):
+        # ADR-007: 值变化不重新筛选；行保留并标记过期，业务范围仍只算真正匹配的人。
         with seeded(2) as b:
             p=b.profilesModule
             p.setColumnFilter('profile:QQ','empty',[],'')
             key=p.selected['_record_key']
             self.assertTrue(p.saveEditorField(key,'QQ','是'))
-            self.assertEqual(p.visibleCount,1)
+            self.assertEqual(p.visibleCount,2)
+            self.assertEqual((p.matchedCount,p.staleCount),(1,1))
             self.assertEqual(p.selected['_record_key'],key)
+            self.assertTrue(next(r for r in p.tableModel.rows if r['_record_key']==key)['_filter_stale'])
+            self.assertNotIn(key,p.recipientKeys)
+            p.reapplyFilters()
+            self.assertEqual((p.visibleCount,p.staleCount),(1,0))
             self.assertNotIn(key,p.recipientKeys)
 
     def test_profile_filtered_list_rendered_snapshot_and_stale_guard(self):

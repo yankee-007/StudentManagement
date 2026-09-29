@@ -52,11 +52,9 @@ class CampaignCompanionTests(unittest.TestCase):
         self.assertEqual(self.companion.selected, {})
         self.assertFalse(self.companion.saveEditorValue(stale, 'draft', 'wrong'))
         self.match('张三')
-        self.companion.setLocked(True)
         old_batch = self.backend.workflow._batch
         self.backend.workflow.createBatch()
         self.assertEqual(self.companion.selected, {})
-        self.assertFalse(self.companion.locked)
         self.assertFalse(self.companion.saveEditorValue(stale, 'submit', 'wrong'))
         self.backend.workflow.selectBatch(1)
         self.match('张三')
@@ -88,17 +86,24 @@ class CampaignCompanionTests(unittest.TestCase):
         self.match('张三')
         self.assertFalse(opener.openCampaignContact(key, ''))
 
-    def test_class_switch_invalidates_float_key_and_lock(self):
+    def test_class_switch_invalidates_float_key(self):
         self.match('张三')
         key = self.companion.editorKey
-        self.companion.setLocked(True)
         wf = self.backend.workflow
         wf._classes.append({'name': '另一班', 'path': str(Path(self.tmp.name) / 'other.db')})
         wf.selectClass(1)
         self.assertEqual(self.companion.selected, {})
-        self.assertFalse(self.companion.locked)
         self.assertFalse(self.companion.saveEditorValue(key, 'draft', 'wrong'))
         self.assertFalse(self.backend.contactOpener.openCampaignContact(key, ''))
+
+    def test_longer_contact_name_does_not_select_shorter_student(self):
+        self.match('张三')
+        stale = self.companion.editorKey
+        self.match('张三丰')
+        self.assertEqual(self.companion.selected, {})
+        self.assertFalse(self.companion.saveEditorValue(stale, 'draft', '误写'))
+        self.match('py169张三（备注）')
+        self.assertEqual(self.companion.selected['student_id'], '001')
 
 
 if __name__ == '__main__':

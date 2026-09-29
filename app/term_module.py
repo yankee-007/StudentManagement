@@ -1,5 +1,6 @@
 import json
 import re
+from pathlib import Path
 
 from PySide6.QtCore import QObject, Property, Signal, Slot
 from PySide6.QtWidgets import QApplication, QFileDialog
@@ -127,6 +128,32 @@ class TermModule(QObject):
         if index >= 0 and not self._busy:
             self._term_index=index
             self._load_cache()
+
+    @Slot(int, result=int)
+    def termRosterSize(self, index):
+        """Cached roster row count of a term, known before a switch so the loading hint is not a lie.
+
+        Read-only probe of the cache table; never fetches from the platform. -1 means unknown.
+        """
+        if not 0 <= index < len(self._terms):
+            return -1
+        term_id = str(self._terms[index]['termId'])
+        if not hasattr(self, '_term_sizes'):
+            self._term_sizes = {}
+        if term_id not in self._term_sizes:
+            size = -1
+            try:
+                import sqlite3
+                conn = sqlite3.connect(Path(self.registry.db.path).as_uri() + '?mode=ro', uri=True)
+                try:
+                    row = conn.execute('SELECT rows_json FROM term_rosters WHERE term_id=?', (term_id,)).fetchone()
+                    size = len(json.loads(row[0])) if row else 0
+                finally:
+                    conn.close()
+            except Exception:
+                size = -1
+            self._term_sizes[term_id] = size
+        return self._term_sizes[term_id]
 
     @Slot(int)
     def selectLesson(self, index):

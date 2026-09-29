@@ -5,7 +5,7 @@ from unittest.mock import patch
 import os
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QUrl, QMetaObject, Q_ARG
+from PySide6.QtCore import QObject, QPointF, QUrl, QMetaObject, Q_ARG
 from PySide6.QtGui import QFontDatabase
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtQml import QQmlApplicationEngine
@@ -49,6 +49,11 @@ def run():
         backend.repo.set_setting("snapshot", json.dumps([dict(student_id=sid, flags={"c1":"T","z1":"F"})]))
         backend.workflow.createBatch()
         app.processEvents()
+        refresh_button = window.findChild(QObject, "fetchLearningButton")
+        create_button = window.findChild(QObject, "createCampaignButton")
+        assert refresh_button.property("text") == "刷新数据", refresh_button.property("text")
+        assert refresh_button.property("visible") and create_button.property("visible")
+        assert refresh_button.mapToScene(QPointF(0, 0)).x() < create_button.mapToScene(QPointF(0, 0)).x()
         screenshot = os.environ.get("WORKBENCH_SCREENSHOT")
         if screenshot:
             assert window.grabWindow().save(screenshot)

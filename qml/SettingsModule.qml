@@ -2,51 +2,242 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
+// 设置页：提示行 + 平台账号两张卡片 + 班期对应关系 + 凭据说明（单列，窄屏卡片上下堆叠）。
 Item {
     id: page
     property var settings: backend.settingsModule
     property var selectedTerm: termBox.currentIndex >= 0 && termBox.currentIndex < page.settings.termClasses.length ? page.settings.termClasses[termBox.currentIndex] : ({})
     property var selectedClass: classBox.currentIndex >= 0 && classBox.currentIndex < page.settings.homeworkClasses.length ? page.settings.homeworkClasses[classBox.currentIndex] : ({})
-    ColumnLayout {
-        anchors.fill: parent; spacing: 12
-        RowLayout {
-            Layout.fillWidth: true
-            Label { text: "平台账号设置"; font.pixelSize: 21; font.bold: true; color: "#17213a" }
-            Item { Layout.fillWidth: true }
-            Button { text: "刷新状态"; onClicked: page.settings.refresh() }
+    // 宽度足够时两张账号卡片并排，否则上下堆叠。
+    property bool cardsSideBySide: width >= 840
+    // 只用于驱动只读文案重新求值。
+    property int bindingTick: 0
+
+    function bindingText() {
+        page.bindingTick
+        var b = page.settings.bindingFor(String(page.selectedTerm.termId || ""))
+        return b.class_id ? b.class_name + " · 班级 ID " + b.class_id + " · 课程 ID " + b.course_id : ""
+    }
+
+    function hasBinding() {
+        page.bindingTick
+        return !!page.settings.bindingFor(String(page.selectedTerm.termId || "")).class_id
+    }
+
+    function courseLabel() {
+        var entry = page.selectedClass
+        if (!entry || entry.id === undefined) return "选择作业平台班级后自动对应课程。"
+        var ids = entry.course_ids || []
+        if (!ids.length) return "平台未返回该班级的课程，请先获取作业班级。"
+        return ids.length > 1 ? "该班级有多个课程，请选择：" : "平台主课程，自动对应。"
+    }
+
+    // 打开本页或切换班期时，带出该班期已确认的作业班级；没有对应关系就留空。
+    function syncBinding() {
+        page.bindingTick++
+        var classes = page.settings.homeworkClasses
+        var bound = Number(page.settings.bindingFor(String(page.selectedTerm.termId || "")).class_id || 0)
+        for (var i = 0; i < classes.length; i++) {
+            if (Number(classes[i].id) === bound) { classBox.currentIndex = i; return }
         }
-        Label { text: page.settings.notice; color: "#667085"; font.pixelSize: 12; wrapMode: Text.Wrap; Layout.fillWidth: true }
-        AccountSettingsCard { platform: "completion"; title: "追光鲸鱼 · 完课平台" }
-        AccountSettingsCard { platform: "homework"; title: "作业平台" }
-        Rectangle {
-            Layout.fillWidth: true; implicitHeight: bindingColumn.implicitHeight + 28
-            color: "#ffffff"; radius: 10; border.color: "#e1e6ef"
-            ColumnLayout {
-                id: bindingColumn; anchors.fill: parent; anchors.margins: 14; spacing: 9
-                Label { text: "班期对应关系"; font.pixelSize: 16; font.bold: true; color: "#17213a" }
-                Label { text: "两个平台的班期 ID 不同。每个班期确认一次；未绑定的班期不会新建催办。"; font.pixelSize: 12; color: "#667085"; wrapMode: Text.Wrap; Layout.fillWidth: true }
-                RowLayout {
-                    Layout.fillWidth: true
-                    ComboBox { id: termBox; Layout.preferredWidth: 190; model: page.settings.termClasses; textRole: "name" }
-                    ComboBox { id: classBox; Layout.preferredWidth: 190; model: page.settings.homeworkClasses; textRole: "name"; onCurrentIndexChanged: courseBox.currentIndex = 0 }
-                    ComboBox { id: courseBox; Layout.preferredWidth: 100; model: page.selectedClass.course_ids || [] }
-                    Button { text: page.settings.busy ? "获取中…" : "获取作业班级"; enabled: !page.settings.busy; onClicked: page.settings.fetchHomeworkClasses() }
-                    Button { text: "确认绑定"; enabled: !page.settings.busy && courseBox.currentIndex >= 0; onClicked: page.settings.saveBinding(String(page.selectedTerm.termId || ""), Number(page.selectedClass.id), Number(courseBox.currentText)) }
+        classBox.currentIndex = -1
+    }
+
+    function confirmBinding() {
+        page.settings.saveBinding(String(page.selectedTerm.termId || ""), Number(page.selectedClass.id),
+            courseBox.visible ? Number(courseBox.currentText) : 0)
+    }
+
+    Flickable {
+        id: pageScroll
+        objectName: "settingsScroll"
+        anchors.fill: parent
+        clip: true
+        contentWidth: width - scrollBar.width
+        contentHeight: contentEnd.y
+        boundsBehavior: Flickable.StopAtBounds
+        ScrollBar.vertical: ScrollBar { id: scrollBar; policy: ScrollBar.AlwaysOn }
+
+        ColumnLayout {
+            id: frame
+            width: pageScroll.contentWidth
+            spacing: 12
+
+            RowLayout {
+                Layout.fillWidth: true
+                Label { text: "设置"; font.pixelSize: 19; font.bold: true; color: "#17213a" }
+                Label { text: "平台账号与班期对应关系"; font.pixelSize: 11; color: "#98a2b3"; Layout.fillWidth: true }
+                Button { objectName: "refreshSettingsButton"; text: "刷新状态"; enabled: !page.settings.busy; onClicked: page.settings.refresh() }
+            }
+            Label {
+                objectName: "settingsNotice"
+                text: page.settings.notice
+                color: "#667085"; font.pixelSize: 11; wrapMode: Text.Wrap
+                Layout.fillWidth: true
+            }
+
+            Label {
+                text: page.cardsSideBySide ? "平台账号 · 两个平台各一份账号，保存后下次获取数据生效"
+                                           : "平台账号"
+                font.pixelSize: 13; font.bold: true; color: "#17213a"
+            }
+            GridLayout {
+                Layout.fillWidth: true
+                columns: page.cardsSideBySide ? 2 : 1
+                columnSpacing: 12
+                rowSpacing: 12
+                AccountSettingsCard {
+                    objectName: "completionAccountCard"
+                    platform: "completion"; title: "追光鲸鱼 · 完课平台"
+                    pageScroll: pageScroll
+                    Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.fillHeight: true
                 }
-                Label {
-                    text: {
-                        page.settings.notice
-                        var b = page.settings.bindingFor(String(page.selectedTerm.termId || ""))
-                        return b.class_id ? "当前已绑定：" + b.class_name + " · 班级 ID " + b.class_id + " · 课程 ID " + b.course_id : "当前班期尚未绑定"
-                    }
-                    font.pixelSize: 12; color: "#475467"
+                AccountSettingsCard {
+                    objectName: "homeworkAccountCard"
+                    platform: "homework"; title: "作业平台"
+                    pageScroll: pageScroll
+                    Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.fillHeight: true
                 }
             }
+
+            SettingsCard {
+                objectName: "bindingCard"
+                Layout.fillWidth: true
+                title: "班期对应关系"
+                subtitle: "两个平台的班期 ID 不同，每个班期确认一次"
+                description: "未绑定的班期不能获取学习数据，也不能新建催办。"
+                pageScroll: pageScroll
+                headerRight: Rectangle {
+                    implicitWidth: bindingTag.implicitWidth + 16
+                    implicitHeight: 20
+                    radius: 10
+                    color: page.hasBinding() ? "#ecfdf3" : "#fffaeb"
+                    Label {
+                        id: bindingTag
+                        anchors.centerIn: parent
+                        text: page.hasBinding() ? "已绑定" : "未绑定"
+                        font.pixelSize: 11
+                        color: page.hasBinding() ? "#027a48" : "#b54708"
+                    }
+                }
+
+                GridLayout {
+                    Layout.fillWidth: true
+                    columns: 2
+                    columnSpacing: 12
+                    rowSpacing: 10
+                    Label { text: "追光鲸鱼班期"; color: "#475467"; font.pixelSize: 12; Layout.preferredWidth: 96; Layout.alignment: Qt.AlignVCenter }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        ComboBox {
+                            id: termBox; objectName: "settingTermBox"
+                            Layout.fillWidth: true
+                            model: page.settings.termClasses; textRole: "name"
+                            enabled: !page.settings.busy
+                            onActivated: page.syncBinding()
+                            SettingsWheelGuard { view: pageScroll }
+                        }
+                        Button { objectName: "refreshTermsButton"; text: "刷新班期"; enabled: !backend.busy && !backend.termsModule.busy; onClicked: backend.termsModule.refreshAll() }
+                    }
+                    Label { text: "作业平台班级"; color: "#475467"; font.pixelSize: 12; Layout.preferredWidth: 96; Layout.alignment: Qt.AlignVCenter }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        ComboBox {
+                            id: classBox; objectName: "settingClassBox"
+                            Layout.fillWidth: true
+                            model: page.settings.homeworkClasses; textRole: "name"
+                            enabled: !page.settings.busy
+                            // 换班级时回到该班级的主课程，避免沿用上一个班级的课程。
+                            onCurrentIndexChanged: courseBox.currentIndex = 0
+                            SettingsWheelGuard { view: pageScroll }
+                        }
+                        Button { objectName: "fetchHomeworkClassesButton"; text: page.settings.busy ? "获取中…" : "获取作业班级"; enabled: !page.settings.busy; onClicked: page.settings.fetchHomeworkClasses() }
+                    }
+                    Label { text: "课程"; color: "#475467"; font.pixelSize: 12; Layout.preferredWidth: 96; Layout.alignment: Qt.AlignTop; topPadding: 6 }
+                    ColumnLayout {
+                        Layout.fillWidth: true
+                        spacing: 4
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 8
+                            Rectangle {
+                                objectName: "settingCourseValue"
+                                Layout.fillWidth: true
+                                implicitHeight: 28
+                                radius: 6
+                                color: "#f8fafc"; border.color: "#e4e7ec"
+                                Label {
+                                    anchors.left: parent.left; anchors.leftMargin: 9; anchors.verticalCenter: parent.verticalCenter
+                                    text: page.selectedClass.course_ids && page.selectedClass.course_ids.length ? "课程 ID " + page.selectedClass.course_ids[0] : "尚未获取课程"
+                                    font.pixelSize: 12; color: "#475467"
+                                }
+                            }
+                            ComboBox {
+                                id: courseBox
+                                objectName: "settingCourseBox"
+                                visible: (page.selectedClass.course_ids || []).length > 1
+                                Layout.preferredWidth: 110
+                                model: page.selectedClass.course_ids || []
+                                SettingsWheelGuard { view: pageScroll }
+                            }
+                        }
+                        Label { text: page.courseLabel(); font.pixelSize: 11; color: "#98a2b3"; wrapMode: Text.Wrap; Layout.fillWidth: true }
+                    }
+                }
+
+                footer: ColumnLayout {
+                    Layout.fillWidth: true
+                    spacing: 10
+                    Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: "#eef1f6" }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Label { text: "修改班期或班级后需要重新确认。"; color: "#98a2b3"; font.pixelSize: 11; Layout.fillWidth: true; elide: Text.ElideRight }
+                        Button {
+                            objectName: "confirmBindingButton"
+                            text: "确认绑定"
+                            highlighted: true
+                            enabled: !page.settings.busy && page.selectedClass.id !== undefined && page.selectedTerm.termId !== undefined
+                            onClicked: page.confirmBinding()
+                        }
+                    }
+                    Rectangle {
+                        objectName: "bindingStatus"
+                        Layout.fillWidth: true
+                        visible: page.hasBinding()
+                        implicitHeight: 30
+                        radius: 8
+                        color: "#ecfdf3"; border.color: "#d3f1e0"
+                        RowLayout {
+                            anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10
+                            spacing: 8
+                            Label { text: "✓ 已绑定"; color: "#027a48"; font.pixelSize: 11; font.bold: true }
+                            Label { text: page.bindingText(); color: "#475467"; font.pixelSize: 11; elide: Text.ElideRight; Layout.fillWidth: true }
+                        }
+                    }
+                }
+            }
+
+            SettingsCard {
+                objectName: "credentialNotesCard"
+                Layout.fillWidth: true
+                title: "凭据说明"
+                pageScroll: pageScroll
+                Label {
+                    Layout.fillWidth: true
+                    text: "密码由 Windows 凭据管理器保管，保存后不在界面回显；更换账号时必须同时输入该账号的密码。\n作业平台班级目录按当前作业账号缓存在本地，换账号后需要重新「获取作业班级」。"
+                    color: "#667085"; font.pixelSize: 11; wrapMode: Text.Wrap; lineHeight: 1.6
+                }
+            }
+
+            Item { id: contentEnd; objectName: "settingsContentEnd"; Layout.fillWidth: true; implicitHeight: 0 }
         }
-        Label {
-            text: "此页输入的密码由 Windows 凭据管理器保管。更换账号时请同时输入该账号的密码。"
-            color: "#667085"; font.pixelSize: 12; wrapMode: Text.Wrap; Layout.fillWidth: true
-        }
-        Item { Layout.fillHeight: true }
+    }
+
+    // 缓存刷新、绑定保存或重新进入本页后，同步下拉框与对应关系提示。
+    Connections {
+        target: page.settings
+        function onChanged() { page.syncBinding() }
     }
 }

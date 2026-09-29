@@ -269,7 +269,7 @@ class GroupCenter(QObject):
             self._id=self.store.create(f'{wf.className} · 第{wf._batch}次催办',people,wf.store,wf._batch,
                 content_template=[dict(type='text',text=template)])
             self._preview=[];self._confirmation=None
-            wf.reload_rows()
+            wf.reload_rows(keep_query=True)
             self._notice=f'已生成群发名单，共 {len(people)} 人；尚未发送。请配置前缀和参数'
             self._reload_snapshot(lists=True);self._notify_preview();self._notify_status();return True
         except Exception as exc:self._notice='生成失败：'+str(exc);self._notify_status();return False
@@ -449,14 +449,14 @@ class GroupCenter(QObject):
         if self.active or list_id!=self._id:return False
         try:
             self.store.resolve(list_id,recipient_id,was_sent)
-            self.owner.workflow.refresh_live()
+            self.owner.workflow.refresh_live(keep_query=True)
             self._notice='人工核实结果已保存';self._reload_snapshot(selection=False);self._notify_status();return True
         except Exception as exc:self._notice=str(exc);self._notify_status();return False
     @Slot(str)
     def _progress(self,message):self._notice=message;self._notify_status()
     @Slot()
     def _row_finished(self):
-        self.owner.workflow.refresh_live();self._reload_snapshot(selection=False)
+        self.owner.workflow.refresh_live(keep_query=True);self._reload_snapshot(selection=False)
     @Slot()
     def _on_paused(self):self._paused=True;self._notice='已暂停，可以操作电脑';self._notify_activity();self._notify_status()
     @Slot()
@@ -466,7 +466,7 @@ class GroupCenter(QObject):
         if worker:worker.deleteLater()
         try:self.store.recover()
         except Exception as exc:self._notice='结果回写待处理：'+str(exc)
-        self.owner.workflow.refresh_live();self._reload_snapshot(selection=False);self._notify_activity();self._notify_status()
+        self.owner.workflow.refresh_live(keep_query=True);self._reload_snapshot(selection=False);self._notify_activity();self._notify_status()
     def shutdown(self):
         if self._worker:self._worker.stop();self._worker.wait()
         self._hotkey.close()

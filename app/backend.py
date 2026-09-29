@@ -438,8 +438,9 @@ class Backend(QObject):
                 raise ValueError('获取完成，但没有学员与班期名单匹配；未创建催办，请检查学号和姓名')
             self.repo.set_setting('class_name', self._class_name)
             self.refresh()
-            self.workflow.refresh_live()
-            self.toast.emit(f"获取完成：匹配 {result['matched']} 人，姓名不符 {result['mismatched']} 人，名单外 {result['unknown']} 人，未获取 {result['missing']} 人；两平台在读匹配 {source_stats['双方在读并导出']} 人")
+            followed = self.workflow.refresh_live()
+            self.toast.emit(f"获取完成：匹配 {result['matched']} 人，姓名不符 {result['mismatched']} 人，名单外 {result['unknown']} 人，未获取 {result['missing']} 人；两平台在读匹配 {source_stats['双方在读并导出']} 人"
+                            + ('；最新催办批次欠交数据已同步' if followed else ''))
             create_campaign = self._create_after_fetch
         except Exception as exc:
             self.toast.emit(str(exc))
@@ -449,9 +450,9 @@ class Backend(QObject):
         if create_campaign:
             self.workflow.createBatch()
 
-    def _refresh_statistics(self):
+    def _refresh_statistics(self, students=None):
         snapshot = json.loads(self.repo.get_setting('snapshot', '[]'))
-        students = {r['student_id']: r for r in self.repo.list_students()}
+        students = {r['student_id']: r for r in (students if students is not None else self.repo.list_students())}
         snapshot = [r for r in snapshot if r['student_id'] in students]
         eligible = [r for r in snapshot if not (
             students.get(r['student_id'], {}).get('status') == '请假'
@@ -484,14 +485,18 @@ class Backend(QObject):
             self.studentModel.columns = columns
             self.studentModel.endResetModel()
             self.columnsChanged.emit()
-        self.studentModel.set_rows(self.repo.list_students(self._view, self._search))
-        self._refresh_statistics()
+        students = self.repo.list_students()
+        search = self._search.strip().lower()
+        visible = [r for r in students if not search or search in f"{r['student_id']} {r['name']}".lower()]
+        self.studentModel.set_rows(visible)
+        self._refresh_statistics(students)
         if self._selected:
             self._selected = self.repo.get(self._selected["student_id"]) or {}
             self.selectedStudentChanged.emit()
             self.feedbackChanged.emit()
         if hasattr(self, '_profiles_module'):
-            self._profiles_module.refresh()
+            self._profiles_module.refresh(current_students=students)
+        return students
 
     @Slot(str)
     def setView(self, view):

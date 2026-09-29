@@ -1,0 +1,15 @@
+# ADR 索引
+
+先查此表，只读当前任务相关条目。ADR 保存重要原因与约束，不替代当前代码；没有历史证据的方案不能补写成曾经讨论或失败。
+
+| ADR | 主题 | 状态 | 相关区域 |
+| --- | --- | --- | --- |
+| [ADR-001](ADR-001-independent-lists-feedback.md) | 筛选名单与反馈独立于发送，兼容旧来源名单 | Accepted | 工作台、群发、反馈 |
+| [ADR-002](ADR-002-editor-identity-lifecycle.md) | 编辑身份与稳定 QML 委托 | Accepted | 自动保存、浮窗、模型/界面测试 |
+| [ADR-003](ADR-003-autosave-preview-boundary.md) | 群发参数自动保存与显式发送边界 | Accepted | 设置、消息编辑、预览、发送保护 |
+| [ADR-004](ADR-004-acquisition-snapshot-boundary.md) | 学习数据完整性与批次快照边界 | Accepted | 采集、班级隔离、历史反馈/看板 |
+| [ADR-005](ADR-005-term-binding-and-course.md) | 作业班级目录缓存与课程 ID 自动绑定 | Accepted | 设置页、班期绑定、采集参数 |
+| [ADR-006](ADR-006-latest-batch-learning-refresh.md) | 最新批次学习数据跟随获取刷新，历史批次冻结 | Accepted | 催办批次、获取数据、看板、发送预览 |
+| [ADR-007](ADR-007-filter-freeze-and-scope.md) | 筛选结果为冻结集合，业务范围只算真正匹配的行 | Accepted | 画像/工作台筛选、名单生成、导出、批量反馈 |
+
+新增条目需满足：不知道这一决定很可能重踩坑或破坏业务。改变已接受决策时，更新原条目状态并链接替代条目，避免互相矛盾的规则。

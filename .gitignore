@@ -37,3 +37,11 @@ dist/
 *.swp
 Thumbs.db
 Desktop.ini
+
+# Local generated previews and design drafts (may contain real class data)
+/preview/dashboard-data-*.json
+/preview/dashboard-169.html
+/docs/preview-dashboard-history/
+/docs/ui/
+/output/
+platform_sessions/

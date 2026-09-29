@@ -7,23 +7,28 @@ from PySide6.QtCore import QObject, Property, Signal, Slot, QTimer
 from .database import Database
 from .repository import StudentRepository
 from .profile_storage import definitions
+from .contact_match import name_in_chat_title
 
 
 class ProfileCompanion(QObject):
     changed = Signal()
     noticeChanged = Signal()
-    lockedChanged = Signal()
 
     def __init__(self, owner):
         super().__init__(owner)
         self.owner = owner
         self._student = {}
         self._notice = "打开企业微信的学员聊天窗口以自动识别"
-        self._locked = False
         self._editing = False
         self._last_signature = None
         self._last_checked = 0.0
         self._last_title = ''
+        self._pending_edits = {}
+        self._pending_title = ''
+        self._save_timer = QTimer(self)
+        self._save_timer.setSingleShot(True)
+        self._save_timer.setInterval(180)
+        self._save_timer.timeout.connect(self._flush_pending)
         self._timer = QTimer(self)
         self._timer.setInterval(500)
         self._timer.timeout.connect(self.refreshContact)
@@ -33,13 +38,12 @@ class ProfileCompanion(QObject):
 
     @Slot()
     def invalidate(self):
+        self._flush_pending()
         self._last_signature = None
         current_path = str(self.owner.db.path)
         if self.owner.profilesModule.allClasses or (self._student and self._student.get('_db_path') != current_path):
             self._student = {}
             self._last_title = ''
-            self._locked = False
-            self.lockedChanged.emit()
             self.changed.emit()
             self._set_notice('班期已切换，请激活该班学员的独立聊天窗口')
 
@@ -51,10 +55,6 @@ class ProfileCompanion(QObject):
     def notice(self):
         return self._notice
 
-    @Property(bool, notify=lockedChanged)
-    def locked(self):
-        return self._locked
-
     @Property('QVariantList', notify=changed)
     def fields(self):
         return self.owner.profilesModule.editor_fields(self._student)
@@ -65,6 +65,7 @@ class ProfileCompanion(QObject):
 
     @Slot()
     def reloadStudent(self):
+        self._flush_pending()
         if self._student:
             previous = self._student
             row = StudentRepository(Database(previous['_db_path'])).get(previous['student_id'])
@@ -84,13 +85,8 @@ class ProfileCompanion(QObject):
 
     @Slot()
     def close(self):
+        self._flush_pending()
         self._timer.stop()
-
-    @Slot(bool)
-    def setLocked(self, value):
-        self._locked = bool(value)
-        self._last_signature = None
-        self.lockedChanged.emit()
 
     def _active_wecom_title(self):
         """Return title only when the foreground HWND belongs to WeCom."""
@@ -128,8 +124,6 @@ class ProfileCompanion(QObject):
 
     @Slot()
     def refreshContact(self):
-        if self._locked:
-            return
         # Trust the actual foreground HWND, not a potentially delayed Qt focus signal.
         title = self._active_wecom_title()
         if not title:
@@ -143,15 +137,14 @@ class ProfileCompanion(QObject):
     @Slot()
     def retryContact(self):
         """Retry the last observed WeCom caption even while this editor has focus."""
-        if self._locked:
-            self._set_notice('请先解除学员锁定，再重新识别')
-            return
         self._last_signature = None
         title = self._active_wecom_title() or self._last_title
         if title:self._match_title(title)
         else:self._set_notice('请先激活企业微信的独立聊天窗口')
 
     def _match_title(self, title):
+        if self._pending_edits and title != self._pending_title:
+            self._flush_pending()
         profile_module = self.owner.profilesModule
         if profile_module.allClasses:
             if self._student:
@@ -168,7 +161,7 @@ class ProfileCompanion(QObject):
         self._last_checked = now
         repo = self.owner.repo
         # Avoid matching the main window, whose caption has no contact name.
-        candidates = [row for row in repo.list_students() if row.get('name') and row['name'] in title] if title not in ('企业微信', 'WeCom') else []
+        candidates = [row for row in repo.list_students() if name_in_chat_title(row.get('name'), title)]
         if len(candidates) != 1:
             self._last_signature = None
             if self._student:
@@ -192,7 +185,8 @@ class ProfileCompanion(QObject):
             self._set_notice('未定位学员，无法保存')
             return False
         try:
-            repo = StudentRepository(Database(self._student['_db_path']))
+            path = self._student['_db_path']
+            repo = self.owner.repo if path == str(self.owner.db.path) else StudentRepository(Database(path))
             previous = self._student
             date_field = label == '免催日期' or any(item['name'] == label and item['kind'] == 'date' for item in definitions(repo.db))
             if label == '免催日期':
@@ -207,7 +201,8 @@ class ProfileCompanion(QObject):
             if date_field:
                 self.changed.emit()
             self._set_notice('已自动保存')
-            self.owner.workflow.refresh_live()
+            if path == str(self.owner.db.path) and label in {'微信', '免催日期', '学员状态', '差的课程', '差的作业', '合计完课', '合计作业'}:
+                self.owner.workflow.refresh_live(keep_query=True)
             self.owner.profilesModule.reflect_saved(str(repo.db.path),self._student['student_id'])
             return True
         except Exception as exc:
@@ -219,7 +214,25 @@ class ProfileCompanion(QObject):
         if key != self._student.get('_record_key'):
             self._set_notice('学员已切换，未保存')
             return False
+        self._pending_edits.pop(label, None)
+        self._flush_pending()
         return self.saveField(label,value)
+
+    @Slot(str,str,str,result=bool)
+    def queueEditorField(self, key, label, value):
+        if key != self._student.get('_record_key'):
+            self._set_notice('学员已切换，未保存')
+            return False
+        self._pending_edits[label] = value
+        self._pending_title = self._last_title
+        self._save_timer.start()
+        return True
+
+    def _flush_pending(self):
+        self._save_timer.stop()
+        pending, self._pending_edits = self._pending_edits, {}
+        for label, value in pending.items():
+            self.saveField(label, value)
 
     @Slot(bool)
     def setEditing(self, value):
