@@ -1,0 +1,39 @@
+# ===== 真实学员数据：绝不入版本库 =====
+sent_messages/
+data/
+
+# ===== 运行时会生成的数据 =====
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# ===== Python 缓存与构建产物 =====
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+*.egg-info/
+
+# ===== 密钥与凭据 =====
+.ssh/
+*.pem
+*.key
+.env
+.env.*
+*_session.txt
+*_cookies_*.txt
+
+# ===== 编辑器 / 系统 =====
+.vscode/*
+!.vscode/settings.json
+.idea/
+*.swp
+Thumbs.db
+Desktop.ini

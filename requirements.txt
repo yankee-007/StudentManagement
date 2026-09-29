@@ -1,0 +1,9 @@
+PySide6>=6.8,<7
+keyring
+pycryptodome
+requests
+beautifulsoup4
+lxml
+openpyxl
+PyAutoGUI>=0.9.54; sys_platform == 'win32'
+pywin32>=306; sys_platform == 'win32'
