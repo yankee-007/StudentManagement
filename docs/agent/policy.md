@@ -42,7 +42,7 @@ GIT_POLICY 可显式设为 `disabled`；启用 Git 时仍遵循既有项目检�
 
 ## 策略依据与操作范围
 
-沿用项目原有单 Agent 开发、最小修改、数据安全与针对性验证约定；其正文迁入 workflow 的「项目工程约束」。既有按复杂度使用 HANDOFF 的行为映射为 adaptive：新复杂任务使用独立 Task，原 HANDOFF 保留为旧任务兼容路径。未规定项采用上表默认值，不扩大业务或外部权限。
+沿用项目原有单 Agent 开发、最小修改、数据安全与针对性验证约定；其正文迁入 workflow 的「项目工程约束」。既有按复杂度使用 HANDOFF 的行为映射为 adaptive：新复杂任务使用独立 Task，原 HANDOFF 的正文已迁入独立 Task，根 HANDOFF 仅保留为旧 Session 导航。未规定项采用上表默认值，不扩大业务或外部权限。
 
 远端同步授权：待确认。本次用户只要求升级项目记忆，未授权上传。当前 origin 指向 GitHub yankee-007/StudentManagement；不因远端存在推定 push 权限。未来授权必须核对实际目标、分支、内容、任务/阶段与发布等副作用；历史授权不自动延伸。
 
@@ -69,7 +69,8 @@ GIT_POLICY 可显式设为 `disabled`；启用 Git 时仍遵循既有项目检�
 | Git 归属、安全、提交和上传 | docs/agent/git.md |
 | 活动任务 | docs/tasks/README.md |
 | 新任务 | docs/tasks/TASK-日期-12位随机十六进制-主题.md |
-| 旧任务兼容路径 | HANDOFF.md，ID TASK-20261006-9dd5d6536487；不再复用于新任务 |
+| 旧任务记录 | docs/tasks/TASK-20261006-9dd5d6536487-dashboard-handoff.md，沿用原 ID |
+| 旧 Session 导航 | HANDOFF.md，仅指向入口与任务索引，不写任务进度 |
 | 长期决策 | docs/decisions/README.md 及索引中的既有 ADR |
 
 后续按实际路径读取。凭据、机器专属临时路径与活跃进程信息不写入共享策略。

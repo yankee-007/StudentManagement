@@ -5,6 +5,6 @@
 | Task ID | 标题 | 工作状态 | 分支或范围 | 文件 |
 | --- | --- | --- | --- | --- |
 | TASK-20261006-a834b72e9c51 | 催办反馈卡片自动保存与输入性能 | awaiting_acceptance | main／反馈编辑链 | [任务](TASK-20261006-a834b72e9c51-feedback-autosave.md) |
-| TASK-20261006-9dd5d6536487 | 看板既有任务的人工验收与待定口径 | awaiting_acceptance | main／旧快照待重新核验 | [原 HANDOFF](../../HANDOFF.md) |
+| TASK-20261006-9dd5d6536487 | 看板既有任务的人工验收与待定口径 | awaiting_acceptance | main／旧快照待重新核验 | [任务](TASK-20261006-9dd5d6536487-dashboard-handoff.md) |
 
 规则见 [任务协议](../agent/workflow.md)。先更新任务，再同步索引；done/cancelled 从活动表删除并保留原文件路径，核对 ID 不再留在活动表。历史任务可重开；新需求另建并关联，不登记模板示例。

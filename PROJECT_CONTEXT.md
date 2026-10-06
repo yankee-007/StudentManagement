@@ -106,4 +106,4 @@ Python ↔ QML 通过 Backend 暴露的 QObject、Property/Signal/Slot 和 DictT
 
 2026-10-06 仅核对项目记忆组织、main.py 启动入口及看板相关符号，未启动默认应用、连接真实平台或运行业务回归。架构和上文业务概览沿用既有资料，仅相关条目作静态核验，不能推定整个项目已重审。
 
-项目记忆协议已适配为 Bootstrap 0.3.0；常规入口为 [AGENTS.md](AGENTS.md)、[策略](docs/agent/policy.md)、当前上下文与 ADR 索引。原 HANDOFF 保留为旧任务兼容路径，新复杂任务使用独立 Task。运行与安全验证方式见 README。
+项目记忆协议已适配为 Bootstrap 0.3.0；常规入口为 [AGENTS.md](AGENTS.md)、[策略](docs/agent/policy.md)、当前上下文与 ADR 索引。原 HANDOFF 正文已迁入独立 Task，根 HANDOFF 仅为旧 Session 导航；新复杂任务使用独立 Task。运行与安全验证方式见 README。
