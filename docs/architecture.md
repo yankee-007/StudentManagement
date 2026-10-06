@@ -6,8 +6,6 @@
 
 main.py 创建 QApplication（原生文件对话框需要 QWidget 支持），设置 Fusion/字体/应用名称，将 Backend 和 studentModel 注入 QQmlApplicationEngine，加载 qml/Main.qml。Main 切换工作台、画像、班期学员、设置、群发中心、备注批改、未进直播间，并管理独立浮窗。
 
-主窗口保持原生标题栏与窗口操作。main.py 在显示后挂接 app/window_theme.py，使用 Main.qml 暴露的 UiTheme 配色：Windows 11 支持白底、深色标题及浅色边框；Windows 10 尝试浅色模式，显式颜色接口不支持时保留系统渲染。非 Windows／offscreen 跳过 DWM；不支持或 DLL 不可用不阻断启动，不修改全局系统主题。显示、激活、主题及窗口句柄变化后重新应用；顶部工具栏只保留底部分隔线，班期下拉框左侧显示 22px 加粗的 appToolbarTitle「学员管理」。
-
 ```text
 Main.qml / 模块 QML / 浮窗
        ↕ Property、Signal、Slot；表格角色

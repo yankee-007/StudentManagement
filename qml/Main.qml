@@ -10,9 +10,6 @@ ApplicationWindow {
     height: 800
     title: "学员管理 · 催办与画像"
     color: UiTheme.canvas
-    readonly property color nativeTitleBarBackground: UiTheme.surface
-    readonly property color nativeTitleBarText: UiTheme.ink
-    readonly property color nativeTitleBarBorder: UiTheme.line
     font.pixelSize: 13
     property bool campaignDetailOpen: width >= 1000
     readonly property var moduleNames: ["催办工作台", "学员画像", "班期学员", "设置", "群发中心", "备注批改", "未进直播间"]
@@ -47,20 +44,11 @@ ApplicationWindow {
     function applyFilter() { wf.filterRows(viewBox.currentValue || "all", search.text) }
     ClassSwitchOverlay { id: classSwitch }
     header: ToolBar {
-        objectName: "mainToolbar"
         implicitHeight: 60
-        background: Rectangle {
-            color: root.nativeTitleBarBackground
-            Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: UiTheme.line }
-        }
+        background: Rectangle { color: UiTheme.surface; border.color: UiTheme.line }
         RowLayout {
             anchors.fill: parent; anchors.leftMargin: 18; anchors.rightMargin: 18; spacing: 14
-            Label {
-                objectName: "appToolbarTitle"
-                text: "学员管理"
-                font.pixelSize: 22; font.bold: true; color: UiTheme.ink
-                Layout.preferredWidth: Math.max(implicitWidth, navigation.width - 18)
-            }
+            Label { text: "学员管理"; font.pixelSize: 18; font.bold: true; color: UiTheme.ink; Layout.preferredWidth: navigation.width - 18 }
             UiComboBox {
                 id: classBox
                 objectName: "classSelector"
