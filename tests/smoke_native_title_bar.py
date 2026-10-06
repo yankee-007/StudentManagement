@@ -108,14 +108,19 @@ def run():
 
         toolbar = window.findChild(QQuickItem, "mainToolbar")
         assert toolbar.property("background").property("color") == QColor("#ffffff")
-        assert not any(node.property("text") == "学员管理" for node in toolbar.findChildren(QQuickItem))
+        title = toolbar.findChild(QQuickItem, "appToolbarTitle")
+        assert title is not None and title.property("text") == "学员管理"
         for width, height in ((1280, 800), (1000, 700), (720, 480)):
             window.resize(width, height)
             window.setPosition(60, 60)
             window.raise_()
             window.requestActivate()
             QTest.qWait(250)
-            for name in ("classSelector", "debugRestartButton"):
+            selector = window.findChild(QQuickItem, "classSelector")
+            title_point = title.mapToScene(title.boundingRect().topLeft())
+            selector_point = selector.mapToScene(selector.boundingRect().topLeft())
+            assert title_point.x() + title.width() < selector_point.x()
+            for name in ("appToolbarTitle", "classSelector", "debugRestartButton"):
                 item = window.findChild(QQuickItem, name)
                 point = item.mapToScene(item.boundingRect().topLeft())
                 assert item.isVisible() and point.x() >= 0

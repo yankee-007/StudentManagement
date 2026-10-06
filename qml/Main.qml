@@ -55,6 +55,12 @@ ApplicationWindow {
         }
         RowLayout {
             anchors.fill: parent; anchors.leftMargin: 18; anchors.rightMargin: 18; spacing: 14
+            Label {
+                objectName: "appToolbarTitle"
+                text: "学员管理"
+                font.pixelSize: 22; font.bold: true; color: UiTheme.ink
+                Layout.preferredWidth: Math.max(implicitWidth, navigation.width - 18)
+            }
             UiComboBox {
                 id: classBox
                 objectName: "classSelector"
