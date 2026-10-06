@@ -89,6 +89,7 @@ ColumnLayout {
                                 selectByMouse: true
                                 readOnly: !card.service.canEdit || !card.hasStudent || !card.service.selected.name || !!card.service.selected.is_placeholder
                                 placeholderText: card.service.canEdit ? "填写反馈" : "暂无反馈"
+                                property var menu: shortcutsMenu
                                 Component.onCompleted: if (modelData.key === "feedback") { card.draftEditor = draft; card.loadSelection(true) }
                                 Component.onDestruction: if (card.draftEditor === draft) card.draftEditor = null
                                 function save() {
@@ -97,37 +98,20 @@ ColumnLayout {
                                 }
                                 onTextChanged: save()
                                 onInputMethodComposingChanged: save()
+                                onTextEdited: shortcutsMenu.close()
                                 onActiveFocusChanged: if (!activeFocus && !card.loadingDraft) card.workflow.flushFeedback()
                                 onAccepted: card.workflow.flushFeedback()
                                 background: Rectangle { color: "#f9fafb"; radius: 6; border.color: draft.activeFocus ? "#809aff" : "#e4e7ec" }
-                            }
-                            ToolButton {
-                                objectName: modelData.key === "feedback" ? (card.service === card.workflow ? "feedbackShortcutButton" : "floatingFeedbackShortcutButton") : ""
-                                enabled: !draft.readOnly
-                                implicitWidth: 28; implicitHeight: card.compact ? 27 : 32
-                                Accessible.name: "快捷填写"
-                                contentItem: Canvas {
-                                    implicitWidth: 10; implicitHeight: 6
-                                    onEnabledChanged: requestPaint()
-                                    onPaint: {
-                                        var context = getContext("2d")
-                                        context.clearRect(0, 0, width, height)
-                                        context.fillStyle = enabled ? "#344054" : "#98a2b3"
-                                        context.beginPath()
-                                        context.moveTo(width / 2 - 4, height / 2 - 2)
-                                        context.lineTo(width / 2 + 4, height / 2 - 2)
-                                        context.lineTo(width / 2, height / 2 + 2)
-                                        context.closePath(); context.fill()
-                                    }
+                                TapHandler {
+                                    enabled: !draft.readOnly
+                                    onTapped: { draft.forceActiveFocus(); shortcutsMenu.open() }
                                 }
-                                property var menu: shortcutsMenu
-                                ToolTip.visible: hovered; ToolTip.text: "快捷填写"
-                                onClicked: { Qt.inputMethod.commit(); shortcutsMenu.open() }
                             }
                             Menu {
                                 id: shortcutsMenu
                                 objectName: modelData.key === "feedback" ? (card.service === card.workflow ? "feedbackShortcutMenu" : "floatingFeedbackShortcutMenu") : ""
                                 parent: Overlay.overlay
+                                focus: false; modal: false
                                 width: Math.min(feedbackRow.width, parent ? parent.width - 16 : feedbackRow.width)
                                 property real availableSpace: 320
                                 property string capturedKey: ""

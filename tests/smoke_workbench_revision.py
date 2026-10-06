@@ -7,7 +7,7 @@ import time
 import statistics
 from pathlib import Path
 
-from PySide6.QtCore import QObject, QPointF, QUrl, QMetaObject, Q_ARG
+from PySide6.QtCore import QObject, QPointF, QUrl, QMetaObject, Q_ARG, Qt
 from PySide6.QtGui import QFontDatabase, QInputMethodEvent
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtQml import QQmlApplicationEngine
@@ -74,9 +74,8 @@ def run():
         draft = visual(detail, "feedbackDraft")
         assert draft is not None
         assert draft.height() < 40
-        shortcut_button = visual(detail, 'feedbackShortcutButton')
-        menu = shortcut_button.property('menu')
-        assert shortcut_button is not None and menu.property('count') == 4
+        menu = draft.property('menu')
+        assert visual(detail, 'feedbackShortcutButton') is None and menu.property('count') == 4
         assert backend.workflow.feedbackShortcuts == ['答应补课', '未接听电话']
         draft.forceActiveFocus()
         draft.setProperty("text", "界面草稿")
@@ -117,7 +116,7 @@ def run():
         draft.setProperty('text', '界面修改')
         QTest.qWait(650)
         def open_shortcuts():
-            assert QMetaObject.invokeMethod(shortcut_button, 'click')
+            QTest.mouseClick(window, Qt.LeftButton, Qt.NoModifier, draft.mapToScene(QPointF(draft.width() / 2, draft.height() / 2)).toPoint())
             app.processEvents()
             assert menu.property('visible')
             top = draft.mapToScene(QPointF(0, 0)).y()
@@ -129,6 +128,12 @@ def run():
             app.processEvents()
         open_shortcuts()
         assert draft.property('text') == '界面修改'
+        draft.setProperty('cursorPosition', len('界面修改'))
+        QTest.keyClick(window, Qt.Key_X)
+        app.processEvents()
+        assert draft.property('text') == '界面修改x' and not menu.property('visible')
+        draft.setProperty('text', '界面修改')
+        open_shortcuts()
         if os.environ.get('WORKBENCH_MENU_SCREENSHOT'):
             assert window.grabWindow().save(os.environ['WORKBENCH_MENU_SCREENSHOT'])
         pick_shortcut('feedbackShortcutOption0')
@@ -186,16 +191,17 @@ def run():
             float_draft=visual(floating.contentItem(),'floatingFeedbackDraft')
             assert float_draft is not None
             assert float_draft.property('text')=='界面修改'
-            assert visual(floating.contentItem(), 'floatingFeedbackShortcutButton').property('menu').property('count') == 5
+            assert float_draft.property('menu').property('count') == 5
             float_draft.forceActiveFocus()
             float_draft.setProperty('text','浮窗草稿')
             app.processEvents()
             QTest.qWait(650)
             assert backend.workflow.store.rows(backend.workflow._batch,sid)[0]['feedback']=='浮窗草稿'
             assert visual(floating.contentItem(),'floatingFeedbackDraft') == float_draft
-            float_button = visual(floating.contentItem(), 'floatingFeedbackShortcutButton')
-            float_menu = float_button.property('menu')
-            assert QMetaObject.invokeMethod(float_button, 'click')
+            float_menu = float_draft.property('menu')
+            def open_float_shortcuts():
+                QTest.mouseClick(floating, Qt.LeftButton, Qt.NoModifier, float_draft.mapToScene(QPointF(float_draft.width() / 2, float_draft.height() / 2)).toPoint())
+            open_float_shortcuts()
             app.processEvents()
             float_top = float_draft.mapToScene(QPointF(0, 0)).y()
             assert float_menu.property('y') >= float_top + float_draft.height() or float_menu.property('y') + float_menu.property('height') <= float_top
@@ -207,7 +213,7 @@ def run():
             if size > 1:
                 for index in range(20):
                     assert backend.workflow.addFeedbackShortcut(f'更多快捷选项{index}')
-                assert QMetaObject.invokeMethod(float_button, 'click')
+                open_float_shortcuts()
                 app.processEvents()
                 assert float_menu.property('height') < float_menu.property('implicitHeight')
                 viewport = float_menu.property('contentItem')

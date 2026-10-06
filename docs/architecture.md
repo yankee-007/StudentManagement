@@ -34,7 +34,7 @@ Backend / TermModule / SettingsModule / LiveAbsence → AcquisitionTask（QThrea
 - 筛选按 ADR-007 冻结：应用筛选时把命中 key 存入 _frozen，值变化只更新数据并写 _filter_stale，只有显式重新筛选（搜索、视图、列筛选、切班/切批、刷新数据、重新应用）才重算；业务取数必须走 _scope_rows()（显示集合去掉过期行），不能直接用 _model.rows。
 - 列筛选按字段 key 保存；ProfileFilterDialog 共用于画像和工作台，ProfileFieldOrder 负责字段拖拽。工作台隐藏列宽为 0，模型仍保留数据列。
 - 画像记录身份组合数据库路径/学号；工作台 editorKey 是 JSON [db_path,batch_id,student_id]。名单对话框捕获 recipientKeys，后端检查仍与当前筛选完全一致。
-- CampaignDetail 由主界面和催办浮窗共用，反馈为单行 TextField + 外置按钮/Menu，快捷内容追加到末尾，非空时以「；」分隔。Menu 按上下空间定位，限制高度支持滚动，避免覆盖输入框；捕获 editorKey 防止旧菜单写入新学员。列表底部提供添加选项，默认「答应补课」「未接听电话」，新增选项存于当前班级 settings.campaign_feedback_shortcuts，经专用通知同步，避免广播重建编辑器。字段模型仅在布局签名改变时更新，值单独绑定；反馈保存不能重建编辑器。后端拒绝旧身份 key，工作台集中保存带身份的待保存反馈，连续输入只重启 500ms 定时器，不逐键写库或广播刷新。
+- CampaignDetail 由主界面和催办浮窗共用，反馈为单行 TextField + 点击展开的 Menu，无独立下拉按钮。TapHandler 保留原输入事件；Menu 不抢输入焦点，键入时收起，快捷内容追加到末尾，非空时以「；」分隔。Menu 按上下空间定位，限制高度支持滚动，避免覆盖输入框；捕获 editorKey 防止旧菜单写入新学员。列表底部提供添加选项，默认「答应补课」「未接听电话」，新增选项存于当前班级 settings.campaign_feedback_shortcuts，经专用通知同步，避免广播重建编辑器。字段模型仅在布局签名改变时更新，值单独绑定；反馈保存不能重建编辑器。后端拒绝旧身份 key，工作台集中保存带身份的待保存反馈，连续输入只重启 500ms 定时器，不逐键写库或广播刷新。
 - 切班/切班期是同步 Slot：selectClass 会重建班级上下文并刷新名单、批次和画像，实测整班首次切换约 430ms、缓存命中 30–75ms，必须由 WaitingOverlay 覆盖。
 - 切换时序：ComboBox 的 onActivated 先 close() 弹出层，再 begin(name, action, largeRoster) 打开 ClassSwitchOverlay；Overlay 只在 hostWindow.frameSwapped（一次真实绘制，含 app/window.update()）后经 Qt.callLater 执行 action，因此耗时刷新不会阻塞 Loading 的首次绘制。最快显示 140ms 防闪烁；窗口不可见时 cancel() 丢弃待执行动作，渲染停摆时 frameTimer 兜底执行，避免动作丢失或 Loading 常驻。
 - 长耗时提示必须提前决定：同步刷新会冻结事件循环，定时器只能在刷新结束后才触发，事后补提示必然晚于工作完成。因此由 Workflow.classRosterSize / TermModule.termRosterSize 在切换前读取缓存人数（只读连接，不构造 Database、不触发迁移，结果按班期缓存），≥300 人或未知时首帧即显示“数据较多，加载时间稍长”。
