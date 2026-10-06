@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from app.backend import Backend
 from app.fonts import configure_font
 from app.restart import RestartController
+from app.window_theme import NativeTitleBarTheme
 
 
 def main() -> int:
@@ -56,6 +57,7 @@ def main() -> int:
             height,
         )
     window.show()
+    title_bar_theme = NativeTitleBarTheme(window)
     result = app.exec()
     if restart.requested and not restart.start_helper():
         QMessageBox.critical(None, '重启失败', '无法启动重启助手，请从原启动入口重新运行程序。')

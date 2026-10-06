@@ -51,6 +51,8 @@ python main.py
 
 重启后的进程输出保存在 `%TEMP%/student-management-restart.log`（下次重启覆盖）；Python 启动异常会显示错误提示。
 
+主窗口保留系统标题栏、拖动、缩放及窗口按钮，顶部工具栏不重复显示应用名称。Windows 11 标题栏随应用使用白底、深色文字和浅色边框；Windows 10 使用原生浅色兼容模式，若系统启用了标题栏强调色，仍可能受系统配色影响。程序不修改全局 Windows 配色设置。
+
 ## 每日使用
 
 1. 在「班期学员」选择班期并获取名单，自动建立该班画像；已有缓存会在启动时自动同步，无需重新联网。两个模块的班期选择互相对应。
@@ -182,6 +184,7 @@ python -B -m tests.smoke_live_absence
 python -B -m tests.smoke_ui_refresh
 python -B -m tests.smoke_ui_refinements
 python -B -m tests.smoke_class_switch
+python -B -m tests.smoke_native_title_bar
 Remove-Item Env:QT_QPA_PLATFORM
 ```
 
