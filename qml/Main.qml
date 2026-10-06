@@ -12,6 +12,7 @@ ApplicationWindow {
     property var sender: backend.groupCenter
     property var restartService: typeof restartController !== "undefined" ? restartController : null
     onClosing: function(close) {
+        if (!wf.flushFeedback()) { close.accepted=false; return }
         if (root.moduleIndex === 4 && !backend.groupCenter.active) groupCenterPage.saveSettings()
         if (root.moduleIndex === 5 && !backend.remarkRenamer.active) remarkRenamerPage.saveOptions()
         if (backend.contactOpener.active) { close.accepted=false; snack.text="正在打开联系人，请等待完成后关闭"; snack.open() }
@@ -21,6 +22,7 @@ ApplicationWindow {
     }
     property int moduleIndex: 0
     function switchModule(index) {
+        if (!wf.flushFeedback()) return
         moduleIndex = index
         if (index === 1) backend.profilesModule.activate()
         else if (index === 0) wf.activate()

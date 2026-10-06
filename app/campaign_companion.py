@@ -127,6 +127,7 @@ class CampaignCompanion(QObject):
 
     @Slot()
     def close(self):
+        self.owner.workflow.flushFeedback()
         self._timer.stop()
 
     @Slot(bool)
@@ -159,6 +160,12 @@ class CampaignCompanion(QObject):
         if not self._sync_context():
             return
         candidates = [r for r in self.owner.workflow._rows if self._real(r) and name_in_chat_title(r['name'], title)]
+        next_sid = candidates[0]['student_id'] if len(candidates) == 1 else None
+        if next_sid != self._selected.get('student_id'):
+            if not self.owner.workflow.flushFeedback():
+                self._set_notice('反馈保存失败，请保留当前内容并重试')
+                return
+            candidates = [r for r in self.owner.workflow._rows if self._real(r) and name_in_chat_title(r['name'], title)]
         if len(candidates) != 1:
             if self._selected:
                 self._selected = {}
@@ -177,6 +184,10 @@ class CampaignCompanion(QObject):
         if not self._sync_context() or not self._selected or key != self.editorKey:
             return False
         return any(r['student_id'] == self._selected['student_id'] and self._real(r) for r in self.owner.workflow._rows)
+
+    @Slot(str, str, result=bool)
+    def queueFeedbackForSelection(self, key, value):
+        return self._valid_key(key) and self.owner.workflow.queueFeedback(key, value)
 
     @Slot(str, str, str, result=bool)
     def saveEditorValue(self, key, kind, value):

@@ -3,7 +3,7 @@ import uuid
 from collections import Counter
 from datetime import date
 from pathlib import Path
-from PySide6.QtCore import QObject, Property, Signal, Slot
+from PySide6.QtCore import QObject, Property, QTimer, Signal, Slot
 from PySide6.QtWidgets import QFileDialog
 from .database import Database
 from .repository import StudentRepository
@@ -21,6 +21,7 @@ class Workflow(QObject):
     changed = Signal()
     selectionChanged = Signal()
     queryChanged = Signal()
+    feedbackSaved = Signal(str, bool)
     def __init__(self, owner):
         super().__init__(owner)
         self.owner = owner
@@ -42,6 +43,13 @@ class Workflow(QObject):
         self._sort_descending = False
         self._selected = {}
         self._rows = []
+        self._pending_feedback = {}
+        self._feedback_timer = QTimer(self)
+        self._feedback_timer.setSingleShot(True)
+        self._feedback_timer.setInterval(500)
+        # Use a void callback: connecting timeout directly to the bool-returning
+        # Qt slot crashes in the supported PySide6 runtime when the timer fires.
+        self._feedback_timer.timeout.connect(lambda: self.flushFeedback())
         self._model = DictTableModel(TABLE_COLUMNS,self)
         self.store = CampaignStore(owner.db,owner.repo)
         from .send_controller import SendController
@@ -96,6 +104,68 @@ class Workflow(QObject):
         if kind=='submit':return self.submit(value)
         if kind=='remark':return self.saveRemark(sid,value)
         return False
+    @Slot(str,str,result=bool)
+    def queueFeedbackForSelection(self, key, value):
+        return key == self.editorKey and self.queueFeedback(key, value)
+    @Slot(str,str,result=bool)
+    def queueFeedback(self, key, value):
+        # Validate once against the captured context; never resolve a queued edit
+        # through the selection that happens to be active when the timer fires.
+        try:
+            path, batch, sid = json.loads(key)
+        except (ValueError, TypeError):
+            return False
+        row = next((r for r in self._rows if r['student_id'] == sid), None)
+        if (path != str(self.owner.db.path) or batch != self._batch or not self.canEdit
+                or not row or not str(row.get('name') or '').strip() or row.get('is_placeholder')):
+            return False
+        self._pending_feedback[key] = value
+        self._feedback_timer.start()
+        return True
+
+    @Slot(str,result=str)
+    def feedbackValue(self, key):
+        if key in self._pending_feedback:
+            return self._pending_feedback[key]
+        try:
+            path, batch, sid = json.loads(key)
+        except (ValueError, TypeError):
+            return ''
+        if path != str(self.owner.db.path) or batch != self._batch:
+            return ''
+        row = next((r for r in self._rows if r['student_id'] == sid), {})
+        return row.get('feedback_edit', '')
+
+    @Slot(result=bool)
+    def flushFeedback(self):
+        self._feedback_timer.stop()
+        updated = False
+        success = True
+        results = []
+        for key, value in list(self._pending_feedback.items()):
+            try:
+                path, batch, sid = json.loads(key)
+                if path != str(self.owner.db.path) or batch != self._batch:
+                    raise ValueError('班期或批次已切换，反馈尚未保存')
+                self.store.save_feedback(batch, sid, value)
+                current = self.store.rows(batch, sid)[0]
+                self._rows = [current if r['student_id'] == sid else r for r in self._rows]
+                del self._pending_feedback[key]
+                updated = True
+                results.append((key, True))
+            except Exception as exc:
+                success = False
+                results.append((key, False))
+                self.owner.toast.emit('反馈保存失败：' + str(exc))
+        if updated:
+            sid = self._selected.get('student_id')
+            self._model.reconcile_rows(self.display_rows())
+            self._selected = next((r for r in self._model.rows if r['student_id'] == sid), {})
+            self.selectionChanged.emit()
+            self.changed.emit()
+        for key, saved in results:
+            self.feedbackSaved.emit(key, saved)
+        return success
     @Property(int,notify=selectionChanged)
     def visibleCount(self): return self._model.rowCount()
     @Property(int,notify=changed)
@@ -419,8 +489,11 @@ class Workflow(QObject):
 
     @Slot(int)
     def selectRow(self,row):
-        if 0<=row<len(self._model.rows):
-            self._selected=self._model.rows[row]
+        sid = self._model.rows[row]['student_id'] if 0 <= row < len(self._model.rows) else None
+        if not self.flushFeedback(): return
+        selected = next((r for r in self._model.rows if r['student_id'] == sid), None)
+        if selected is not None:
+            self._selected=selected
             self.selectionChanged.emit()
 
     @Slot()
@@ -431,6 +504,7 @@ class Workflow(QObject):
     @Slot(int)
     def selectBatch(self,index):
         if self.send_busy:return
+        if not self.flushFeedback():return
         if 0<=index<len(self._batches):
             self._batch=self._batches[index]['id']
             self._selected={}
@@ -443,6 +517,7 @@ class Workflow(QObject):
     @Slot()
     def createBatch(self):
         if self.owner.busy or self.send_busy: return
+        if not self.flushFeedback(): return
         try:
             batch=self.store.create(self.className,self.template)
             self._search=''
@@ -497,6 +572,7 @@ class Workflow(QObject):
     @Slot()
     def markUnreplied(self):
         if not self.canEdit or self._filter not in ('targets','pending'):return
+        if not self.flushFeedback():return
         try:
             count=self.store.mark_unreplied(self._batch,[r['student_id'] for r in self._scope_rows()])
             self.reload_rows(keep_query=True)
@@ -665,6 +741,7 @@ class Workflow(QObject):
     def selectClass(self,index):
         if self.owner.busy or self.send_busy or not 0<=index<len(self._classes):return
         if hasattr(self.owner,'_terms_module') and self.owner.termsModule.busy:return
+        if not self.flushFeedback():return
         entry=self._classes[index]
         if not hasattr(self, '_class_contexts'):
             self._class_contexts={str(self.owner.db.path):(self.owner.db,self.owner.repo,self.store)}

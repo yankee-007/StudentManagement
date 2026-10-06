@@ -101,13 +101,13 @@ def run():
         draft=named_item(window.contentItem(),'feedbackDraft')
         assert draft is not None
         draft.forceActiveFocus(); draft.setProperty('text','界面甲草稿')
-        assert w.store.rows(w._batch,ids[0])[0]['draft']=='界面甲草稿'
+        assert not w.store.rows(w._batch,ids[0])[0]['feedback']
         w.selectRow(1); app.processEvents()
         assert draft.property('text')==''
-        assert w.store.rows(w._batch,ids[0])[0]['draft']=='界面甲草稿'
+        assert w.store.rows(w._batch,ids[0])[0]['feedback']=='界面甲草稿'
         draft.forceActiveFocus(); draft.setProperty('text','界面乙草稿')
-        assert w.store.rows(w._batch,ids[1])[0]['draft']=='界面乙草稿'
         w.selectRow(0)
+        assert w.store.rows(w._batch,ids[1])[0]['feedback']=='界面乙草稿'
         token=w.editorKey
         assert w.saveEditorValue(token,'draft','甲的反馈')
         assert w.saveEditorValue(token,'remark','新备注')

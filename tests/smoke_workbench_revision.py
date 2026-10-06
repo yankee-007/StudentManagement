@@ -3,14 +3,17 @@ import tempfile
 import json
 from unittest.mock import patch
 import os
+import time
+import statistics
 from pathlib import Path
 
 from PySide6.QtCore import QObject, QPointF, QUrl, QMetaObject, Q_ARG
-from PySide6.QtGui import QFontDatabase
+from PySide6.QtGui import QFontDatabase, QInputMethodEvent
 from PySide6.QtQuick import QQuickItem
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
 from PySide6.QtWidgets import QApplication
+from PySide6.QtTest import QTest
 
 from app.backend import Backend
 from app.fonts import configure_font
@@ -43,10 +46,12 @@ def run():
             assert window.findChild(QObject, name), name
         term = dict(termId=551, termNo="P2026169", termName="测试班")
         sid = "P2026169001A"
-        sync_roster(backend.db, term, [dict(student_id=sid, name="学员", status="在读",
-                                            student_type="新生", nickname="", source="接口学员")])
+        size = int(os.environ.get('WORKBENCH_STUDENTS', '1'))
+        roster = [dict(student_id=f'P2026169{i:03d}A', name='学员' if i == 1 else f'测试学员{i}', status='在读',
+                       student_type='新生', nickname='', source='接口学员') for i in range(1, size + 1)]
+        sync_roster(backend.db, term, roster)
         backend.repo.update_profile_field(sid, "微信", "是")
-        backend.repo.set_setting("snapshot", json.dumps([dict(student_id=sid, flags={"c1":"T","z1":"F"})]))
+        backend.repo.set_setting("snapshot", json.dumps([dict(student_id=r['student_id'], flags={"c1":"T","z1":"F"}) for r in roster]))
         backend.workflow.createBatch()
         app.processEvents()
         refresh_button = window.findChild(QObject, "fetchLearningButton")
@@ -71,7 +76,43 @@ def run():
         draft.forceActiveFocus()
         draft.setProperty("text", "界面草稿")
         app.processEvents()
-        assert backend.workflow.store.rows(backend.workflow._batch, sid)[0]["draft"] == "界面草稿"
+        assert backend.workflow.store.rows(backend.workflow._batch, sid)[0]["feedback"] == ""
+        QTest.qWait(650)
+        assert backend.workflow.store.rows(backend.workflow._batch, sid)[0]["feedback"] == "界面草稿"
+        assert visual(detail, "feedbackDraft") == draft and draft.hasActiveFocus()
+        latencies = []
+        with patch.object(backend.workflow.store, 'save_feedback', wraps=backend.workflow.store.save_feedback) as save:
+            for i in range(100):
+                start = time.perf_counter()
+                draft.setProperty('text', '连续输入' + str(i))
+                app.processEvents()
+                latencies.append((time.perf_counter() - start) * 1000)
+                assert visual(detail, 'feedbackDraft') == draft and draft.hasActiveFocus()
+            save.assert_not_called()
+            draft.setProperty('cursorPosition', 2)
+            QTest.qWait(650)
+            assert save.call_count == 1
+            assert draft.property('cursorPosition') == 2
+        print(f'Feedback typing: students={size}, events=100, median={statistics.median(latencies):.2f}ms, p95={sorted(latencies)[94]:.2f}ms, writes=1')
+        draft.setProperty("text", "界面修改")
+        QTest.qWait(650)
+        assert backend.workflow.store.rows(backend.workflow._batch, sid)[0]["feedback"] == "界面修改"
+        # Deliver real input-method events through the Qt Quick focus window.
+        assert app.sendEvent(window, QInputMethodEvent('军训', []))
+        assert draft.property('inputMethodComposing')
+        QTest.qWait(650)
+        assert draft.property('inputMethodComposing')
+        assert backend.workflow.store.rows(backend.workflow._batch, sid)[0]['feedback'] == '界面修改'
+        commit = QInputMethodEvent()
+        commit.setCommitString('军训')
+        assert app.sendEvent(window, commit)
+        QTest.qWait(650)
+        assert not draft.property('inputMethodComposing')
+        assert '军训' in backend.workflow.store.rows(backend.workflow._batch, sid)[0]['feedback']
+        draft.setProperty('text', '界面修改')
+        QTest.qWait(650)
+        if screenshot:
+            assert window.grabWindow().save(screenshot)
         backend.workflow.setFieldVisible("courses", False)
         app.processEvents()
         assert "courses" not in [field["key"] for field in detail.property("fields").toVariant()]
@@ -85,12 +126,18 @@ def run():
             app.processEvents()
         float_draft=visual(floating.contentItem(),'floatingFeedbackDraft')
         assert float_draft is not None
-        assert float_draft.property('text')=='界面草稿'
+        assert float_draft.property('text')=='界面修改'
         float_draft.forceActiveFocus()
         float_draft.setProperty('text','浮窗草稿')
         app.processEvents()
-        assert backend.workflow.store.rows(backend.workflow._batch,sid)[0]['draft']=='浮窗草稿'
+        QTest.qWait(650)
+        assert backend.workflow.store.rows(backend.workflow._batch,sid)[0]['feedback']=='浮窗草稿'
+        assert visual(floating.contentItem(),'floatingFeedbackDraft') == float_draft
+        float_draft.forceActiveFocus()
+        float_draft.setProperty('text','关闭前输入')
+        assert backend.workflow._pending_feedback, (float_draft.property('activeFocus'), float_draft.property('text'))
         assert QMetaObject.invokeMethod(floating,'close')
+        assert backend.workflow.store.rows(backend.workflow._batch,sid)[0]['feedback']=='关闭前输入', backend.workflow.store.rows(backend.workflow._batch,sid)[0]['feedback']
         assert not window.findChild(QObject, "markUnrepliedButton").property("visible")
         view = window.findChild(QObject, "campaignViewSelector")
         view.setProperty("currentIndex", 1)
@@ -127,7 +174,9 @@ def run():
         assert export_dialog.property("selectedKeys").toVariant() == [moved[0]["key"]]
         export_dialog.close()
         assert not [message for message in warnings if "Error" in message or "ReferenceError" in message], warnings
+        assert backend.workflow.queueFeedbackForSelection(backend.workflow.editorKey, '主窗口关闭前输入')
         window.close()
+        assert backend.workflow.store.rows(backend.workflow._batch, sid)[0]['feedback'] == '主窗口关闭前输入'
         app.processEvents()
 
 

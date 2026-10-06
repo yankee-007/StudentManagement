@@ -34,7 +34,7 @@ Backend / TermModule / SettingsModule / LiveAbsence → AcquisitionTask（QThrea
 - 筛选按 ADR-007 冻结：应用筛选时把命中 key 存入 _frozen，值变化只更新数据并写 _filter_stale，只有显式重新筛选（搜索、视图、列筛选、切班/切批、刷新数据、重新应用）才重算；业务取数必须走 _scope_rows()（显示集合去掉过期行），不能直接用 _model.rows。
 - 列筛选按字段 key 保存；ProfileFilterDialog 共用于画像和工作台，ProfileFieldOrder 负责字段拖拽。工作台隐藏列宽为 0，模型仍保留数据列。
 - 画像记录身份组合数据库路径/学号；工作台 editorKey 是 JSON [db_path,batch_id,student_id]。名单对话框捕获 recipientKeys，后端检查仍与当前筛选完全一致。
-- CampaignDetail 由主界面和催办浮窗共用。字段模型仅在布局签名改变时更新，值单独绑定；每次草稿保存不能重建编辑器。后端拒绝旧身份 key。
+- CampaignDetail 由主界面和催办浮窗共用。字段模型仅在布局签名改变时更新，值单独绑定；反馈保存不能重建编辑器。后端拒绝旧身份 key，工作台集中保存带身份的待保存反馈，连续输入只重启 500ms 定时器，不逐键写库或广播刷新。
 - 切班/切班期是同步 Slot：selectClass 会重建班级上下文并刷新名单、批次和画像，实测整班首次切换约 430ms、缓存命中 30–75ms，必须由 WaitingOverlay 覆盖。
 - 切换时序：ComboBox 的 onActivated 先 close() 弹出层，再 begin(name, action, largeRoster) 打开 ClassSwitchOverlay；Overlay 只在 hostWindow.frameSwapped（一次真实绘制，含 app/window.update()）后经 Qt.callLater 执行 action，因此耗时刷新不会阻塞 Loading 的首次绘制。最快显示 140ms 防闪烁；窗口不可见时 cancel() 丢弃待执行动作，渲染停摆时 frameTimer 兜底执行，避免动作丢失或 Loading 常驻。
 - 长耗时提示必须提前决定：同步刷新会冻结事件循环，定时器只能在刷新结束后才触发，事后补提示必然晚于工作完成。因此由 Workflow.classRosterSize / TermModule.termRosterSize 在切换前读取缓存人数（只读连接，不构造 Database、不触发迁移，结果按班期缓存），≥300 人或未知时首帧即显示“数据较多，加载时间稍长”。
@@ -52,7 +52,7 @@ Backend / TermModule / SettingsModule / LiveAbsence → AcquisitionTask（QThrea
 
 ### 反馈、免催与浮窗
 
-- CampaignDetail → saveEditorValue → CampaignStore.draft/submit：校验最新批次真实学员；提交追加反馈并清空草稿。主表提交推进选择，浮窗保持自身学员。
+- CampaignDetail → queueFeedbackForSelection → Workflow.queueFeedback/flushFeedback → CampaignStore.save_feedback：校验班级、批次、真实学员，按捕获身份替换本批次反馈并清空旧草稿；非空计已回复，清空恢复待反馈，不推进选择。保存时读取该学员并 reconcile_rows，保留编辑委托和冻结筛选；失焦、切班/批/学员、切模块、关闭时提交待保存内容，失败保留内存内容并阻止班级/批次切换及主窗口关闭。旧 draft/submit 接口保留兼容调用，旧记录与草稿仅在实际编辑后合并持久化。
 - markUnreplied → mark_unreplied(batch, visible_ids)：事务中跳过补位、空姓名、已有任何反馈或非空草稿，不检查发送成功。
 - setLeave/clearLeave → profile_storage.set_exemption：画像/催办共享免催表；日历返回后复查身份，刷新当前资料但不修改历史快照。
 - 两个浮窗是无主窗口从属关系的独立窗口，主窗口最小化时仍可见；主窗口关闭时显式关闭浮窗。浮窗定时读取经进程验证的前台企微标题，只接受唯一姓名匹配。CampaignCompanion 限最新批次，独立于主表选择；切班/批次清身份。ProfileCompanion 的画像身份格式不同，不能混用 key。

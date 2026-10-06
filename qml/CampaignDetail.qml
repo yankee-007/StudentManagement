@@ -9,6 +9,7 @@ ColumnLayout {
     property string loadedKey: ""
     property bool loadingDraft: false
     property var draftEditor: null
+    property string saveState: "修改后自动保存"
     property bool hasStudent: !!service.selected.student_id
     property bool showContactAction: true
     property bool showName: true
@@ -24,17 +25,22 @@ ColumnLayout {
 
     function loadSelection(force) {
         var key = service.editorKey || ""
-        if (loadedKey === key && !force && draftEditor && draftEditor.activeFocus) return
+        if (loadedKey === key && !force && draftEditor && draftEditor.inputMethodComposing) return
         loadingDraft = true
         if (loadedKey !== key && draftEditor && draftEditor.activeFocus) Qt.inputMethod.reset()
+        if (loadedKey !== key) saveState = service.canEdit ? "修改后自动保存" : "历史批次只读"
         loadedKey = key
-        if (draftEditor) draftEditor.text = service.selected.draft || ""
+        var value = workflow.feedbackValue(key)
+        if (draftEditor && draftEditor.text !== value) draftEditor.text = value
         loadingDraft = false
     }
     Component.onCompleted: { refreshFields(); loadSelection(true) }
     Connections {
         target: card.workflow
         function onChanged() { card.refreshFields() }
+        function onFeedbackSaved(key, saved) {
+            if (key === card.loadedKey) card.saveState = saved ? "已自动保存" : "保存失败，内容已保留，请重新尝试"
+        }
     }
     Connections {
         target: card.service
@@ -69,38 +75,29 @@ ColumnLayout {
                     ColumnLayout {
                         visible: modelData.key === "feedback"
                         Layout.fillWidth: true; spacing: 6
-                        Label { text: "本次反馈 · 粘贴聊天原文"; font.bold: true; color: "#344054" }
+                        Label { text: "本次反馈"; font.bold: true; color: "#344054" }
                         TextArea {
                             id: draft; objectName: modelData.key === "feedback" ? (card.service === card.workflow ? "feedbackDraft" : "floatingFeedbackDraft") : ""
-                            Layout.fillWidth: true; implicitHeight: 100; padding: 10
+                            Layout.fillWidth: true; implicitHeight: Math.max(card.compact ? 100 : 140, contentHeight + topPadding + bottomPadding); padding: 10
                             wrapMode: TextEdit.Wrap; selectByMouse: true
-                            enabled: card.service.canEdit && card.hasStudent && !!card.service.selected.name && !card.service.selected.is_placeholder
-                            placeholderText: "例如：军训＋考试太忙了"
+                            readOnly: !card.service.canEdit || !card.hasStudent || !card.service.selected.name || !!card.service.selected.is_placeholder
+                            placeholderText: card.service.canEdit ? "粘贴聊天原文或填写反馈，修改后自动保存" : "暂无反馈"
                             background: Rectangle { color: "#f9fafb"; radius: 6; border.color: draft.activeFocus ? "#809aff" : "#e4e7ec" }
                             Component.onCompleted: if (modelData.key === "feedback") { card.draftEditor = draft; card.loadSelection(true) }
                             Component.onDestruction: if (card.draftEditor === draft) card.draftEditor = null
                             function save() {
-                                if (!card.loadingDraft && card.hasStudent && activeFocus && !inputMethodComposing)
-                                    status.text = card.service.saveEditorValue(card.loadedKey,"draft",text) ? "草稿已保存" : "保存失败，请勿切换"
+                                if (!card.loadingDraft && !readOnly && activeFocus && !inputMethodComposing)
+                                    card.saveState = card.service.queueFeedbackForSelection(card.loadedKey,text) ? "等待自动保存…" : "未保存，请检查当前学员和批次"
                             }
                             onTextChanged: save()
                             onInputMethodComposingChanged: save()
+                            onActiveFocusChanged: if (!activeFocus && !card.loadingDraft) card.workflow.flushFeedback()
                         }
-                        Label { id: status; text: "草稿自动保存，提交后计为已回复"; font.pixelSize: 11; color: "#667085"; wrapMode: Text.Wrap; Layout.fillWidth: true }
-                        Button {
-                            text: "记录反馈"; Layout.fillWidth: true; highlighted: true
-                            enabled: draft.enabled && draft.text.trim().length > 0
-                            onClicked: card.service.saveEditorValue(card.loadedKey,"submit",draft.text)
-                        }
-                        Label { text: "本批次已记录"; font.bold: true; color: "#344054" }
-                        TextArea {
-                            text: card.service.selected.feedback || "暂无反馈"; readOnly: true
-                            selectByMouse: true; wrapMode: TextEdit.Wrap; Layout.fillWidth: true
-                            font.pixelSize: 12; background: Rectangle { color: "#f9fafb"; radius: 6 }
-                        }
+                        Label { text: card.saveState; font.pixelSize: 11; color: card.saveState.indexOf("失败") >= 0 ? "#b42318" : "#667085"; wrapMode: Text.Wrap; Layout.fillWidth: true }
+                        Label { text: card.service.canEdit ? "有内容即计为已回复；清空后恢复待反馈" : "历史反馈仅供查看"; font.pixelSize: 11; color: "#98a2b3"; wrapMode: Text.Wrap; Layout.fillWidth: true }
                         CheckBox { id: historyToggle; text: "查看以往反馈（含迁移前记录）" }
                         TextArea {
-                            visible: historyToggle.checked; text: card.service.previousFeedback
+                            visible: historyToggle.checked; text: historyToggle.checked ? card.service.previousFeedback : ""
                             readOnly: true; selectByMouse: true; wrapMode: TextEdit.Wrap; Layout.fillWidth: true; font.pixelSize: 12
                         }
                     }

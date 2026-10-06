@@ -258,6 +258,8 @@ class CampaignStore:
                 item['feedback'] = '\n'.join(r['content'] for r in entries)
                 item['reply_state'] = '—' if item.get('is_placeholder') or not item['name'].strip() else '已回复' if any(r['kind']=='reply' for r in entries) else '未回复' if entries else '待反馈'
                 item['draft'] = drafts.get(item['student_id'],'')
+                replies = '\n'.join(r['content'] for r in entries if r['kind'] == 'reply')
+                item['feedback_edit'] = '\n'.join(v for v in (replies, item['draft']) if v)
                 if batch == latest:
                     student = current_students.get(item['student_id'])
                     value=(student['exemption_date'] or '') if student else ''
@@ -312,6 +314,16 @@ class CampaignStore:
             self._feedback_member(conn,batch,sid)
             conn.execute('INSERT INTO campaign_feedback(batch_id,student_id,content,kind) VALUES(?,?,?,?)',(batch,sid,content.strip(),'reply'))
             conn.execute('DELETE FROM campaign_drafts WHERE batch_id=? AND student_id=?',(batch,sid))
+
+    def save_feedback(self, batch, sid, content):
+        """Replace this batch's editable feedback, preserving all other batches."""
+        with self.db.connect() as conn:
+            self._feedback_member(conn, batch, sid)
+            conn.execute('DELETE FROM campaign_feedback WHERE batch_id=? AND student_id=?', (batch, sid))
+            if content.strip():
+                conn.execute('INSERT INTO campaign_feedback(batch_id,student_id,content,kind) VALUES(?,?,?,?)',
+                             (batch, sid, content, 'reply'))
+            conn.execute('DELETE FROM campaign_drafts WHERE batch_id=? AND student_id=?', (batch, sid))
 
     def mark_unreplied(self,batch,student_ids=None):
         with self.db.connect() as conn:
