@@ -57,7 +57,7 @@ class WeComSender:
                 or self.process.GetWindowThreadProcessId(hwnd)[1]!=pid):
             raise RuntimeError('企业微信窗口或焦点已变化，停止操作')
 
-    def search_contact_v2(self,contact,options,*,close_on_success=True):
+    def search_contact_v2(self,contact,options,*,close_on_success=True,activate_on_close=False,capture_title=False):
         windows=self.keys.getWindowsWithTitle('企业微信')
         main=next((w for w in windows if w.title=='企业微信'),None)
         if main is None:raise RuntimeError('请先打开并登录企业微信主窗口')
@@ -88,11 +88,18 @@ class WeComSender:
             self._check(hwnd,title,pid)
             matched=(contact in title if options['substring_mode'] else title==contact)
             if matched and not close_on_success:
-                return hwnd,pid
+                # capture_title returns the real remark read from the float window
+                # and keeps the float open so the caller decides what happens next.
+                return (hwnd,pid,title) if capture_title else (hwnd,pid)
             # close_on_success=True: the verified float is never used for sending.
             self.keys.hotkey('ctrl','w');time.sleep(options['wait'])
             if not matched:raise RuntimeError('联系人浮窗标题不匹配，未发送')
             self._check(main_hwnd,'企业微信',pid)
+            if activate_on_close:
+                # The caller continues in the main window (remark revision needs the
+                # foreground main window, not the float it just closed).
+                main.activate();time.sleep(options['wait'])
+                self._check(main_hwnd,'企业微信',pid)
         return main_hwnd,pid
 
     def open_contact(self,contact,*,keep_float=True,verify_contact=True):

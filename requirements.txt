@@ -7,3 +7,9 @@ lxml
 openpyxl
 PyAutoGUI>=0.9.54; sys_platform == 'win32'
 pywin32>=306; sys_platform == 'win32'
+# 备注批改（app/wecom_remark.py）：OCR 视觉定位与剪贴板粘贴
+rapidocr>=3.4,<4; sys_platform == 'win32'
+onnxruntime>=1.20,<2; sys_platform == 'win32'
+pyperclip>=1.9,<2; sys_platform == 'win32'
+pygetwindow==0.0.9; sys_platform == 'win32'
+Pillow>=12.0,<13

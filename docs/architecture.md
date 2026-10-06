@@ -4,7 +4,7 @@
 
 ## 入口与边界
 
-main.py 创建 QApplication（原生文件对话框需要 QWidget 支持），设置 Fusion/字体/应用名称，将 Backend 和 studentModel 注入 QQmlApplicationEngine，加载 qml/Main.qml。Main 切换工作台、画像、班期学员、设置、群发中心，并管理独立浮窗。
+main.py 创建 QApplication（原生文件对话框需要 QWidget 支持），设置 Fusion/字体/应用名称，将 Backend 和 studentModel 注入 QQmlApplicationEngine，加载 qml/Main.qml。Main 切换工作台、画像、班期学员、设置、群发中心、备注批改、未进直播间，并管理独立浮窗。
 
 ```text
 Main.qml / 模块 QML / 浮窗
@@ -15,11 +15,12 @@ Backend（组合入口，持有当前 db/repo）
  ├─ TermModule ─ TermRosterStore ─ 原主库缓存
  ├─ SettingsModule ─ 原主库设置 / keyring
  ├─ ProfileCompanion、CampaignCompanion、ContactOpener
+ ├─ LiveAbsence ─ live_storage ─ 每班 SQLite（live_reminders）
  └─ GroupCenter ─ GroupStore ─ group_messaging.db
                      ↓ plan / claim / finish
               SendWorker + F11Hotkey → WeComSender
 
-Backend / TermModule / SettingsModule → AcquisitionTask（QThread）
+Backend / TermModule / SettingsModule / LiveAbsence → AcquisitionTask（QThread）
    → completion / homework 客户端 → 合并/校验 → 导入/缓存
 ```
 
@@ -46,7 +47,7 @@ Backend / TermModule / SettingsModule → AcquisitionTask（QThread）
 1. TermModule 通过 AcquisitionTask 获取班期、课程、名单；TermRosterStore 在原主库缓存，Workflow.sync_terms/roster_sync 同步到各班库。
 2. 名单采集固定识别首节课程，与当前查看课程独立；缺失缓存才补取，显式刷新更新已有缓存。取消后拒收结果，等待网络结束/超时，不强杀线程。
 3. 新建催办调用 Backend.createCampaign，按作业绑定获取两平台数据；_fetch_succeeded 校验数据库身份、姓名、完整性后导入，再调用 Workflow.createBatch。
-4. CampaignStore 保存全班快照和 campaign_dashboards；dashboard.learning_dashboard 在建批时计算。后续获取只刷新最新批次的学习列、看板与批次时间 created_at（refresh_latest_learning，与建批共用 learning_snapshot 推导），最新批次身份可同步；历史批次不重写快照，建下一批前冻结上一批。
+4. CampaignStore 保存全班快照和 campaign_dashboards；dashboard.learning_dashboard 在建批时计算（version 3 起同时写入累计完课／作业人数与按完成节数分桶的 completion 分布）。后续获取只刷新最新批次的学习列、看板与批次时间 created_at（refresh_latest_learning，与建批共用 learning_snapshot 推导），最新批次身份可同步；历史批次不重写快照，建下一批前冻结上一批。Workflow.refresh_dashboard 读快照后只在最新批次按当前反馈补算每个桶的「可跟进人数」，不写回快照。
 5. Workflow 组合反馈/草稿/免催，执行视图、搜索、列条件、排序，再通知模型和选择。
 
 ### 反馈、免催与浮窗
@@ -66,6 +67,21 @@ Backend / TermModule / SettingsModule → AcquisitionTask（QThread）
 - WeComSender 执行进程/焦点检查、搜索、可选浮窗核验、剪贴板粘贴和回车。“已发送”不证明送达，不确定结果需人工核实。
 - 旧 generateCampaign/sending_store 路径仍处理来源名单：复核源批次/资格、防重复、结果回写和待回写恢复。当前独立名单不具有源批次约束，不可混同。
 
+### 备注批改
+
+- RemarkRenamer 取画像「微信=是」的学员，按班期推导前缀（settings.profile_remark_prefix 可覆盖），把每人状态放在 wecom_remark_scan。
+- RemarkWorker 逐人调用 RemarkDriver：WeComSender.search_contact_v2(姓名, substring_mode, close_on_success=False, capture_title=True) 打开浮窗并取标题，driver 关闭浮窗并校验主窗口回到前台，再按 remark_scan.classify 决定跳过 / 改名 / 待确认 / 未找到。
+- 改名交给 app/wecom_remark.py 的 change_wecom_remark（由 wecom_renamer.load_change_remark 在真正改名时延迟 import，避免启动期加载 OCR/PyAutoGUI）；成功与「已符合」都把真实备注写入学生 contacts 表，群发搜索按前缀+姓名即可命中。
+- 与群发互斥（owner.workflow.send_busy），复用 F11Hotkey；暂停在当前联系人处理完成后生效，单人失败继续下一位。
+
+### 未进直播间
+
+- LiveAbsence 跟随全局当前班级（`workflow._classes[class_index]`）：term_id/term_no 取自班级登记，节次读原主库 term_lessons 缓存（缺失才联网获取，刷新时保留原有 resource_id，不改「班期学员」页的第 1 节默认值）。
+- 获取走 AcquisitionTask('live') → CompletionClient.live_students(term_id, resource_id)：同一接口按 resourceId 返回该节每人的 hisLearningTime（秒）；成功回填后按 term_id + resource_id 双重校验，切班或换节次即丢弃结果。
+- `_rebuild()` 把接口行与本地范围合并：status=在读 → 画像微信=是（remark_storage.load_students(require_wechat=False)）→ 非有效免催（live_storage.active_exemptions）→ 有姓名；`hisLearningTime is None` 为未进入，`0` 秒按 includeZero 选项判定。补位、无微信、免催、接口无姓名只计数，进入 issues 提示。
+- 每节提醒标记存本班库 live_reminders；`GroupCenter.createFromLiveAbsence(title, fields, record_keys)` 校验 record_keys 与当前 recipientKeys 一致后建独立名单，成功后回写标记并跳到群发中心，只创建不发送。
+- 切班由 Workflow.selectClass 末尾的 liveAbsence.reload() 触发，和备注批改同一模式；该页与群发/其它采集互斥（busy）。
+
 ## 持久化边界
 
 | 范围 | 内容 |
@@ -73,6 +89,8 @@ Backend / TermModule / SettingsModule → AcquisitionTask（QThread）
 | 原主库 / workflow.registry | 班级路径、平台设置、作业绑定、term_rosters/term_lessons；切班不替换 registry |
 | 每班库 / owner.db | class_roster；profiles；profile_field_definitions/values；exemptions；reminder_data |
 | 每班批次表 | campaigns、campaign_students、campaign_feedback、campaign_drafts、campaign_dashboards，以及旧发送兼容表 |
+| 备注批改 | 每班库的 student_contacts（学号 → 真实备注名，群发/画像共用）与 wecom_remark_scan（判定状态）；settings.profile_remark_prefix；两表 DDL 只在 app/remark_scan.py 定义，campaigns.SCHEMA 与 remark_storage.bootstrap 共用，旧班库由任一入口幂等升级 |
+| 未进直播间 | 每班库的 live_reminders(term_id, resource_id, student_id, reminded_at, list_id)；DDL 只在 app/live_storage.py，bootstrap 幂等升级；直播明细不落库，节次复用原主库 term_lessons |
 | group_messaging.db | lists、recipients、attempts；参数、消息 JSON、模板、来源元数据、发送状态 |
 | 数据库外 | keyring 密码、platform_sessions 登录缓存；附件绝对路径；手动导出 XLSX |
 
@@ -88,5 +106,7 @@ Database 顶部 SCHEMA 不是最终 schema 全貌：构造还执行 learning_sto
 | 画像/隔离 | test_profile_module、test_profile_extensions、test_class_isolation_regressions；smoke_profile_ui |
 | 工作台/浮窗 | test_workbench_revision、test_campaign_generation、test_campaign_companion、test_workbench_ui、test_editor_identity |
 | 群发/恢复 | test_group_center、test_group_interaction、test_real_sending、test_message_content；smoke_group_interaction、smoke_profile_group |
+| 备注批改 | test_remark_renamer；smoke_remark_renamer（默认测试不真实登录企微、不改名） |
+| 未进直播间 | test_live_absence；smoke_live_absence（注入假直播间结果，不登录平台、不发送） |
 
 命令见 README。LegacyMain.qml、sent_messages/、data/ 不是默认调查入口，后两者可能含真实数据。

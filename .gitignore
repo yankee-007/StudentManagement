@@ -45,3 +45,9 @@ Desktop.ini
 /docs/ui/
 /output/
 platform_sessions/
+
+# UI 预览原型（HTML 原型、虚拟数据与截图，不入版本库）
+/design/
+
+# 企微实机取证截图：含真实学员姓名与聊天内容，绝不入版本库
+wecom_remark_evidence/

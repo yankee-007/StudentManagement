@@ -11,5 +11,9 @@
 | [ADR-005](ADR-005-term-binding-and-course.md) | 作业班级目录缓存与课程 ID 自动绑定 | Accepted | 设置页、班期绑定、采集参数 |
 | [ADR-006](ADR-006-latest-batch-learning-refresh.md) | 最新批次学习数据跟随获取刷新，历史批次冻结 | Accepted | 催办批次、获取数据、看板、发送预览 |
 | [ADR-007](ADR-007-filter-freeze-and-scope.md) | 筛选结果为冻结集合，业务范围只算真正匹配的行 | Accepted | 画像/工作台筛选、名单生成、导出、批量反馈 |
+| [ADR-008](ADR-008-remark-revision-window-title.md) | 备注批改以浮窗标题为真实备注，复用 student_contacts | Accepted | 备注批改、企微联系人定位、群发前缀 |
+| [ADR-009](ADR-009-live-absence-per-lesson.md) | 未进直播间按节次判定，null 与 0 秒分开，每节课只提醒一次 | Accepted | 未进直播间、直播数据采集、群发名单来源 |
+| [ADR-010](ADR-010-dashboard-cumulative-and-completion-buckets.md) | 看板累计人数与累计率同源，完课次数按完成节数分桶 | Accepted | 学习看板、批次快照版本、可跟进人数 |
+| [ADR-011](ADR-011-inline-wecom-remark-tool.md) | 备注批改的 OCR 工具内联进 app/，不再依赖 wecomrename/ 目录 | Accepted | 备注批改、依赖声明、仓库入库范围 |
 
 新增条目需满足：不知道这一决定很可能重踩坑或破坏业务。改变已接受决策时，更新原条目状态并链接替代条目，避免互相矛盾的规则。

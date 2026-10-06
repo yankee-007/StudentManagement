@@ -49,6 +49,8 @@ class AcquisitionTask(QThread):
                     result = client.lessons(self.term_id)
                 elif self.action == 'students':
                     result = client.students(self.term_id, self.resource_id)
+                elif self.action == 'live':
+                    result = client.live_students(self.term_id, self.resource_id)
                 elif self.action == 'learning':
                     h = HomeworkClient(*self.homework, self.cache_dir / 'homework_session.txt')
                     available = h.classes()

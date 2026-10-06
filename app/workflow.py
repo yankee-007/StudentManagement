@@ -667,6 +667,10 @@ class Workflow(QObject):
         self.owner._refresh_statistics(students)
         if hasattr(self.owner,'_terms_module') and entry.get('term_id'):
             self.owner.termsModule.alignTerm(entry['term_id'])
+        if hasattr(self.owner,'_remark_renamer'):
+            # The remark module reads this class's own database, so switching class
+            # must re-read its roster and prefix (never mid-run).
+            self.owner.remarkRenamer.reload()
 
     def select_term_id(self, term_id):
         index=next((i for i,e in enumerate(self._classes) if str(e.get('term_id'))==str(term_id)),-1)

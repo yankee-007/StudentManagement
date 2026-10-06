@@ -13,8 +13,10 @@ ApplicationWindow {
     property var restartService: typeof restartController !== "undefined" ? restartController : null
     onClosing: function(close) {
         if (root.moduleIndex === 4 && !backend.groupCenter.active) groupCenterPage.saveSettings()
+        if (root.moduleIndex === 5 && !backend.remarkRenamer.active) remarkRenamerPage.saveOptions()
         if (backend.contactOpener.active) { close.accepted=false; snack.text="正在打开联系人，请等待完成后关闭"; snack.open() }
         else if (sender.active) { close.accepted=false; sender.stop(); snack.text="正在结束发送，请等待当前联系人处理完成后再关闭"; snack.open() }
+        else if (backend.remarkRenamer.active) { close.accepted=false; backend.remarkRenamer.stop(); snack.text="正在结束备注批改，请等待当前联系人处理完成后再关闭"; snack.open() }
         else { profileFloat.close(); campaignFloat.close() }
     }
     property int moduleIndex: 0
@@ -25,6 +27,7 @@ ApplicationWindow {
         else if (index === 2) backend.termsModule.activate()
         else if (index === 3) backend.settingsModule.refresh()
         else if (index === 4) backend.groupCenter.refresh()
+        else if (index === 5) backend.remarkRenamer.reload()
     }
     CampaignExportDialog { id: batchExportDialog; workflow: root.wf }
     CampaignFieldDialog { id: fieldDialog; workflow: root.wf }
@@ -41,12 +44,13 @@ ApplicationWindow {
             Button { text: "班期学员"; highlighted: root.moduleIndex === 2; onClicked: root.switchModule(2) }
             Button { text: "设置"; highlighted: root.moduleIndex === 3; onClicked: root.switchModule(3) }
             Button { text: "群发中心"; highlighted: root.moduleIndex === 4; onClicked: root.switchModule(4) }
+            Button { text: "备注批改"; highlighted: root.moduleIndex === 5; onClicked: root.switchModule(5) }
             ComboBox {
                 objectName: "classSelector"
                 popup.objectName: "classSelectorPopup"
-                visible: root.moduleIndex === 0 || root.moduleIndex === 1
+                visible: root.moduleIndex === 0 || root.moduleIndex === 1 || root.moduleIndex === 5
                 model: wf.classes; currentIndex: wf.classIndex
-                enabled: !backend.busy && !backend.termsModule.busy && !sender.active && !wf.sender.active && !backend.contactOpener.active
+                enabled: !backend.busy && !backend.termsModule.busy && !sender.active && !wf.sender.active && !backend.contactOpener.active && !backend.remarkRenamer.active
                 Layout.preferredWidth: 125
                 onActivated: function(index) {
                     popup.close()
@@ -61,7 +65,7 @@ ApplicationWindow {
                 objectName: "debugRestartButton"
                 text: "调试重启"
                 visible: root.restartService !== null
-                enabled: !backend.busy && !backend.termsModule.busy && !backend.settingsModule.busy && !sender.active && !wf.sender.active && !backend.contactOpener.active
+                enabled: !backend.busy && !backend.termsModule.busy && !backend.settingsModule.busy && !sender.active && !wf.sender.active && !backend.contactOpener.active && !backend.remarkRenamer.active
                 ToolTip.visible: hovered
                 ToolTip.text: "退出后重新启动整个程序，加载已保存的代码修改"
                 onClicked: {
@@ -184,6 +188,7 @@ ApplicationWindow {
     TermModule { visible: root.moduleIndex === 2; anchors.fill: parent; anchors.margins: 12 }
     SettingsModule { visible: root.moduleIndex === 3; anchors.fill: parent; anchors.margins: 12 }
     GroupCenter { id: groupCenterPage; visible: root.moduleIndex === 4; anchors.fill: parent; anchors.margins: 12 }
+    RemarkRenamer { id: remarkRenamerPage; visible: root.moduleIndex === 5; anchors.fill: parent; anchors.margins: 12 }
     ProfileFilterDialog { id: columnDialog; filterObjectName: "campaignColumnFilter"; profiles: root.wf }
     Dialog {
         id: createDialog; anchors.centerIn: parent; modal: true; title: "建立新的催办批次"; standardButtons: Dialog.Ok | Dialog.Cancel

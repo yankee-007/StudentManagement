@@ -19,6 +19,26 @@ STATUS_LABELS = {'-1': '预备', '0': '在读', '1': '冻结', '2': '已退课',
 TYPE_LABELS = {'0': '新生', '1': '重修', '2': '冻转'}
 
 
+def _label(row, key, labels):
+    value = str(row.get(key) if row.get(key) is not None else '').strip()
+    return labels.get(value, value)
+
+
+def _seconds(value):
+    """直播观看时长 (seconds). JSON null — and only null-like values — mean "no record"."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        text = value.strip()
+        if text in ('', 'null', 'None'):
+            return None
+        value = text
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        raise ValueError('直播观看时长字段格式未适配，未保存本次数据。') from None
+
+
 def _auth_failed(response, payload):
     if response.status_code in (401, 403) or any(x in urlsplit(response.url).path.lower() for x in ('/login', '/auth/', '/unauth')):
         return True
@@ -180,6 +200,34 @@ class CompletionClient:
             name = next((str(row[k]).strip() for k in ('realname','studentName','name') if row.get(k) and str(row[k]).strip()), '')
             value = lambda key, labels={}: labels.get(str(row.get(key) if row.get(key) is not None else '').strip(), str(row.get(key) if row.get(key) is not None else '').strip())
             result.append({'student_id': number, 'name': name, 'status': value('status', STATUS_LABELS), 'student_type': value('studentType', TYPE_LABELS), 'nickname': value('nickname')})
+        return result
+
+    def live_students(self, term_id, resource_id):
+        """Per-lesson live-room record of every student of one lesson.
+
+        ``hisLearningTime`` is the column the platform page labels 直播观看时长; the value
+        is seconds and a JSON ``null`` means the student has no record for this lesson
+        (never entered the live room). ``0`` is a real record with zero seconds and is kept
+        distinct from ``None`` — the caller decides whether it counts as "not entered".
+        """
+        if not resource_id:
+            raise ValueError('请先选择要检查的节次。')
+        form = dict(pageSize=500, pageNum=1, isAsc='asc', termId=term_id, resourceId=resource_id,
+                    status='', studentType='', checkingInStatus='', studentNo='', nickname='', xeuid='', isStudyLeave='')
+        form.update({'params[classNumGt0]': '', 'params[liveorrelive30min]': ''})
+        for prefix in ('hisLearnTime', 'hisLearningTime', 'hisLearnedTime'):
+            for suffix in ('GeOrLe', 'Minute', 'Second'):
+                form[f'params[{prefix}{suffix}]'] = '0' if suffix == 'GeOrLe' else ''
+        result = []
+        for row in self._single_page('POST', LESSON_PATH + '/list', form=form):
+            number = str(row.get('studentNo') or '').strip()
+            if not number:
+                raise ValueError('学员缺少学号，未保存本次直播间数据。')
+            if not any(k in row for k in ('realname', 'studentName', 'name')):
+                raise ValueError('学员接口姓名字段尚未适配。')
+            name = next((str(row[k]).strip() for k in ('realname','studentName','name') if row.get(k) and str(row[k]).strip()), '')
+            result.append({'student_id': number, 'name': name, 'live_seconds': _seconds(row.get('hisLearningTime')),
+                           'status': _label(row, 'status', STATUS_LABELS), 'student_type': _label(row, 'studentType', TYPE_LABELS)})
         return result
 
     def learning(self, term_id):

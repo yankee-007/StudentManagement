@@ -34,6 +34,10 @@ class Backend(QObject):
     @Property(QObject, constant=True)
     def groupCenter(self):return self._group_center
     @Property(QObject, constant=True)
+    def remarkRenamer(self):return self._remark_renamer
+    @Property(QObject, constant=True)
+    def liveAbsence(self):return self._live_absence
+    @Property(QObject, constant=True)
     def workflow(self):
         return self._workflow
     @Property(QObject, constant=True)
@@ -252,6 +256,10 @@ class Backend(QObject):
         self._settings_module = SettingsModule(self)
         from .group_center import GroupCenter
         self._group_center = GroupCenter(self)
+        from .wecom_renamer import RemarkRenamer
+        self._remark_renamer = RemarkRenamer(self)
+        from .live_absence import LiveAbsence
+        self._live_absence = LiveAbsence(self)
         from .contact_opener import ContactOpener
         self._contact_opener = ContactOpener(self)
         from .campaign_companion import CampaignCompanion

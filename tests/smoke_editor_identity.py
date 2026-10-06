@@ -138,7 +138,13 @@ def run():
         assert w.dashboard['courses'][0]['difference']=='-100.00%'
         from app.campaigns import CampaignStore
         reopened=CampaignStore(Database(b.db.path),b.repo)
-        assert reopened.dashboard(w._batch)==w.dashboard
+        # store.dashboard 是快照原文；Workflow 另外按当前反馈补算「可跟进人数」。
+        def snapshot_only(data):
+            data=json.loads(json.dumps(data))
+            for bucket in (data.get('completion') or {}).get('courses') or []:
+                bucket.pop('followable',None)
+            return data
+        assert snapshot_only(reopened.dashboard(w._batch))==snapshot_only(w.dashboard)
         with b.db.connect() as conn:
             conn.execute('DELETE FROM campaign_dashboards WHERE batch_id=?',(w._batch,))
         w.refresh_live()
