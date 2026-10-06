@@ -118,12 +118,12 @@ ApplicationWindow {
                         ComboBox {
                             id: viewBox; objectName: "campaignViewSelector"; textRole: "label"; valueRole: "key"; Layout.preferredWidth: 125
                             displayText: currentText
-                            model: [{label:"全班快照",key:"all"},{label:"本次催办",key:"targets"},{label:"待反馈",key:"pending"}]
+                            model: [{label:"全班快照",key:"all"},{label:"本次催办",key:"targets"}]
                             onActivated: root.applyFilter()
                         }
                         TextField { id: search; placeholderText: "学号、姓名、备注"; Layout.fillWidth: true; onTextEdited: searchTimer.restart(); Timer { id: searchTimer; interval: 180; onTriggered: root.applyFilter() } }
                         Button { objectName: "createCampaignList"; text: "生成群发名单"; enabled: wf.canEdit && !sender.active && !backend.busy && wf.recipientKeys.length > 0; onClicked: templateDialog.open() }
-                        Button { objectName: "markUnrepliedButton"; text: "批量未回复"; visible: viewBox.currentValue === "targets" || viewBox.currentValue === "pending"; enabled: wf.canEdit && wf.visibleCount > 0; onClicked: noReplyDialog.open() }
+                        Button { objectName: "markUnrepliedButton"; text: "批量未回复"; visible: viewBox.currentValue === "targets"; enabled: wf.canEdit && wf.visibleCount > 0; onClicked: noReplyDialog.open() }
                     }
                     RowLayout {
                         Layout.fillWidth: true

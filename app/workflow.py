@@ -22,6 +22,7 @@ class Workflow(QObject):
     selectionChanged = Signal()
     queryChanged = Signal()
     feedbackSaved = Signal(str, bool)
+    feedbackShortcutsChanged = Signal()
     def __init__(self, owner):
         super().__init__(owner)
         self.owner = owner
@@ -107,6 +108,27 @@ class Workflow(QObject):
     @Slot(str,str,result=bool)
     def queueFeedbackForSelection(self, key, value):
         return key == self.editorKey and self.queueFeedback(key, value)
+
+    @Property('QVariantList', notify=feedbackShortcutsChanged)
+    def feedbackShortcuts(self):
+        saved = self.owner.repo.get_setting('campaign_feedback_shortcuts')
+        return json.loads(saved) if saved else ['答应补课', '未接听电话']
+
+    @Slot(str, result=bool)
+    def addFeedbackShortcut(self, value):
+        value = value.strip()
+        if not value or '\n' in value or '\r' in value:
+            return False
+        options = self.feedbackShortcuts
+        if value in options:
+            return True
+        try:
+            self.owner.repo.set_setting('campaign_feedback_shortcuts', json.dumps(options + [value], ensure_ascii=False))
+            self.feedbackShortcutsChanged.emit()
+            return True
+        except Exception as exc:
+            self.owner.toast.emit('快捷选项保存失败：' + str(exc))
+            return False
     @Slot(str,str,result=bool)
     def queueFeedback(self, key, value):
         # Validate once against the captured context; never resolve a queued edit
@@ -755,6 +777,7 @@ class Workflow(QObject):
             context=(db,repo,store)
             self._class_contexts[entry['path']]=context
         self.owner.db,self.owner.repo,self.store=context
+        self.feedbackShortcutsChanged.emit()
         self.owner.fetchIssuesChanged.emit()
         self.owner._selected={}
         self.class_index=index

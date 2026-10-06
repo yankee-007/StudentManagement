@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -24,6 +25,7 @@ class FeedbackAutosaveTests(unittest.TestCase):
                 conn.execute('INSERT INTO students(student_id,name,updated_at) VALUES(?,?,?)', (sid, name, '2026-10-06'))
                 insert_profile(conn, sid, name, int(sid), {'微信': '是'})
         self.w = self.backend.workflow
+        self.backend.repo.set_setting('snapshot', json.dumps([dict(student_id=sid, flags={'c1':'F', 'z1':'F'}) for sid in ('1', '2')]))
         self.w.createBatch()
         self.key = self.w.editorKey
 
@@ -94,8 +96,9 @@ class FeedbackAutosaveTests(unittest.TestCase):
         self.assertEqual(row['feedback'], '修改后的内容')
         self.assertEqual(row['draft'], '')
 
-    def test_frozen_pending_and_float_independent_selection(self):
-        self.w.filterRows('pending', '')
+    def test_frozen_blank_feedback_and_float_independent_selection(self):
+        self.w.filterRows('targets', '')
+        self.w.setColumnFilter('feedback', 'empty', [], '')
         self.w.queueFeedbackForSelection(self.key, '已回复')
         self.w.flushFeedback()
         self.assertEqual(self.w.visibleCount, 2)
@@ -109,6 +112,21 @@ class FeedbackAutosaveTests(unittest.TestCase):
         companion.close()
         self.assertEqual(self.w.store.rows(self.w._batch, '2')[0]['feedback'], '乙的浮窗内容')
         self.assertEqual(self.w.editorKey, self.key)
+
+    def test_shortcuts_persist_deduplicate_and_are_class_local(self):
+        self.assertEqual(self.w.feedbackShortcuts, ['答应补课', '未接听电话'])
+        self.assertTrue(self.w.addFeedbackShortcut('  已联系家长  '))
+        self.assertTrue(self.w.addFeedbackShortcut('已联系家长'))
+        self.assertFalse(self.w.addFeedbackShortcut('   '))
+        self.assertFalse(self.w.addFeedbackShortcut('多行\n选项'))
+        expected = ['答应补课', '未接听电话', '已联系家长']
+        self.assertEqual(self.w.feedbackShortcuts, expected)
+        self.assertEqual(Backend(self.backend.db.path).workflow.feedbackShortcuts, expected)
+        self.w._classes.append({'name': '另一班', 'path': str(Path(self.tmp.name) / 'other.db')})
+        self.w.selectClass(1)
+        self.assertEqual(self.w.feedbackShortcuts, ['答应补课', '未接听电话'])
+        self.w.selectClass(0)
+        self.assertEqual(self.w.feedbackShortcuts, expected)
 
 
 if __name__ == '__main__':

@@ -73,6 +73,11 @@ def run():
             return None
         draft = visual(detail, "feedbackDraft")
         assert draft is not None
+        assert draft.height() < 40
+        choice = visual(detail, 'feedbackShortcutChoice')
+        assert choice.property('editable')
+        assert choice.property('count') == 2
+        assert backend.workflow.feedbackShortcuts == ['答应补课', '未接听电话']
         draft.forceActiveFocus()
         draft.setProperty("text", "界面草稿")
         app.processEvents()
@@ -111,6 +116,32 @@ def run():
         assert '军训' in backend.workflow.store.rows(backend.workflow._batch, sid)[0]['feedback']
         draft.setProperty('text', '界面修改')
         QTest.qWait(650)
+        choice.setProperty('currentIndex', 0)
+        assert QMetaObject.invokeMethod(choice, 'activated', Q_ARG(int, 0))
+        QTest.qWait(650)
+        assert backend.workflow.store.rows(backend.workflow._batch, sid)[0]['feedback'] == '答应补课'
+        choice.setProperty('currentIndex', 1)
+        assert QMetaObject.invokeMethod(choice, 'activated', Q_ARG(int, 1))
+        QTest.qWait(650)
+        assert backend.workflow.store.rows(backend.workflow._batch, sid)[0]['feedback'] == '未接听电话'
+        add_button = visual(detail, 'addFeedbackShortcutButton')
+        assert QMetaObject.invokeMethod(add_button, 'click')
+        app.processEvents()
+        shortcut_dialog = detail.findChild(QObject, 'feedbackShortcutDialog')
+        shortcut_input = shortcut_dialog.findChild(QObject, 'feedbackShortcutInput')
+        assert shortcut_dialog.property('visible')
+        shortcut_input.setProperty('text', '已联系家长')
+        assert QMetaObject.invokeMethod(shortcut_dialog, 'accept')
+        app.processEvents()
+        assert choice.property('count') == 3
+        assert draft.property('text') == '未接听电话'
+        choice.setProperty('currentIndex', 2)
+        assert QMetaObject.invokeMethod(choice, 'activated', Q_ARG(int, 2))
+        QTest.qWait(650)
+        assert backend.workflow.store.rows(backend.workflow._batch, sid)[0]['feedback'] == '已联系家长'
+        draft.forceActiveFocus()
+        draft.setProperty('text', '界面修改')
+        QTest.qWait(650)
         if screenshot:
             assert window.grabWindow().save(screenshot)
         backend.workflow.setFieldVisible("courses", False)
@@ -124,22 +155,24 @@ def run():
         with patch.object(backend.profileCompanion,'_active_wecom_title',return_value='学员'):
             assert QMetaObject.invokeMethod(floating,'show')
             app.processEvents()
-        float_draft=visual(floating.contentItem(),'floatingFeedbackDraft')
-        assert float_draft is not None
-        assert float_draft.property('text')=='界面修改'
-        float_draft.forceActiveFocus()
-        float_draft.setProperty('text','浮窗草稿')
-        app.processEvents()
-        QTest.qWait(650)
-        assert backend.workflow.store.rows(backend.workflow._batch,sid)[0]['feedback']=='浮窗草稿'
-        assert visual(floating.contentItem(),'floatingFeedbackDraft') == float_draft
-        float_draft.forceActiveFocus()
-        float_draft.setProperty('text','关闭前输入')
-        assert backend.workflow._pending_feedback, (float_draft.property('activeFocus'), float_draft.property('text'))
-        assert QMetaObject.invokeMethod(floating,'close')
-        assert backend.workflow.store.rows(backend.workflow._batch,sid)[0]['feedback']=='关闭前输入', backend.workflow.store.rows(backend.workflow._batch,sid)[0]['feedback']
+            float_draft=visual(floating.contentItem(),'floatingFeedbackDraft')
+            assert float_draft is not None
+            assert float_draft.property('text')=='界面修改'
+            assert visual(floating.contentItem(),'floatingFeedbackShortcutChoice').property('count') == 3
+            float_draft.forceActiveFocus()
+            float_draft.setProperty('text','浮窗草稿')
+            app.processEvents()
+            QTest.qWait(650)
+            assert backend.workflow.store.rows(backend.workflow._batch,sid)[0]['feedback']=='浮窗草稿'
+            assert visual(floating.contentItem(),'floatingFeedbackDraft') == float_draft
+            float_draft.forceActiveFocus()
+            float_draft.setProperty('text','关闭前输入')
+            assert backend.workflow._pending_feedback, (float_draft.property('activeFocus'), float_draft.property('text'))
+            assert QMetaObject.invokeMethod(floating,'close')
+            assert backend.workflow.store.rows(backend.workflow._batch,sid)[0]['feedback']=='关闭前输入', backend.workflow.store.rows(backend.workflow._batch,sid)[0]['feedback']
         assert not window.findChild(QObject, "markUnrepliedButton").property("visible")
         view = window.findChild(QObject, "campaignViewSelector")
+        assert view.property('count') == 2
         view.setProperty("currentIndex", 1)
         assert QMetaObject.invokeMethod(view, "activated", Q_ARG(int, 1))
         app.processEvents()
