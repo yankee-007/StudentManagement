@@ -61,28 +61,28 @@ Item {
         if (saveSettings()) center.selectList(index)
     }
     ColumnLayout {
-        anchors.fill: parent; spacing: 10
+        anchors.fill: parent; spacing: page.height < 600 ? 6 : 10
         RowLayout {
             Layout.fillWidth: true
             Label { text: "群发中心"; font.pixelSize: 22; font.bold: true }
-            Label { text: "编辑消息 → 核对预览 → 开始发送"; color: "#667085"; Layout.fillWidth: true }
-            Button { text: "复制为新名单"; enabled: !center.active && center.selectedIndex>=0; onClicked: copyDialog.open() }
-            Button { text: "新建群发"; enabled: !center.active; onClicked: customDialog.open() }
+            Label { text: "编辑消息 → 核对预览 → 开始发送"; color: UiTheme.muted; Layout.fillWidth: true }
+            UiButton { text: "复制为新名单"; enabled: !center.active && center.selectedIndex>=0; onClicked: copyDialog.open() }
+            UiButton { text: "新建群发"; enabled: !center.active; onClicked: customDialog.open() }
         }
         RowLayout {
             Layout.fillWidth: true
-            ComboBox { objectName: "groupListSelector"; Layout.fillWidth: true; model: center.lists; textRole: "label"; currentIndex: center.selectedIndex; displayText: currentIndex<0 ? "暂无名单，请从催办生成或新建自定义名单" : currentText; enabled: !center.active; onActivated: page.selectList(currentIndex) }
+            UiComboBox { objectName: "groupListSelector"; Layout.fillWidth: true; model: center.lists; textRole: "label"; currentIndex: center.selectedIndex; displayText: currentIndex<0 ? "暂无名单，请从催办生成或新建自定义名单" : currentText; enabled: !center.active; onActivated: page.selectList(currentIndex) }
         }
-        Label { text: center.status; color: "#b54708"; Layout.fillWidth: true; wrapMode: Text.Wrap }
+        Label { text: center.status; color: UiTheme.warning; Layout.fillWidth: true; wrapMode: Text.Wrap }
         RowLayout {
             visible: center.active
-            Button { text: center.pauseRequested ? "等待当前联系人结束…" : "暂停（全局 F11）"; enabled: !center.pauseRequested && !center.isPaused; onClicked: center.pause() }
-            Button { text: "继续"; enabled: center.isPaused; onClicked: center.resume() }
-            Button { text: "结束本轮"; onClicked: center.stop() }
+            UiButton { text: center.pauseRequested ? "等待当前联系人结束…" : "暂停（全局 F11）"; enabled: !center.pauseRequested && !center.isPaused; onClicked: center.pause() }
+            UiButton { text: "继续"; enabled: center.isPaused; onClicked: center.resume() }
+            UiButton { text: "结束本轮"; onClicked: center.stop() }
         }
         RowLayout {
             Layout.fillWidth: true; Layout.fillHeight: true; spacing: 12
-            Frame {
+            UiPanel {
                 id: settingsPanel; objectName: "groupSettingsPanel"
                 property int listId: 0
                 Layout.preferredWidth: 270; Layout.minimumWidth: 270; Layout.maximumWidth: 270; Layout.fillHeight: true
@@ -91,45 +91,46 @@ Item {
                     RowLayout {
                         Layout.fillWidth: true
                         Label { text: "发送设置"; font.bold: true; font.pixelSize: 16; Layout.fillWidth: true }
-                        Button { objectName: "groupPreviewButton"; text: "预览并发送"; highlighted: true; enabled: !center.active && center.selectedIndex>=0 && center.editableCount>0; onClicked: page.previewMessages() }
+                        UiButton { objectName: "groupPreviewButton"; text: "预览并发送"; highlighted: true; enabled: !center.active && center.selectedIndex>=0 && center.editableCount>0; onClicked: page.previewMessages() }
                     }
                     ScrollView {
                         id: optionsScroll; Layout.fillWidth: true; Layout.fillHeight: true; contentWidth: availableWidth; clip: true
                         ColumnLayout {
                             width: optionsScroll.availableWidth; enabled: !center.active && center.selectedIndex>=0; spacing: 7
-                            Label { text: "当前名单的设置自动保存。"; color: "#667085"; Layout.fillWidth: true; wrapMode: Text.Wrap }
+                            Label { text: "当前名单的设置自动保存。"; color: UiTheme.muted; Layout.fillWidth: true; wrapMode: Text.Wrap }
                             Label { text: "联系人前缀（可留空）" }
-                            TextField { id: prefix; objectName: "groupContactPrefix"; Layout.fillWidth: true; placeholderText: "联系人 = 前缀＋姓名"; onTextChanged: page.scheduleSave() }
+                            UiTextField { id: prefix; objectName: "groupContactPrefix"; Layout.fillWidth: true; placeholderText: "联系人 = 前缀＋姓名"; onTextChanged: page.scheduleSave() }
                             Label { text: "联系人匹配方式" }
-                            ComboBox { id: match; model: ["完整匹配（推荐）","包含匹配（有误匹配风险）"]; Layout.fillWidth: true; onActivated: page.scheduleSave() }
+                            UiComboBox { id: match; model: ["完整匹配（推荐）","包含匹配（有误匹配风险）"]; Layout.fillWidth: true; onActivated: page.scheduleSave() }
                             CheckBox { id: verifyContact; text: "使用浮窗验证联系人"; Layout.fillWidth: true; onToggled: page.scheduleSave() }
                             CheckBox { id: doSend; objectName: "groupConfirmSend"; text: "粘贴后回车发送"; Layout.fillWidth: true; onToggled: page.scheduleSave() }
                             CheckBox { id: singleSend; objectName: "groupSingleSend"; text: "每条消息单独发送"; Layout.fillWidth: true; enabled: doSend.checked; onToggled: page.scheduleSave() }
-                            Label { text: "浮窗仅用于核对；取消回车发送时只粘贴，不记为已发送，也不启用每条消息单独发送。"; wrapMode: Text.Wrap; Layout.fillWidth: true; color: "#667085" }
+                            Label { text: "浮窗仅用于核对；取消回车发送时只粘贴，不记为已发送，也不启用每条消息单独发送。"; wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.muted }
                             CheckBox { id: advanced; text: "高级等待设置"; checked: false }
                             ColumnLayout {
                                 visible: advanced.checked; Layout.fillWidth: true
                                 Label { text: "搜索步骤等待（秒，0.1–10）" }
-                                TextField { id: searchWait; Layout.fillWidth: true; onTextChanged: page.scheduleSave() }
+                                UiTextField { id: searchWait; Layout.fillWidth: true; onTextChanged: page.scheduleSave() }
                                 Label { text: "浮窗等待超时（秒，0.5–30）" }
-                                TextField { id: timeout; Layout.fillWidth: true; onTextChanged: page.scheduleSave() }
+                                UiTextField { id: timeout; Layout.fillWidth: true; onTextChanged: page.scheduleSave() }
                                 Label { text: "输入前等待（秒，0.1–10）" }
-                                TextField { id: focusDelay; Layout.fillWidth: true; onTextChanged: page.scheduleSave() }
+                                UiTextField { id: focusDelay; Layout.fillWidth: true; onTextChanged: page.scheduleSave() }
                                 Label { text: "粘贴/发送后等待（秒，0.1–10）" }
-                                TextField { id: pasteDelay; Layout.fillWidth: true; onTextChanged: page.scheduleSave() }
+                                UiTextField { id: pasteDelay; Layout.fillWidth: true; onTextChanged: page.scheduleSave() }
                                 Label { text: "联系人间隔（秒，0–60）" }
-                                TextField { id: gap; Layout.fillWidth: true; onTextChanged: page.scheduleSave() }
-                                Button { text: "恢复默认等待时间"; onClicked: { searchWait.text="0.5"; timeout.text="3"; focusDelay.text="0.5"; pasteDelay.text="0.2"; gap.text="0" } }
+                                UiTextField { id: gap; Layout.fillWidth: true; onTextChanged: page.scheduleSave() }
+                                UiButton { text: "恢复默认等待时间"; onClicked: { searchWait.text="0.5"; timeout.text="3"; focusDelay.text="0.5"; pasteDelay.text="0.2"; gap.text="0" } }
                             }
                         }
                     }
                 }
             }
-            Frame {
+            UiPanel {
                 Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumWidth: 0
                 ScrollView {
                     id: messagesViewport; anchors.fill: parent; clip: true
                     contentWidth: Math.max(520,availableWidth); contentHeight: availableHeight
+                    ScrollBar.horizontal.policy: ScrollBar.AlwaysOn
                     RecipientMessages {
                         id: recipientPanel; width: messagesViewport.contentWidth; height: messagesViewport.availableHeight; center: page.center
                         onResolveRequested: function(recipientId,wasSent) {
@@ -148,13 +149,13 @@ Item {
         ColumnLayout {
             anchors.fill: parent
             Label { text: "来源：" + (center.selected.title || ""); wrapMode: Text.Wrap; Layout.fillWidth: true }
-            TextField { id: copyTitle; objectName: "groupCopyTitleInput"; placeholderText: "新批次名称"; Layout.fillWidth: true }
+            UiTextField { id: copyTitle; objectName: "groupCopyTitleInput"; placeholderText: "新批次名称"; Layout.fillWidth: true }
             CheckBox { id: copyMessages; text: "同时复制消息内容（按原始模板，以当前画像重新替换变量）"; checked: true; Layout.fillWidth: true }
-            Label { text: "人员名单会复制为新批次，所有人重置为待发送；原批次及其发送记录不变。无法匹配学员或变量时会阻止创建。"; wrapMode: Text.Wrap; Layout.fillWidth: true; color: "#667085" }
-            Label { text: center.status; wrapMode: Text.Wrap; Layout.fillWidth: true; color: "#b54708" }
+            Label { text: "人员名单会复制为新批次，所有人重置为待发送；原批次及其发送记录不变。无法匹配学员或变量时会阻止创建。"; wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.muted }
+            Label { text: center.status; wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.warning }
             RowLayout {
-                Button { objectName: "confirmCopyBatch"; text: "复制并新建"; highlighted: true; enabled: !center.active; onClicked: if(center.copyList(copyTitle.text,copyMessages.checked)) copyDialog.close() }
-                Button { text: "取消"; onClicked: copyDialog.close() }
+                UiButton { objectName: "confirmCopyBatch"; text: "复制并新建"; highlighted: true; enabled: !center.active; onClicked: if(center.copyList(copyTitle.text,copyMessages.checked)) copyDialog.close() }
+                UiButton { text: "取消"; onClicked: copyDialog.close() }
             }
         }
     }
@@ -164,24 +165,24 @@ Item {
         onOpened: { if(newFields.values().length===0) newFields.load([{type:"text",text:""}]) }
         ColumnLayout {
             anchors.fill: parent
-            TextField { id: customTitle; objectName: "groupCustomTitle"; placeholderText: "名单名称"; Layout.fillWidth: true }
+            UiTextField { id: customTitle; objectName: "groupCustomTitle"; placeholderText: "名单名称"; Layout.fillWidth: true }
             ScrollView {
                 id: newScroll; Layout.fillWidth: true; Layout.fillHeight: true; contentWidth: availableWidth; clip: true
                 ColumnLayout {
                     width: newScroll.availableWidth
                     RowLayout {
                         Label { text: "人员名单（一行一个姓名，不含前缀）"; Layout.fillWidth: true }
-                        Button { text: "导入 CSV／TXT"; onClicked: { var names=center.importNames(); if(names) customNames.text=names } }
+                        UiButton { text: "导入 CSV／TXT"; onClicked: { var names=center.importNames(); if(names) customNames.text=names } }
                     }
                     TextArea { id: customNames; objectName: "groupCustomNames"; Layout.fillWidth: true; implicitHeight: 90; placeholderText: "姓名1\n姓名2"; wrapMode: TextEdit.Wrap; selectByMouse: true }
                     Label { text: "按字段顺序发送文字和文件。文字支持变量：画像名单可用 {" + backend.profilesModule.messagePlaceholders.join("}、{") + "}；普通名单支持 {姓名}。保存后名单中分别保存每位收件人的实际消息。"; wrapMode: Text.Wrap; Layout.fillWidth: true }
                     MessageFields { id: newFields; objectName: "newMessageFields"; Layout.fillWidth: true }
                 }
             }
-            Label { text: center.status; Layout.fillWidth: true; wrapMode: Text.Wrap; color: "#b54708" }
+            Label { text: center.status; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.warning }
             RowLayout {
-                Button { objectName: "saveStructuredGroup"; text: "保存名单和内容"; onClicked: { if(center.createStructured(customTitle.text,customNames.text,newFields.values())) { customDialog.close(); customTitle.text=""; customNames.text=""; newFields.load([{type:"text",text:""}]) } } }
-                Button { text: "取消"; onClicked: customDialog.close() }
+                UiButton { objectName: "saveStructuredGroup"; text: "保存名单和内容"; onClicked: { if(center.createStructured(customTitle.text,customNames.text,newFields.values())) { customDialog.close(); customTitle.text=""; customNames.text=""; newFields.load([{type:"text",text:""}]) } } }
+                UiButton { text: "取消"; onClicked: customDialog.close() }
             }
         }
     }
@@ -191,12 +192,12 @@ Item {
         ColumnLayout {
             anchors.fill: parent
             Label { text: "当前名单的联系人前缀为空，将直接使用名单中的姓名作为企业微信联系人备注。"; wrapMode: Text.Wrap; Layout.fillWidth: true }
-            Label { text: "若企业微信备注带有班级等前缀，或名单中存在同名联系人，可能匹配到错误的人。这里只提醒、不强制填写：可以返回补充前缀，也可以继续预览逐人核对。"; wrapMode: Text.Wrap; Layout.fillWidth: true; color: "#b54708" }
+            Label { text: "若企业微信备注带有班级等前缀，或名单中存在同名联系人，可能匹配到错误的人。这里只提醒、不强制填写：可以返回补充前缀，也可以继续预览逐人核对。"; wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.warning }
             RowLayout {
                 Layout.fillWidth: true
                 Item { Layout.fillWidth: true }
-                Button { objectName: "groupEmptyPrefixBack"; text: "返回填写"; highlighted: true; onClicked: prefixReminder.close() }
-                Button { objectName: "groupEmptyPrefixContinue"; text: "继续预览"; onClicked: { prefixReminder.close(); page.openPreview() } }
+                UiButton { objectName: "groupEmptyPrefixBack"; text: "返回填写"; highlighted: true; onClicked: prefixReminder.close() }
+                UiButton { objectName: "groupEmptyPrefixContinue"; text: "继续预览"; onClicked: { prefixReminder.close(); page.openPreview() } }
             }
         }
     }
@@ -207,10 +208,10 @@ Item {
         ColumnLayout {
             anchors.fill: parent
             Label { text: "本轮处理 " + center.preview.length + " 人 · 其余 " + Math.max(0,center.pendingCount+center.sentCount-center.preview.length) + " 人跳过（已发送、待核实或不符合条件）"; font.bold: true; Layout.fillWidth: true; wrapMode: Text.Wrap }
-            Label { objectName: "groupPreviewSummary"; text: (center.selected.options.confirm_send ? "回车发送" : "仅粘贴，不发送") + " · " + (center.selected.options.confirm_send && center.selected.options.single_send ? "按下列顺序逐条处理" : "按下列顺序粘贴"+(center.selected.options.confirm_send ? "后统一发送" : "")) + " · " + (center.selected.options.substring_mode ? "包含匹配" : "完整匹配") + " · " + (center.selected.options.verify_contact ? "验证联系人" : "不验证联系人"); Layout.fillWidth: true; wrapMode: Text.Wrap; color: "#667085" }
+            Label { objectName: "groupPreviewSummary"; text: (center.selected.options.confirm_send ? "回车发送" : "仅粘贴，不发送") + " · " + (center.selected.options.confirm_send && center.selected.options.single_send ? "按下列顺序逐条处理" : "按下列顺序粘贴"+(center.selected.options.confirm_send ? "后统一发送" : "")) + " · " + (center.selected.options.substring_mode ? "包含匹配" : "完整匹配") + " · " + (center.selected.options.verify_contact ? "验证联系人" : "不验证联系人"); Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted }
             RowLayout {
                 Layout.fillWidth: true; Layout.fillHeight: true; spacing: 12
-                Frame {
+                UiPanel {
                     Layout.preferredWidth: Math.min(210,previewDialog.width*0.3); Layout.fillHeight: true
                     ListView {
                         id: previewList; objectName: "groupPreviewRecipients"; anchors.fill: parent; clip: true; spacing: 3
@@ -234,13 +235,13 @@ Item {
                             width: previewContent.availableWidth; spacing: 10
                             Repeater {
                                 model: previewDialog.currentRecipient.content || []
-                                Frame {
+                                UiPanel {
                                     required property var modelData
                                     required property int index
                                     Layout.fillWidth: true
                                     ColumnLayout {
                                         anchors.fill: parent
-                                        Label { text: "消息 "+(index+1)+(modelData.type==="file" ? " · 文件" : " · 文字"); color: "#667085" }
+                                        Label { text: "消息 "+(index+1)+(modelData.type==="file" ? " · 文件" : " · 文字"); color: UiTheme.muted }
                                         TextArea { text: modelData.type==="file" ? modelData.path : modelData.text; readOnly: true; selectByMouse: true; textFormat: TextEdit.PlainText; wrapMode: TextEdit.Wrap; Layout.fillWidth: true; background: null }
                                     }
                                 }
@@ -248,20 +249,20 @@ Item {
                         }
                     }
                     RowLayout {
-                        Button { text: "上一人"; enabled: previewList.currentIndex>0; onClicked: previewList.currentIndex-- }
+                        UiButton { text: "上一人"; enabled: previewList.currentIndex>0; onClicked: previewList.currentIndex-- }
                         Label { text: (previewList.currentIndex+1)+" / "+center.preview.length; Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter }
-                        Button { objectName: "groupPreviewNext"; text: "下一人"; enabled: previewList.currentIndex<center.preview.length-1; onClicked: previewList.currentIndex++ }
+                        UiButton { objectName: "groupPreviewNext"; text: "下一人"; enabled: previewList.currentIndex<center.preview.length-1; onClicked: previewList.currentIndex++ }
                     }
                 }
             }
-            Label { text: "请登录企业微信并保持空输入框。处理期间不要操作电脑；F11 会在当前联系人完成后暂停。单个联系人失败不会中止本轮：未粘贴的记为「未发送失败」并留在待处理，粘贴后异常记为「结果待确认」，需核对后重试。"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: "#b54708" }
+            Label { text: "请登录企业微信并保持空输入框。处理期间不要操作电脑；F11 会在当前联系人完成后暂停。单个联系人失败不会中止本轮：未粘贴的记为「未发送失败」并留在待处理，粘贴后异常记为「结果待确认」，需核对后重试。"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.warning }
             CheckBox { id: acceptRisk; objectName: "groupAcceptRisk"; visible: center.selected.options.substring_mode || !center.selected.options.verify_contact; text: "已核对联系人，了解包含匹配或不验证联系人可能导致误发"; Layout.fillWidth: true }
-            Label { text: center.status; Layout.fillWidth: true; wrapMode: Text.Wrap; color: "#b54708" }
+            Label { text: center.status; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.warning }
             RowLayout {
-                Button { objectName: "groupPreviewBack"; text: "返回编辑"; onClicked: previewDialog.close() }
-                Button { objectName: "groupPreviewEditPerson"; text: "修改此人消息"; enabled: !center.active && !!previewDialog.currentRecipient.student_id; onClicked: { var recipientId=Number(previewDialog.currentRecipient.student_id); previewDialog.close(); recipientPanel.editRecipient(recipientId) } }
+                UiButton { objectName: "groupPreviewBack"; text: "返回编辑"; onClicked: previewDialog.close() }
+                UiButton { objectName: "groupPreviewEditPerson"; text: "修改此人消息"; enabled: !center.active && !!previewDialog.currentRecipient.student_id; onClicked: { var recipientId=Number(previewDialog.currentRecipient.student_id); previewDialog.close(); recipientPanel.editRecipient(recipientId) } }
                 Item { Layout.fillWidth: true }
-                Button { objectName: "groupStartButton"; text: (center.selected.options.confirm_send ? "开始发送 · " : "开始粘贴 · ")+center.preview.length+" 人"; highlighted: true; enabled: !center.active && center.preview.length>0 && ((!center.selected.options.substring_mode && center.selected.options.verify_contact) || acceptRisk.checked); onClicked: { if(center.start()) previewDialog.close() } }
+                UiButton { objectName: "groupStartButton"; text: (center.selected.options.confirm_send ? "开始发送 · " : "开始粘贴 · ")+center.preview.length+" 人"; highlighted: true; enabled: !center.active && center.preview.length>0 && ((!center.selected.options.substring_mode && center.selected.options.verify_contact) || acceptRisk.checked); onClicked: { if(center.start()) previewDialog.close() } }
             }
         }
     }

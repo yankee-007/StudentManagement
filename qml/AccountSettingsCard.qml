@@ -12,7 +12,7 @@ SettingsCard {
 
     subtitle: platform === "completion" ? "追光鲸鱼后台账号" : "作业平台后台账号"
     tag: record.saved ? "密码已保存" : "尚未保存密码"
-    tagColor: record.saved ? "#027a48" : "#b54708"
+    tagColor: record.saved ? "#027a48" : UiTheme.warning
     tagBackground: record.saved ? "#ecfdf3" : "#fffaeb"
 
     headerRight: Rectangle {
@@ -20,7 +20,7 @@ SettingsCard {
         implicitHeight: 20
         radius: 10
         color: card.tagBackground
-        Label { id: tagLabel; anchors.centerIn: parent; text: card.tag; font.pixelSize: 11; color: card.tagColor }
+        Label { id: tagLabel; anchors.centerIn: parent; text: card.tag; font.pixelSize: 12; color: card.tagColor }
     }
 
     GridLayout {
@@ -28,8 +28,8 @@ SettingsCard {
         columns: 2
         columnSpacing: 12
         rowSpacing: 10
-        Label { text: "账号"; color: "#475467"; font.pixelSize: 12; Layout.preferredWidth: 96; Layout.alignment: Qt.AlignVCenter }
-        TextField {
+        Label { text: "账号"; color: UiTheme.muted; font.pixelSize: 12; Layout.preferredWidth: 96; Layout.alignment: Qt.AlignVCenter }
+        UiTextField {
             id: usernameField
             objectName: card.platform + "Username"
             Layout.fillWidth: true
@@ -38,8 +38,8 @@ SettingsCard {
             enabled: !card.service.busy
             onTextEdited: card.service.clearVerification(card.platform)
         }
-        Label { text: "原始密码"; color: "#475467"; font.pixelSize: 12; Layout.preferredWidth: 96; Layout.alignment: Qt.AlignVCenter }
-        TextField {
+        Label { text: "原始密码"; color: UiTheme.muted; font.pixelSize: 12; Layout.preferredWidth: 96; Layout.alignment: Qt.AlignVCenter }
+        UiTextField {
             id: passwordField
             objectName: card.platform + "Password"
             Layout.fillWidth: true
@@ -53,8 +53,8 @@ SettingsCard {
     Label {
         text: card.verification.message || ""
         visible: text.length > 0
-        color: card.verification.state === "success" ? "#027a48" : card.verification.state === "error" ? "#b42318" : "#667085"
-        font.pixelSize: 11; wrapMode: Text.Wrap
+        color: card.verification.state === "success" ? "#027a48" : card.verification.state === "error" ? "#b42318" : UiTheme.muted
+        font.pixelSize: 12; wrapMode: Text.Wrap
         Layout.fillWidth: true
     }
 
@@ -63,17 +63,17 @@ SettingsCard {
         spacing: 8
         Label {
             text: card.record.saved ? "保存后不会在界面回显密码。" : "保存后不会在界面回显密码，下次获取数据时生效。"
-            color: "#98a2b3"; font.pixelSize: 11
+            color: "#98a2b3"; font.pixelSize: 12
             elide: Text.ElideRight
             Layout.fillWidth: true
         }
-        Button {
+        UiButton {
             objectName: card.platform + "VerifyLogin"
             text: card.service.verifyingPlatform === card.platform ? "验证中…" : "验证登录"
             enabled: !card.service.busy && !backend.busy && !backend.termsModule.busy
             onClicked: card.service.verifyLogin(card.platform, usernameField.text, passwordField.text)
         }
-        Button {
+        UiButton {
             text: "保存"; highlighted: true
             enabled: !card.service.busy
             onClicked: {

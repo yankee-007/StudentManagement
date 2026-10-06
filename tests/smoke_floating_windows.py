@@ -62,7 +62,10 @@ def run():
             floating.setProperty('pinned', False)
             floating.setProperty('pinned', True)
             assert floating.transientParent() is None
+        main.resize(960, 640)
         main.show()
+        # At a narrow width the detail pane is opened explicitly.
+        main.setProperty('campaignDetailOpen', True)
         profile.show()
         campaign.show()
         app.processEvents()

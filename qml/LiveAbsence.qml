@@ -13,26 +13,26 @@ Item {
         anchors.fill: parent; spacing: 10
         RowLayout {
             Layout.fillWidth: true
-            Label { text: "未进直播间"; font.pixelSize: 22; font.bold: true; color: "#17213a" }
+            Label { text: "未进直播间"; font.pixelSize: 22; font.bold: true; color: UiTheme.ink }
             Label {
                 text: "按节次读取平台「直播观看时长」；没有观看记录（null）的学员即未进入直播间"
-                color: "#667085"; Layout.fillWidth: true; elide: Text.ElideRight
+                color: UiTheme.muted; Layout.fillWidth: true; elide: Text.ElideRight
             }
-            Label { objectName: "liveAbsenceClass"; text: service.className; color: "#344054" }
-            Button {
+            Label { objectName: "liveAbsenceClass"; text: service.className; color: UiTheme.ink }
+            UiButton {
                 objectName: "liveAbsenceRefreshLessons"; text: service.busy ? "获取中…" : "刷新课程"
                 enabled: !service.busy && !backend.busy && !backend.termsModule.busy; onClicked: service.refreshLessons()
             }
         }
-        Frame {
+        UiPanel {
             Layout.fillWidth: true; padding: 10
-            background: Rectangle { color: "white"; radius: 8; border.color: "#e4e7ec" }
+            background: Rectangle { color: "white"; radius: 8; border.color: UiTheme.line }
             ColumnLayout {
                 anchors.fill: parent; spacing: 6
                 RowLayout {
                     Layout.fillWidth: true
-                    Label { text: "节次"; color: "#475467" }
-                    ComboBox {
+                    Label { text: "节次"; color: UiTheme.muted }
+                    UiComboBox {
                         id: lessonBox; objectName: "liveAbsenceLessonBox"
                         popup.objectName: "liveAbsenceLessonPopup"
                         Layout.fillWidth: true; model: service.lessons; textRole: "label"
@@ -46,15 +46,16 @@ Item {
                             hoverEnabled: true; highlighted: hovered
                         }
                     }
-                    Button {
+                    UiButton {
                         objectName: "liveAbsenceFetch"; text: service.busy ? "获取中…" : "获取未进直播间名单"
                         enabled: !service.busy && !backend.busy && !backend.termsModule.busy && service.lessonIndex >= 0
                         onClicked: service.fetchRows()
                     }
-                    Button { text: "取消"; visible: service.busy; onClicked: service.cancel() }
+                    UiButton { text: "取消"; visible: service.busy; onClicked: service.cancel() }
                 }
-                RowLayout {
+                Flow {
                     Layout.fillWidth: true
+                    spacing: 8
                     CheckBox {
                         objectName: "liveAbsenceIncludeZero"; text: "把直播观看 0 秒也算作未进入"
                         checked: service.includeZero; enabled: !service.busy
@@ -70,13 +71,12 @@ Item {
                         checked: service.showAll; enabled: !service.busy
                         onToggled: service.applyShowAll(checked)
                     }
-                    Item { Layout.fillWidth: true }
                     Label {
                         objectName: "liveAbsenceFetchedAt"
                         text: service.hasResult ? "获取时间 " + service.fetchedAt.replace("T", " ") : "尚未获取"
-                        color: "#667085"; font.pixelSize: 11
+                        color: UiTheme.muted; font.pixelSize: 12
                     }
-                    Button {
+                    UiButton {
                         objectName: "liveAbsenceClearReminders"; text: "清除本节提醒记录"
                         enabled: !service.busy && service.hasResult && service.remindedCount > 0
                         onClicked: clearDialog.open()
@@ -84,31 +84,31 @@ Item {
                 }
                 Label {
                     objectName: "liveAbsenceNotice"; text: service.notice; wrapMode: Text.Wrap
-                    Layout.fillWidth: true; color: service.busy ? "#335cff" : "#667085"; font.pixelSize: 12
+                    Layout.fillWidth: true; color: service.busy ? UiTheme.accent : UiTheme.muted; font.pixelSize: 12
                 }
                 ProgressBar { visible: service.busy; indeterminate: true; Layout.fillWidth: true }
             }
         }
         RowLayout {
             Layout.fillWidth: true
-            Label { objectName: "liveAbsenceSummary"; text: service.summary; color: "#344054"; Layout.fillWidth: true; wrapMode: Text.Wrap }
+            Label { objectName: "liveAbsenceSummary"; text: service.summary; color: UiTheme.ink; Layout.fillWidth: true; wrapMode: Text.Wrap }
         }
         Label {
             objectName: "liveAbsenceIssues"; visible: service.issues !== ""; text: service.issues
-            color: "#b54708"; wrapMode: Text.Wrap; Layout.fillWidth: true; font.pixelSize: 11
+            color: UiTheme.warning; wrapMode: Text.Wrap; Layout.fillWidth: true; font.pixelSize: 12
         }
-        Frame {
+        UiPanel {
             Layout.fillWidth: true; Layout.fillHeight: true; padding: 1
-            background: Rectangle { color: "white"; radius: 8; border.color: "#e4e7ec" }
+            background: Rectangle { color: "white"; radius: 8; border.color: UiTheme.line }
             Item {
                 anchors.fill: parent
                 HorizontalHeaderView {
                     id: headings; anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right
-                    height: 32; syncView: table
+                    height: UiTheme.headerHeight; syncView: table
                     delegate: Rectangle {
                         required property var display
-                        implicitWidth: 100; implicitHeight: 32; color: "#f2f4f7"
-                        Text { anchors.fill: parent; anchors.leftMargin: 10; text: display; verticalAlignment: Text.AlignVCenter; font.pixelSize: 11; color: "#344054" }
+                        implicitWidth: 100; implicitHeight: UiTheme.headerHeight; color: UiTheme.stripe
+                        Text { anchors.fill: parent; anchors.leftMargin: 10; text: display; verticalAlignment: Text.AlignVCenter; font.pixelSize: 12; color: UiTheme.ink }
                     }
                 }
                 TableView {
@@ -118,7 +118,7 @@ Item {
                     columnWidthProvider: function(c) {
                         return c === 0 ? 60 : c === 1 ? 150 : c === 2 ? 110 : c === 3 ? 110 : c === 4 ? 80 : c === 5 ? 60 : c === 6 ? 160 : Math.max(110, width - 730)
                     }
-                    rowHeightProvider: function() { return 22 }
+                    rowHeightProvider: function() { return UiTheme.rowHeight }
                     ScrollBar.vertical: ScrollBar {}
                     ScrollBar.horizontal: ScrollBar {}
                     delegate: Rectangle {
@@ -126,15 +126,15 @@ Item {
                         required property int column
                         required property string display
                         required property string studentId
-                        implicitHeight: 22; implicitWidth: 100
-                        color: studentId === page.selectedId ? "#dce6ff"
+                        implicitHeight: UiTheme.rowHeight; implicitWidth: 100
+                        color: studentId === page.selectedId ? UiTheme.selection
                              : (column === 3 && display === "未进入") ? "#fff1f0"
                              : (column === 7 && display !== "") ? "#fff7e6"
-                             : row % 2 ? "#f8faff" : "white"
+                             : row % 2 ? UiTheme.stripe : "white"
                         Text {
                             anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 6
-                            text: display; font.pixelSize: 11; verticalAlignment: Text.AlignVCenter
-                            elide: Text.ElideRight; color: "#344054"
+                            text: display; font.pixelSize: 12; verticalAlignment: Text.AlignVCenter
+                            elide: Text.ElideRight; color: UiTheme.ink
                         }
                         TapHandler { onTapped: page.selectedId = studentId }
                     }
@@ -150,17 +150,17 @@ Item {
             Layout.fillWidth: true
             Label {
                 objectName: "liveAbsenceListable"
-                Layout.fillWidth: true; wrapMode: Text.Wrap; color: "#344054"
+                Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.ink
                 text: "可加入新名单 " + service.recipientCount + " 人"
                       + (service.excludeReminded && service.remindedCount > 0 ? "（本节已提醒 " + service.remindedCount + " 人默认跳过）" : "")
                       + (service.includeZero ? "；已把观看 0 秒计入未进入" : "")
             }
             Label {
-                visible: service.duplicateCount > 0; color: "#b54708"; font.pixelSize: 11
+                visible: service.duplicateCount > 0; color: UiTheme.warning; font.pixelSize: 12
                 text: "存在重名 " + service.duplicateCount + " 人，名单内重名会被拦截"
                 verticalAlignment: Text.AlignVCenter
             }
-            Button {
+            UiButton {
                 objectName: "liveAbsenceCreateList"; text: "生成群发名单"
                 enabled: !service.busy && !backend.busy && !backend.termsModule.busy
                          && service.recipientCount > 0 && !backend.groupCenter.active
@@ -180,16 +180,16 @@ Item {
         }
         ColumnLayout {
             anchors.fill: parent
-            TextField { id: groupTitle; objectName: "liveAbsenceListTitle"; placeholderText: "名单名称"; Layout.fillWidth: true }
+            UiTextField { id: groupTitle; objectName: "liveAbsenceListTitle"; placeholderText: "名单名称"; Layout.fillWidth: true }
             Label {
                 text: "节次：" + (service.lessonLabel || "未选择") + "；将创建 " + createDialog.recordKeys.length + " 人的独立名单"
                       + (service.excludeReminded && service.remindedCount > 0 ? "（本节已提醒的 " + service.remindedCount + " 人不再加入）" : "")
                       + "。无姓名及补位行跳过；仅创建，不会立即发送。"
-                wrapMode: Text.Wrap; Layout.fillWidth: true; color: "#667085"
+                wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.muted
             }
             Label {
                 text: "可用变量：{" + service.messagePlaceholders.join("}、{") + "}"
-                wrapMode: Text.Wrap; Layout.fillWidth: true; color: "#667085"; font.pixelSize: 11
+                wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.muted; font.pixelSize: 12
             }
             ScrollView {
                 id: messageScroll; Layout.fillWidth: true; Layout.fillHeight: true
@@ -198,8 +198,8 @@ Item {
             }
             Label { text: backend.groupCenter.status; wrapMode: Text.Wrap; Layout.fillWidth: true }
             RowLayout {
-                Button { text: "取消"; onClicked: createDialog.close() }
-                Button {
+                UiButton { text: "取消"; onClicked: createDialog.close() }
+                UiButton {
                     objectName: "liveAbsenceConfirmCreate"; text: "创建并打开群发中心"
                     onClicked: {
                         if (backend.groupCenter.createFromLiveAbsence(groupTitle.text, messages.values(), createDialog.recordKeys)) {

@@ -10,7 +10,7 @@ Popup {
     height: 52
     modal: false
     closePolicy: Popup.NoAutoClose
-    background: Rectangle { color: "#17213a"; radius: 8 }
+    background: Rectangle { color: UiTheme.ink; radius: 8 }
     contentItem: Label { id: label; color: "white"; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
     onOpened: timer.restart()
     Timer { id: timer; interval: 3500; onTriggered: root.close() }

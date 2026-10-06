@@ -15,7 +15,7 @@ Dialog {
         anchors.fill: parent; spacing: 10
         Label {
             text: "仅影响当前班期。拖动手柄排序；勾选控制表格、详情和跟随聊天浮窗。姓名固定显示。"
-            Layout.fillWidth: true; wrapMode: Text.Wrap; color: "#667085"
+            Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted
         }
         ProfileFieldOrder { Layout.fillWidth: true; Layout.fillHeight: true; profiles: dialog.workflow }
     }

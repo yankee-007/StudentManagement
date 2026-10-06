@@ -11,8 +11,8 @@ ColumnLayout {
     onStudentChanged: prefixInput.text = opener.prefix(student._record_key || "")
     RowLayout {
         Layout.fillWidth: true; spacing: 6
-        Label { text: "前缀"; font.pixelSize: 12; color: "#667085" }
-        TextField {
+        Label { text: "前缀"; font.pixelSize: 12; color: UiTheme.muted }
+        UiTextField {
             id: prefixInput; objectName: "profileContactPrefix"
             Layout.fillWidth: true; Layout.minimumWidth: 45
             placeholderText: "可留空"; font.pixelSize: 12
@@ -20,7 +20,7 @@ ColumnLayout {
             selectByMouse: true
             ToolTip.visible: hovered; ToolTip.text: "例如 py169；留空时按姓名搜索，打开后记住当前班期的前缀"
         }
-        Button {
+        UiButton {
             objectName: "openProfileContact"
             text: opener.active ? "正在打开…" : "打开企微联系人"
             enabled: !!action.student.name && !action.student.is_placeholder && !opener.active && !backend.groupCenter.active && !backend.workflow.sender.active
@@ -45,5 +45,5 @@ ColumnLayout {
         ToolTip.visible: hovered
         ToolTip.text: "未勾选时，核对联系人后关闭企微浮窗，回到主界面聊天"
     }
-    Label { text: opener.notice; Layout.fillWidth: true; wrapMode: Text.Wrap; color: "#667085"; font.pixelSize: 11 }
+    Label { text: opener.notice; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted; font.pixelSize: 12 }
 }

@@ -28,6 +28,8 @@ Backend / TermModule / SettingsModule / LiveAbsence → AcquisitionTask（QThrea
 
 ## Python ↔ QML 与状态
 
+- QML 展示层共用 UiTheme、UiButton、UiTextField、UiComboBox、UiPanel；本地 qmldir 注册主题单例。左侧导航调用原 switchModule，顶部班期切换与调试重启保留原保护条件。工作台／画像窄窗口切换列表与详情的可见性，不销毁编辑组件、不改保存和业务接口。群发参数常驻左侧，消息视口保留横向滚动。
+
 - Backend 以常量 QObject Property 暴露模块；QML 使用 QVariantMap/List 读取行、字段、参数，调用 Slot，以 notify signal 更新绑定。
 - DictTableModel 是 QAbstractTableModel，角色包括 display、studentId、recordKey、expiredCell、staleRow。set_rows 重置模型，reconcile_rows 用增删移动/数据通知减少委托重建。
 - Workflow 的 _rows 是完整批次行，_model.rows 是当前显示集合（冻结结果集，可能含已不符合筛选的过期行），_selected 是主表选择。selectionChanged、queryChanged、changed 不可任意互换。

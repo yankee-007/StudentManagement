@@ -7,7 +7,7 @@ Window {
     id: floating
     objectName: "campaignFloatingWindow"
     width: 246; height: 520; minimumWidth: 230; minimumHeight: 300
-    title: "催办反馈 · 跟随聊天"; color: "#f5f7fb"
+    title: "催办反馈 · 跟随聊天"; color: UiTheme.canvas
     transientParent: null
     property bool pinned: true
     property var companion: backend.campaignCompanion
@@ -22,14 +22,14 @@ Window {
         RowLayout {
             Layout.fillWidth: true
             Label {
-                text: companion.selected.name || "等待识别"; font.pixelSize: 16; font.bold: true; color: "#17213a"; Layout.fillWidth: true; elide: Text.ElideRight
+                text: companion.selected.name || "等待识别"; font.pixelSize: 16; font.bold: true; color: UiTheme.ink; Layout.fillWidth: true; elide: Text.ElideRight
                 MouseArea { anchors.fill: parent; cursorShape: Qt.SizeAllCursor; onPressed: floating.startSystemMove() }
             }
-            ToolButton { text: "置顶"; font.pixelSize: 11; checkable: true; checked: floating.pinned; onClicked: floating.pinned=checked }
-            ToolButton { text: "重试"; font.pixelSize: 11; onClicked: companion.retryContact() }
+            ToolButton { text: "置顶"; font.pixelSize: 12; checkable: true; checked: floating.pinned; onClicked: floating.pinned=checked }
+            ToolButton { text: "重试"; font.pixelSize: 12; onClicked: companion.retryContact() }
         }
-        Label { text: companion.notice; font.pixelSize: 10; color: "#667085"; wrapMode: Text.Wrap; Layout.fillWidth: true }
-        Rectangle { Layout.fillWidth: true; height: 1; color: "#e4e7ec" }
+        Label { text: companion.notice; font.pixelSize: 13; color: UiTheme.muted; wrapMode: Text.Wrap; Layout.fillWidth: true }
+        Rectangle { Layout.fillWidth: true; height: 1; color: UiTheme.line }
         CampaignDetail {
             visible: !!companion.selected.student_id
             Layout.fillWidth: true; Layout.fillHeight: true

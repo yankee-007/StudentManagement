@@ -23,7 +23,7 @@ ColumnLayout {
     ListModel { id: fields }
     Repeater {
         model: fields
-        Frame {
+        UiPanel {
             id: fieldRow
             required property int index
             required property string kind
@@ -33,9 +33,9 @@ ColumnLayout {
                 anchors.fill: parent
                 RowLayout {
                     Label { text: "字段 " + (fieldRow.index+1) + (fieldRow.kind==="file" ? " · 文件" : " · 文字"); Layout.fillWidth: true }
-                    Button { text: "↑"; enabled: fieldRow.index>0; onClicked: fields.move(fieldRow.index,fieldRow.index-1,1) }
-                    Button { text: "↓"; enabled: fieldRow.index<fields.count-1; onClicked: fields.move(fieldRow.index,fieldRow.index+1,1) }
-                    Button { text: "移除"; onClicked: fields.remove(fieldRow.index) }
+                    UiButton { text: "↑"; enabled: fieldRow.index>0; onClicked: fields.move(fieldRow.index,fieldRow.index-1,1) }
+                    UiButton { text: "↓"; enabled: fieldRow.index<fields.count-1; onClicked: fields.move(fieldRow.index,fieldRow.index+1,1) }
+                    UiButton { text: "移除"; onClicked: fields.remove(fieldRow.index) }
                 }
                 TextArea {
                     visible: fieldRow.kind==="text"; Layout.fillWidth: true; implicitHeight: 80
@@ -46,14 +46,14 @@ ColumnLayout {
                 }
                 RowLayout {
                     visible: fieldRow.kind==="file"; Layout.fillWidth: true
-                    TextField { text: fieldRow.value; readOnly: true; placeholderText: "选择图片、压缩包或其他文件"; Layout.fillWidth: true }
-                    Button { text: "选择文件"; onClicked: { var path=editor.fileChooser.chooseMessageFile(); if(path) fields.setProperty(fieldRow.index,"value",path) } }
+                    UiTextField { text: fieldRow.value; readOnly: true; placeholderText: "选择图片、压缩包或其他文件"; Layout.fillWidth: true }
+                    UiButton { text: "选择文件"; onClicked: { var path=editor.fileChooser.chooseMessageFile(); if(path) fields.setProperty(fieldRow.index,"value",path) } }
                 }
             }
         }
     }
     RowLayout {
-        Button { text: "＋文字字段"; onClicked: fields.append({kind:"text",value:""}) }
-        Button { text: "＋文件字段"; onClicked: fields.append({kind:"file",value:""}) }
+        UiButton { text: "＋文字字段"; onClicked: fields.append({kind:"text",value:""}) }
+        UiButton { text: "＋文件字段"; onClicked: fields.append({kind:"file",value:""}) }
     }
 }

@@ -58,12 +58,12 @@ Dialog {
         anchors.fill: parent
         Label {
             text: "导出所选批次的全班快照，按学号升序，不受当前搜索、筛选影响。拖动手柄调整导出列顺序；字段选择与表格显示独立。"
-            wrapMode: Text.Wrap; Layout.fillWidth: true; color: "#667085"
+            wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.muted
         }
         RowLayout {
-            Button { text: "默认字段"; onClicked: dialog.defaultFields() }
-            Button { text: "全选"; onClicked: dialog.resetSelection(true) }
-            Button { text: "清空"; onClicked: dialog.selectedKeys = [] }
+            UiButton { text: "默认字段"; onClicked: dialog.defaultFields() }
+            UiButton { text: "全选"; onClicked: dialog.resetSelection(true) }
+            UiButton { text: "清空"; onClicked: dialog.selectedKeys = [] }
         }
         ListView {
             id: list; Layout.fillWidth: true; Layout.fillHeight: true; clip: true
@@ -79,7 +79,7 @@ Dialog {
                 RowLayout {
                     anchors.fill: parent; anchors.margins: 3
                     Label {
-                        text: "⠿"; font.pixelSize: 22; color: "#667085"; Layout.preferredWidth: 28
+                        text: "⠿"; font.pixelSize: 22; color: UiTheme.muted; Layout.preferredWidth: 28
                         MouseArea {
                             anchors.fill: parent; cursorShape: pressed ? Qt.ClosedHandCursor : Qt.OpenHandCursor
                             preventStealing: true
@@ -115,8 +115,8 @@ Dialog {
         }
         RowLayout {
             Layout.alignment: Qt.AlignRight
-            Button { text: "取消"; onClicked: dialog.close() }
-            Button {
+            UiButton { text: "取消"; onClicked: dialog.close() }
+            UiButton {
                 text: "导出 XLSX"; enabled: dialog.selectedKeys.length > 0
                 onClicked: {
                     var all = dialog.orderedFields.map(function(f) { return f.key })

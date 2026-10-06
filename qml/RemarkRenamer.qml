@@ -74,73 +74,73 @@ Item {
             Label { text: "备注批改"; font.pixelSize: 22; font.bold: true }
             Label {
                 text: "按姓名搜索 → Ctrl+O 浮窗读取真实备注 → 旧格式改为「前缀+姓名」；已符合的直接入库跳过"
-                color: "#667085"; Layout.fillWidth: true; elide: Text.ElideRight
+                color: UiTheme.muted; Layout.fillWidth: true; elide: Text.ElideRight
             }
-            Label { text: renamer.className; color: "#344054" }
-            Button { objectName: "remarkReloadButton"; text: "刷新名单"; enabled: !renamer.active; onClicked: { if (saveOptions()) renamer.reload() } }
+            Label { text: renamer.className; color: UiTheme.ink }
+            UiButton { objectName: "remarkReloadButton"; text: "刷新名单"; enabled: !renamer.active; onClicked: { if (saveOptions()) renamer.reload() } }
         }
-        Frame {
+        UiPanel {
             Layout.fillWidth: true; padding: 10
-            background: Rectangle { color: "white"; radius: 8; border.color: "#e4e7ec" }
+            background: Rectangle { color: "white"; radius: 8; border.color: UiTheme.line }
             ColumnLayout {
                 anchors.fill: parent; spacing: 6
-                RowLayout {
+                Flow {
                     Layout.fillWidth: true
+                    spacing: 8
                     Label { text: "备注前缀" }
-                    TextField {
-                        id: prefix; objectName: "remarkPrefixInput"; Layout.preferredWidth: 140
+                    UiTextField {
+                        id: prefix; objectName: "remarkPrefixInput"; width: 140
                         placeholderText: "例如 py175"; enabled: !renamer.active
                         onTextEdited: page.scheduleSave()
                     }
-                    Label { text: "前缀＋姓名 = 目标备注；按当前班期保存" ; color: "#667085" }
-                    Item { Layout.fillWidth: true }
+                    Label { text: "前缀＋姓名 = 目标备注；按当前班期保存" ; color: UiTheme.muted }
                     Label { text: "浮窗等待（秒）" }
-                    TextField { id: waitSeconds; objectName: "remarkWaitInput"; Layout.preferredWidth: 70; enabled: !renamer.active; onTextEdited: page.scheduleSave() }
+                    UiTextField { id: waitSeconds; objectName: "remarkWaitInput"; width: 70; enabled: !renamer.active; onTextEdited: page.scheduleSave() }
                     Label { text: "浮窗超时（秒）" }
-                    TextField { id: timeoutSeconds; objectName: "remarkTimeoutInput"; Layout.preferredWidth: 70; enabled: !renamer.active; onTextEdited: page.scheduleSave() }
+                    UiTextField { id: timeoutSeconds; objectName: "remarkTimeoutInput"; width: 70; enabled: !renamer.active; onTextEdited: page.scheduleSave() }
                 }
-                Label { text: renamer.summary; color: "#344054"; font.pixelSize: 12; wrapMode: Text.Wrap; Layout.fillWidth: true }
+                Label { text: renamer.summary; color: UiTheme.ink; font.pixelSize: 12; wrapMode: Text.Wrap; Layout.fillWidth: true }
                 Label {
                     text: "只有画像「微信=是」的学员参与；重名者仅标记提示。修改成功与判定已符合都会写回数据库，群发搜索可直接使用新备注。"
-                    color: "#667085"; font.pixelSize: 12; wrapMode: Text.Wrap; Layout.fillWidth: true
+                    color: UiTheme.muted; font.pixelSize: 12; wrapMode: Text.Wrap; Layout.fillWidth: true
                 }
             }
         }
         RowLayout {
             Layout.fillWidth: true
-            Button {
+            UiButton {
                 objectName: "remarkStartButton"; text: renamer.active ? "处理中…" : "扫描并批改"; highlighted: true
                 enabled: !renamer.active && renamer.pendingCount > 0 && prefix.text.length > 0
                 onClicked: startDialog.open()
             }
-            Label { text: "待处理 " + renamer.pendingCount + " 人"; color: "#667085" }
-            Button {
+            Label { text: "待处理 " + renamer.pendingCount + " 人"; color: UiTheme.muted }
+            UiButton {
                 objectName: "remarkForceButton"; text: "强改选中项"
                 enabled: !renamer.active && picked.count > 0 && prefix.text.length > 0
                 onClicked: forceDialog.open()
             }
-            Button {
+            UiButton {
                 objectName: "remarkRetryButton"; text: "重试未找到／失败"
                 enabled: !renamer.active && renamer.issueCount > 0
                 onClicked: renamer.retryFailed()
             }
             Item { Layout.fillWidth: true }
-            Button {
+            UiButton {
                 objectName: "remarkPauseButton"; text: renamer.pauseRequested ? "等待当前联系人结束…" : "暂停（全局 F11）"
                 visible: renamer.active; enabled: !renamer.pauseRequested && !renamer.isPaused; onClicked: renamer.pause()
             }
-            Button { objectName: "remarkResumeButton"; text: "继续"; visible: renamer.active; enabled: renamer.isPaused; onClicked: renamer.resume() }
-            Button { objectName: "remarkStopButton"; text: "结束本轮"; visible: renamer.active; onClicked: renamer.stop() }
+            UiButton { objectName: "remarkResumeButton"; text: "继续"; visible: renamer.active; enabled: renamer.isPaused; onClicked: renamer.resume() }
+            UiButton { objectName: "remarkStopButton"; text: "结束本轮"; visible: renamer.active; onClicked: renamer.stop() }
         }
-        Label { text: renamer.notice; color: renamer.active ? "#b54708" : "#475467"; wrapMode: Text.Wrap; Layout.fillWidth: true }
+        Label { text: renamer.notice; color: renamer.active ? UiTheme.warning : UiTheme.muted; wrapMode: Text.Wrap; Layout.fillWidth: true }
         Item {
             Layout.fillWidth: true; Layout.fillHeight: true; clip: true
             HorizontalHeaderView {
-                id: header; syncView: table; anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; height: 34
+                id: header; syncView: table; anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; height: UiTheme.headerHeight
                 delegate: Rectangle {
                     required property var display
-                    implicitWidth: 110; implicitHeight: 34; color: "#f2f4f7"
-                    Text { anchors.fill: parent; anchors.margins: 6; text: display; elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter; font.pixelSize: 11; color: "#344054" }
+                    implicitWidth: 110; implicitHeight: UiTheme.headerHeight; color: UiTheme.stripe
+                    Text { anchors.fill: parent; anchors.margins: 6; text: display; elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter; font.pixelSize: 12; color: UiTheme.ink }
                 }
             }
             TableView {
@@ -151,7 +151,7 @@ Item {
                     var widths = [110, 110, 150, 170, 80, 300, 90]
                     return c >= 0 && c < widths.length ? widths[c] : 110
                 }
-                rowHeightProvider: function(r) { return 22 }
+                rowHeightProvider: function(r) { return UiTheme.rowHeight }
                 ScrollBar.horizontal: ScrollBar {}
                 ScrollBar.vertical: ScrollBar {}
                 delegate: Rectangle {
@@ -164,13 +164,13 @@ Item {
                         for (var i = 0; i < picked.count; i++) if (picked.get(i).sid === studentId) return true
                         return false
                     }
-                    implicitHeight: 22; implicitWidth: 110
-                    color: isPicked ? "#dce6ff" : row % 2 ? "#f8faff" : "white"
+                    implicitHeight: UiTheme.rowHeight; implicitWidth: 110
+                    color: isPicked ? UiTheme.selection : row % 2 ? UiTheme.stripe : "white"
                     Text {
                         anchors.fill: parent; anchors.leftMargin: 6; anchors.rightMargin: 6
                         text: display; elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter
-                        font.pixelSize: 10; textFormat: Text.PlainText
-                        color: column === 4 ? "#b54708" : "#344054"
+                        font.pixelSize: 13; textFormat: Text.PlainText
+                        color: column === 4 ? UiTheme.warning : UiTheme.ink
                     }
                     TapHandler { onTapped: { page.togglePick(studentId, !parent.isPicked); renamer.selectRow(row) } }                }
             }
@@ -182,10 +182,10 @@ Item {
         }
         RowLayout {
             Layout.fillWidth: true
-            Label { text: "选中 " + picked.count + " 人" + (renamer.cursorText.length > 0 ? " · " + renamer.cursorText : " · 点击表格可选中/取消并定位"); color: "#667085"; Layout.fillWidth: true; elide: Text.ElideRight }
-            Button { objectName: "remarkClearPickButton"; text: "清空选中"; enabled: picked.count > 0; onClicked: picked.clear() }
-            Button { objectName: "remarkSkipButton"; text: "标记跳过所选"; enabled: !renamer.active && picked.count > 0; onClicked: skipDialog.open() }
-            Button { objectName: "remarkImagesButton"; text: "打开留证截图目录"; onClicked: renamer.openEvidenceDir() }
+            Label { text: "选中 " + picked.count + " 人" + (renamer.cursorText.length > 0 ? " · " + renamer.cursorText : " · 点击表格可选中/取消并定位"); color: UiTheme.muted; Layout.fillWidth: true; elide: Text.ElideRight }
+            UiButton { objectName: "remarkClearPickButton"; text: "清空选中"; enabled: picked.count > 0; onClicked: picked.clear() }
+            UiButton { objectName: "remarkSkipButton"; text: "标记跳过所选"; enabled: !renamer.active && picked.count > 0; onClicked: skipDialog.open() }
+            UiButton { objectName: "remarkImagesButton"; text: "打开留证截图目录"; onClicked: renamer.openEvidenceDir() }
         }
     }
     Dialog {
@@ -203,11 +203,11 @@ Item {
                       "处理期间不要操作电脑；F11 可在当前联系人结束后暂停，单人失败不中止本轮。"
                 wrapMode: Text.Wrap; Layout.fillWidth: true; lineHeight: 1.4
             }
-            Label { text: "请先登录企业微信，并保持主窗口可用。"; color: "#b54708"; wrapMode: Text.Wrap; Layout.fillWidth: true }
-            Label { text: renamer.notice; color: "#b54708"; wrapMode: Text.Wrap; Layout.fillWidth: true }
+            Label { text: "请先登录企业微信，并保持主窗口可用。"; color: UiTheme.warning; wrapMode: Text.Wrap; Layout.fillWidth: true }
+            Label { text: renamer.notice; color: UiTheme.warning; wrapMode: Text.Wrap; Layout.fillWidth: true }
             RowLayout {
-                Button { objectName: "remarkConfirmStart"; text: "开始处理"; highlighted: true; onClicked: { startDialog.close(); page.startRun() } }
-                Button { text: "取消"; onClicked: startDialog.close() }
+                UiButton { objectName: "remarkConfirmStart"; text: "开始处理"; highlighted: true; onClicked: { startDialog.close(); page.startRun() } }
+                UiButton { text: "取消"; onClicked: startDialog.close() }
             }
         }
     }
@@ -222,10 +222,10 @@ Item {
                       "仅在浮窗确认到学员本人后才会保存；姓名不匹配的会记入「未找到」。"
                 wrapMode: Text.Wrap; Layout.fillWidth: true; lineHeight: 1.4
             }
-            Label { text: renamer.notice; color: "#b54708"; wrapMode: Text.Wrap; Layout.fillWidth: true }
+            Label { text: renamer.notice; color: UiTheme.warning; wrapMode: Text.Wrap; Layout.fillWidth: true }
             RowLayout {
-                Button { objectName: "remarkConfirmForce"; text: "确认强改"; highlighted: true; onClicked: { forceDialog.close(); renamer.forceSelected(page.pickedIds()) } }
-                Button { text: "取消"; onClicked: forceDialog.close() }
+                UiButton { objectName: "remarkConfirmForce"; text: "确认强改"; highlighted: true; onClicked: { forceDialog.close(); renamer.forceSelected(page.pickedIds()) } }
+                UiButton { text: "取消"; onClicked: forceDialog.close() }
             }
         }
     }

@@ -6,8 +6,13 @@ import QtQuick.Window
 ApplicationWindow {
     id: root
     visible: false
+    width: 1280
+    height: 800
     title: "学员管理 · 催办与画像"
-    color: "#f5f7fb"
+    color: UiTheme.canvas
+    font.pixelSize: 13
+    property bool campaignDetailOpen: width >= 1000
+    readonly property var moduleNames: ["催办工作台", "学员画像", "班期学员", "设置", "群发中心", "备注批改", "未进直播间"]
     property var wf: backend.workflow
     property var sender: backend.groupCenter
     property var restartService: typeof restartController !== "undefined" ? restartController : null
@@ -39,23 +44,21 @@ ApplicationWindow {
     function applyFilter() { wf.filterRows(viewBox.currentValue || "all", search.text) }
     ClassSwitchOverlay { id: classSwitch }
     header: ToolBar {
-        background: Rectangle { color: "white"; border.color: "#e4e7ec" }
+        implicitHeight: 60
+        background: Rectangle { color: UiTheme.surface; border.color: UiTheme.line }
         RowLayout {
-            anchors.fill: parent; anchors.margins: 8
-            Button { text: "催办工作台"; highlighted: root.moduleIndex === 0; onClicked: root.switchModule(0) }
-            Button { text: "学员画像"; highlighted: root.moduleIndex === 1; onClicked: root.switchModule(1) }
-            Button { text: "班期学员"; highlighted: root.moduleIndex === 2; onClicked: root.switchModule(2) }
-            Button { text: "设置"; highlighted: root.moduleIndex === 3; onClicked: root.switchModule(3) }
-            Button { text: "群发中心"; highlighted: root.moduleIndex === 4; onClicked: root.switchModule(4) }
-            Button { text: "备注批改"; highlighted: root.moduleIndex === 5; onClicked: root.switchModule(5) }
-            Button { text: "未进直播间"; highlighted: root.moduleIndex === 6; onClicked: root.switchModule(6) }
-            ComboBox {
+            anchors.fill: parent; anchors.leftMargin: 18; anchors.rightMargin: 18; spacing: 14
+            Label { text: "学员管理"; font.pixelSize: 18; font.bold: true; color: UiTheme.ink; Layout.preferredWidth: navigation.width - 18 }
+            Label { text: root.moduleNames[root.moduleIndex]; font.pixelSize: 16; color: UiTheme.ink; visible: root.width >= 900 }
+            Label { text: "当前班期"; color: UiTheme.muted; visible: classBox.visible && root.width >= 900 }
+            UiComboBox {
+                id: classBox
                 objectName: "classSelector"
                 popup.objectName: "classSelectorPopup"
                 visible: root.moduleIndex === 0 || root.moduleIndex === 1 || root.moduleIndex === 5 || root.moduleIndex === 6
                 model: wf.classes; currentIndex: wf.classIndex
                 enabled: !backend.busy && !backend.termsModule.busy && !sender.active && !wf.sender.active && !backend.contactOpener.active && !backend.remarkRenamer.active && !backend.liveAbsence.busy
-                Layout.preferredWidth: 125
+                Layout.preferredWidth: Math.min(240, root.width * 0.28)
                 onActivated: function(index) {
                     popup.close()
                     if (index === wf.classIndex) return
@@ -65,7 +68,7 @@ ApplicationWindow {
                 }
             }
             Item { Layout.fillWidth: true }
-            Button {
+            UiButton {
                 objectName: "debugRestartButton"
                 text: "调试重启"
                 visible: root.restartService !== null
@@ -77,77 +80,121 @@ ApplicationWindow {
                     root.restartService.requestRestart()
                 }
             }
-            Label { text: backend.systemDate; color: "#667085"; font.pixelSize: 12 }
+            Label { text: backend.systemDate; color: UiTheme.muted; font.pixelSize: 12; visible: root.width >= 1000 }
+        }
+    }
+    Rectangle {
+        id: navigation
+        objectName: "moduleNavigation"
+        anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
+        width: root.width >= 1180 ? 156 : 100
+        color: "#203047"
+        ColumnLayout {
+            anchors.fill: parent; anchors.margins: 10; spacing: 6
+            Label { text: "班级日常"; color: "#b8c9df"; font.pixelSize: 12; Layout.topMargin: 12; Layout.bottomMargin: 8; Layout.leftMargin: 8 }
+            Repeater {
+                model: [0, 1, 2, 6, 4, 5]
+                UiButton {
+                    required property int modelData
+                    objectName: "moduleButton" + modelData
+                    text: root.moduleNames[modelData]
+                    Layout.fillWidth: true; implicitHeight: root.height < 620 ? 38 : 44
+                    hoverEnabled: true
+                    Accessible.name: text
+                    Accessible.role: Accessible.PageTab
+                    Accessible.selected: root.moduleIndex === modelData
+                    onClicked: root.switchModule(modelData)
+                    contentItem: Text { text: parent.text; color: "#f2f6fc"; font.pixelSize: navigation.width > 100 ? 14 : 12; verticalAlignment: Text.AlignVCenter; horizontalAlignment: navigation.width > 100 ? Text.AlignLeft : Text.AlignHCenter }
+                    background: Rectangle { radius: 5; color: root.moduleIndex === parent.modelData ? UiTheme.accent : parent.hovered ? "#304660" : "transparent"; border.width: parent.visualFocus ? 2 : 0; border.color: "#bcd3fa" }
+                }
+            }
+            Item { Layout.fillHeight: true }
+            Label { text: "工具与配置"; color: "#b8c9df"; font.pixelSize: 12; Layout.leftMargin: 8 }
+            UiButton {
+                objectName: "moduleButton3"; text: "设置"; Layout.fillWidth: true; implicitHeight: root.height < 620 ? 38 : 44; hoverEnabled: true
+                onClicked: root.switchModule(3)
+                Accessible.role: Accessible.PageTab
+                Accessible.selected: root.moduleIndex === 3
+                contentItem: Text { text: parent.text; color: "#f2f6fc"; font.pixelSize: 14; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                background: Rectangle { radius: 5; color: root.moduleIndex === 3 ? UiTheme.accent : parent.hovered ? "#304660" : "transparent"; border.width: parent.visualFocus ? 2 : 0; border.color: "#bcd3fa" }
+            }
         }
     }
     ColumnLayout {
+        objectName: "workbenchPage"
         visible: root.moduleIndex === 0
-        anchors.fill: parent; anchors.margins: 12; spacing: 10
+        anchors.fill: parent; anchors.margins: 16; anchors.leftMargin: navigation.width + 16; spacing: root.height < 620 ? 6 : 10
         RowLayout {
             Layout.fillWidth: true
-            Label { text: wf.dataNote; color: "#667085"; Layout.fillWidth: true; elide: Text.ElideRight }
-            Button { text: "采集异常明细"; visible: backend.fetchIssues.length > 0; onClicked: fetchIssuesDialog.open() }
-            Button { objectName: "fetchLearningButton"; visible: root.moduleIndex === 0 && (wf.batchIndex < 0 || wf.canEdit); text: backend.busy ? "刷新中…" : "刷新数据"; enabled: !backend.busy && !backend.termsModule.busy && !sender.active; onClicked: backend.fetchData() }
-            Button { objectName: "createCampaignButton"; text: backend.busy ? "正在获取最新数据…" : "新建催办"; highlighted: true; enabled: !backend.busy && !backend.termsModule.busy && !sender.active; onClicked: createDialog.open() }
+            Label { text: wf.dataNote; color: UiTheme.muted; Layout.fillWidth: true; elide: Text.ElideRight }
+            UiButton { text: "采集异常明细"; visible: backend.fetchIssues.length > 0; onClicked: fetchIssuesDialog.open() }
+            UiButton { objectName: "fetchLearningButton"; visible: root.moduleIndex === 0 && (wf.batchIndex < 0 || wf.canEdit); text: backend.busy ? "刷新中…" : "刷新数据"; enabled: !backend.busy && !backend.termsModule.busy && !sender.active; onClicked: backend.fetchData() }
+            UiButton { objectName: "createCampaignButton"; text: backend.busy ? "正在获取最新数据…" : "新建催办"; highlighted: true; enabled: !backend.busy && !backend.termsModule.busy && !sender.active; onClicked: createDialog.open() }
         }
-        LearningDashboard { stats: wf.dashboard }
-        Frame {
+        LearningDashboard { stats: wf.dashboard; compact: root.height < 620 }
+        UiPanel {
             Layout.fillWidth: true; padding: 10
-            background: Rectangle { color: "white"; radius: 8; border.color: "#e4e7ec" }
+            background: Rectangle { color: "white"; radius: 8; border.color: UiTheme.line }
             ColumnLayout {
                 anchors.fill: parent
                 RowLayout {
                     Layout.fillWidth: true
-                    Label { text: "催办批次"; color: "#475467" }
-                    ComboBox { model: wf.batches; textRole: "label"; currentIndex: wf.batchIndex; displayText: wf.batchIndex < 0 ? "当前全班名单（尚未建立批次）" : currentText; Layout.fillWidth: true; enabled: !backend.busy && wf.batchIndex >= 0 && !sender.active; onActivated: wf.selectBatch(currentIndex) }
-                    Button { text: "导出全班 XLSX"; enabled: wf.batchIndex >= 0; onClicked: batchExportDialog.open() }
+                    Label { text: "催办批次"; color: UiTheme.muted }
+                    UiComboBox { model: wf.batches; textRole: "label"; currentIndex: wf.batchIndex; displayText: wf.batchIndex < 0 ? "当前全班名单（尚未建立批次）" : currentText; Layout.fillWidth: true; enabled: !backend.busy && wf.batchIndex >= 0 && !sender.active; onActivated: wf.selectBatch(currentIndex) }
+                    UiButton { text: "导出全班 XLSX"; enabled: wf.batchIndex >= 0; onClicked: batchExportDialog.open() }
+                    UiButton { objectName: "campaignDetailToggle"; text: root.campaignDetailOpen ? "学员列表" : "学员详情"; visible: root.width < 1000; onClicked: root.campaignDetailOpen = !root.campaignDetailOpen }
                 }
-                Label { text: wf.summary; color: "#344054"; font.pixelSize: 12; wrapMode: Text.Wrap; Layout.fillWidth: true }
-                Label { visible: wf.batchIndex >= 0 && !wf.canEdit; text: "历史批次只读：学习数据保持当时快照，不受后续获取影响。"; color: "#b54708"; font.pixelSize: 12 }
+                Label { text: wf.summary; color: UiTheme.ink; font.pixelSize: 12; wrapMode: Text.Wrap; Layout.fillWidth: true }
+                Label { visible: wf.batchIndex >= 0 && !wf.canEdit; text: "历史批次只读：学习数据保持当时快照，不受后续获取影响。"; color: UiTheme.warning; font.pixelSize: 12 }
             }
         }
         RowLayout {
             Layout.fillWidth: true; Layout.fillHeight: true; spacing: 12
-            Frame {
+            UiPanel {
+                visible: root.width >= 1000 || !root.campaignDetailOpen
                 Layout.fillWidth: true; Layout.fillHeight: true; padding: 10
-                background: Rectangle { color: "white"; radius: 10; border.color: "#e4e7ec" }
+                background: Rectangle { color: "white"; radius: 10; border.color: UiTheme.line }
                 ColumnLayout {
                     anchors.fill: parent; spacing: 8
                     RowLayout {
                         Layout.fillWidth: true
-                        ComboBox {
+                        UiComboBox {
                             id: viewBox; objectName: "campaignViewSelector"; textRole: "label"; valueRole: "key"; Layout.preferredWidth: 125
                             displayText: currentText
                             model: [{label:"全班快照",key:"all"},{label:"本次催办",key:"targets"}]
                             onActivated: root.applyFilter()
                         }
-                        TextField { id: search; placeholderText: "学号、姓名、备注"; Layout.fillWidth: true; onTextEdited: searchTimer.restart(); Timer { id: searchTimer; interval: 180; onTriggered: root.applyFilter() } }
-                        Button { objectName: "createCampaignList"; text: "生成群发名单"; enabled: wf.canEdit && !sender.active && !backend.busy && wf.recipientKeys.length > 0; onClicked: templateDialog.open() }
-                        Button { objectName: "markUnrepliedButton"; text: "批量未回复"; visible: viewBox.currentValue === "targets"; enabled: wf.canEdit && wf.visibleCount > 0; onClicked: noReplyDialog.open() }
+                        UiTextField { id: search; placeholderText: "学号、姓名、备注"; Layout.fillWidth: true; onTextEdited: searchTimer.restart(); Timer { id: searchTimer; interval: 180; onTriggered: root.applyFilter() } }
+                    }
+                    Flow {
+                        Layout.fillWidth: true; spacing: 6
+                        UiButton { objectName: "createCampaignList"; text: "生成群发名单"; highlighted: true; enabled: wf.canEdit && !sender.active && !backend.busy && wf.recipientKeys.length > 0; onClicked: templateDialog.open() }
+                        UiButton { objectName: "markUnrepliedButton"; text: "批量未回复"; visible: viewBox.currentValue === "targets"; enabled: wf.canEdit && wf.visibleCount > 0; onClicked: noReplyDialog.open() }
+                        UiButton { text: "管理字段"; onClicked: fieldDialog.open() }
+                        UiButton { text: "聊天跟随浮窗"; enabled: wf.canEdit; onClicked: campaignFloat.show() }
                     }
                     RowLayout {
                         Layout.fillWidth: true
-                        Label { text: "当前显示 " + wf.visibleCount + " 人" + (wf.hasStale ? " · " + wf.staleCount + " 人已不符合当前筛选" : " · 点击表头筛选或排序；修改数据不会自动移出行") + (wf.cursorText.length > 0 ? " · " + wf.cursorText : ""); color: wf.hasStale ? "#b54708" : "#667085"; font.pixelSize: 11; elide: Text.ElideRight; Layout.fillWidth: true }
-                        Button { objectName: "campaignReapplyFilter"; text: "重新应用筛选"; visible: wf.hasStale; onClicked: wf.reapplyFilters() }
-                        Button { text: "管理字段"; onClicked: fieldDialog.open() }
-                        Button { text: "聊天跟随浮窗"; enabled: wf.canEdit; onClicked: campaignFloat.show() }
-                        Button { text: "清除列筛选／排序"; visible: wf.hasColumnQuery; onClicked: wf.clearColumnQuery() }
+                        Label { text: (wf.cursorText.length > 0 ? wf.cursorText + " · " : "") + "显示 " + wf.visibleCount + " 人" + (wf.hasStale ? " · " + wf.staleCount + " 人已不符合当前筛选" : ""); color: wf.hasStale ? UiTheme.warning : UiTheme.muted; font.pixelSize: 12; elide: Text.ElideRight; Layout.fillWidth: true }
+                        UiButton { objectName: "campaignReapplyFilter"; text: "重新应用筛选"; visible: wf.hasStale; onClicked: wf.reapplyFilters() }
+                        UiButton { text: "清除列筛选／排序"; visible: wf.hasColumnQuery; onClicked: wf.clearColumnQuery() }
                     }
                     Item {
                         Layout.fillWidth: true; Layout.fillHeight: true; clip: true
                         HorizontalHeaderView {
-                            id: header; anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; height: 34; syncView: table
+                            id: header; anchors.top: parent.top; anchors.left: parent.left; anchors.right: parent.right; height: UiTheme.headerHeight; syncView: table
                             delegate: Rectangle {
                                 required property int column
                                 required property var display
-                                implicitHeight: 34; implicitWidth: 90
+                                implicitHeight: UiTheme.headerHeight; implicitWidth: 90
                                 property bool filtered: wf.filteredColumns.indexOf(column) >= 0
-                                color: filtered ? "#e4ecff" : "#f2f4f7"
+                                color: filtered ? "#e4ecff" : UiTheme.stripe
                                 Text {
-                                    anchors.fill: parent; anchors.margins: 6; verticalAlignment: Text.AlignVCenter
-                                    text: display + (wf.sortColumnIndex === column ? (wf.sortDescending ? " ↓" : " ↑") : " ▾") + (parent.filtered ? " •" : "")
-                                    elide: Text.ElideRight; font.pixelSize: 11; color: "#344054"
+                                    anchors.fill: parent; anchors.margins: 6; anchors.rightMargin: 20; verticalAlignment: Text.AlignVCenter
+                                    text: display + (parent.filtered ? " •" : "")
+                                    elide: Text.ElideRight; font.pixelSize: 12; font.bold: wf.sortColumnIndex === column; color: UiTheme.ink
                                 }
+                                UiHeaderMarker { anchors.right: parent.right; anchors.rightMargin: 6; anchors.verticalCenter: parent.verticalCenter; width: 10; height: 10; descending: wf.sortColumnIndex !== column || wf.sortDescending; markerColor: wf.sortColumnIndex === column ? UiTheme.accent : UiTheme.muted }
                                 TapHandler { onTapped: root.openColumn(column) }
                             }
                         }
@@ -161,7 +208,7 @@ ApplicationWindow {
                                 var key = fields[c].field_id
                                 return key === "student_id" ? 120 : (key === "feedback" || key === "courses" || key === "homework") ? 180 : 100
                             }
-                            rowHeightProvider: function() { return 20 }
+                            rowHeightProvider: function() { return UiTheme.rowHeight }
                             ScrollBar.horizontal: ScrollBar { }
                             ScrollBar.vertical: ScrollBar { }
                             delegate: Rectangle {
@@ -171,9 +218,9 @@ ApplicationWindow {
                                 required property string studentId
                                 required property bool expiredCell
                                 required property bool staleRow
-                                implicitHeight: 20; implicitWidth: 90
-                                color: studentId === wf.selected.student_id ? "#dce6ff" : staleRow ? "#fff4e5" : row % 2 ? "#f8faff" : "white"
-                                Text { anchors.fill: parent; anchors.leftMargin: 6; anchors.rightMargin: 6; text: display; elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter; font.pixelSize: 10; color: expiredCell ? "#98a2b3" : staleRow ? "#b54708" : "#344054" }
+                                implicitHeight: UiTheme.rowHeight; implicitWidth: 90
+                                color: studentId === wf.selected.student_id ? UiTheme.selection : staleRow ? "#fff4e5" : row % 2 ? UiTheme.stripe : "white"
+                                Text { anchors.fill: parent; anchors.leftMargin: 6; anchors.rightMargin: 6; text: display; elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter; font.pixelSize: 13; color: expiredCell ? "#98a2b3" : staleRow ? UiTheme.warning : UiTheme.ink }
                                 TapHandler { onTapped: wf.selectRow(row) }
                             }
                         }
@@ -181,19 +228,20 @@ ApplicationWindow {
                     }
                 }
             }
-            Frame {
-                Layout.preferredWidth: 330; Layout.minimumWidth: 260; Layout.fillHeight: true; padding: 12
-                background: Rectangle { color: "white"; radius: 10; border.color: "#e4e7ec" }
+            UiPanel {
+                visible: root.width >= 1000 || root.campaignDetailOpen
+                Layout.preferredWidth: 340; Layout.minimumWidth: 260; Layout.fillWidth: root.width < 1000; Layout.fillHeight: true; padding: 16
+                background: Rectangle { color: "white"; radius: 10; border.color: UiTheme.line }
                 CampaignDetail { objectName: "mainCampaignDetail"; anchors.fill: parent; service: wf; workflow: wf }
             }
         }
     }
-    ProfileModule { objectName: "profileModule"; visible: root.moduleIndex === 1; anchors.fill: parent; anchors.margins: 12; openFloatingProfile: function() { profileFloat.show() }; onOpenGroupCenter: root.switchModule(4) }
-    TermModule { visible: root.moduleIndex === 2; anchors.fill: parent; anchors.margins: 12 }
-    SettingsModule { visible: root.moduleIndex === 3; anchors.fill: parent; anchors.margins: 12 }
-    GroupCenter { id: groupCenterPage; visible: root.moduleIndex === 4; anchors.fill: parent; anchors.margins: 12 }
-    RemarkRenamer { id: remarkRenamerPage; visible: root.moduleIndex === 5; anchors.fill: parent; anchors.margins: 12 }
-    LiveAbsence { id: liveAbsencePage; visible: root.moduleIndex === 6; anchors.fill: parent; anchors.margins: 12; onOpenGroupCenter: root.switchModule(4) }
+    ProfileModule { objectName: "profileModule"; visible: root.moduleIndex === 1; anchors.fill: parent; anchors.margins: 16; anchors.leftMargin: navigation.width + 16; openFloatingProfile: function() { profileFloat.show() }; onOpenGroupCenter: root.switchModule(4) }
+    TermModule { visible: root.moduleIndex === 2; anchors.fill: parent; anchors.margins: 16; anchors.leftMargin: navigation.width + 16 }
+    SettingsModule { visible: root.moduleIndex === 3; anchors.fill: parent; anchors.margins: 16; anchors.leftMargin: navigation.width + 16 }
+    GroupCenter { id: groupCenterPage; visible: root.moduleIndex === 4; anchors.fill: parent; anchors.margins: 16; anchors.leftMargin: navigation.width + 16 }
+    RemarkRenamer { id: remarkRenamerPage; visible: root.moduleIndex === 5; anchors.fill: parent; anchors.margins: 16; anchors.leftMargin: navigation.width + 16 }
+    LiveAbsence { id: liveAbsencePage; visible: root.moduleIndex === 6; anchors.fill: parent; anchors.margins: 16; anchors.leftMargin: navigation.width + 16; onOpenGroupCenter: root.switchModule(4) }
     ProfileFilterDialog { id: columnDialog; filterObjectName: "campaignColumnFilter"; profiles: root.wf }
     Dialog {
         id: createDialog; anchors.centerIn: parent; modal: true; title: "建立新的催办批次"; standardButtons: Dialog.Ok | Dialog.Cancel
@@ -221,23 +269,23 @@ ApplicationWindow {
         }
         ColumnLayout {
             anchors.fill: parent
-            TextField { id: groupTitle; objectName: "campaignListTitle"; placeholderText: "名单名称"; Layout.fillWidth: true }
-            Label { text: "当前筛选中 " + templateDialog.recordKeys.length + " 位有姓名的学员。可添加多条文字或文件；创建后在群发中心检查名单。"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: "#667085" }
-            Label { text: "可用变量：{姓名}、{学号}、{班期}、{状态}、{免催日期}、{欠课}、{欠作业}、{" + backend.profilesModule.messagePlaceholders.join("}、{") + "}"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: "#667085" }
+            UiTextField { id: groupTitle; objectName: "campaignListTitle"; placeholderText: "名单名称"; Layout.fillWidth: true }
+            Label { text: "当前筛选中 " + templateDialog.recordKeys.length + " 位有姓名的学员。可添加多条文字或文件；创建后在群发中心检查名单。"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted }
+            Label { text: "可用变量：{姓名}、{学号}、{班期}、{状态}、{免催日期}、{欠课}、{欠作业}、{" + backend.profilesModule.messagePlaceholders.join("}、{") + "}"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted }
             CheckBox { id: namesOnly; objectName: "campaignNamesOnly"; text: "只生成姓名名单，稍后配置消息" }
             ScrollView {
                 id: messageScroll
                 visible: !namesOnly.checked; Layout.fillWidth: true; Layout.fillHeight: true; contentWidth: availableWidth; clip: true
                 MessageFields { id: messageFields; objectName: "campaignMessageFields"; width: messageScroll.availableWidth }
             }
-            Label { text: sender.status; Layout.fillWidth: true; wrapMode: Text.Wrap; color: "#b54708" }
+            Label { text: sender.status; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.warning }
             RowLayout {
-                Button { objectName: "createCampaignSelection"; text: "创建并打开群发中心"; enabled: templateDialog.recordKeys.length > 0; onClicked: {
+                UiButton { objectName: "createCampaignSelection"; text: "创建并打开群发中心"; enabled: templateDialog.recordKeys.length > 0; onClicked: {
                     if(sender.createFromCampaignSelection(groupTitle.text,messageFields.values(),templateDialog.recordKeys,namesOnly.checked)) {
                         templateDialog.close(); root.switchModule(4)
                     }
                 } }
-                Button { text: "取消"; onClicked: templateDialog.close() }
+                UiButton { text: "取消"; onClicked: templateDialog.close() }
             }
         }
     }

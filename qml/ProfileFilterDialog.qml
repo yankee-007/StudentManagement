@@ -28,11 +28,11 @@ Dialog {
     ColumnLayout {
         anchors.fill: parent; spacing: 10
         RowLayout {
-            Button { text: "↑ 升序"; Layout.fillWidth: true; onClicked: { profiles.sortField(popup.info.key,false); popup.close() } }
-            Button { text: "↓ 降序"; Layout.fillWidth: true; onClicked: { profiles.sortField(popup.info.key,true); popup.close() } }
+            UiButton { text: "↑ 升序"; Layout.fillWidth: true; onClicked: { profiles.sortField(popup.info.key,false); popup.close() } }
+            UiButton { text: "↓ 降序"; Layout.fillWidth: true; onClicked: { profiles.sortField(popup.info.key,true); popup.close() } }
         }
         TabBar { id: tabs; Layout.fillWidth: true; TabButton { text: "按选项" } TabButton { text: "按条件" } }
-        TextField { id: optionSearch; visible: tabs.currentIndex===0; Layout.fillWidth: true; placeholderText: "搜索选项，空格分隔多个关键词" }
+        UiTextField { id: optionSearch; visible: tabs.currentIndex===0; Layout.fillWidth: true; placeholderText: "搜索选项，空格分隔多个关键词" }
         CheckBox {
             visible: tabs.currentIndex===0; text: "全部搜索结果（" + popup.visibleOptions().length + " 项）"
             checked: popup.visibleOptions().length>0 && popup.visibleOptions().every(function(o) { return popup.selectedValues.indexOf(o.value)>=0 })
@@ -64,17 +64,17 @@ Dialog {
         }
         ColumnLayout {
             visible: tabs.currentIndex===1; Layout.fillWidth: true; Layout.fillHeight: true
-            ComboBox { id: condition; model: ["包含","等于","为空","不为空"]; Layout.fillWidth: true }
-            TextField { id: conditionValue; visible: condition.currentIndex<2; placeholderText: "条件内容"; Layout.fillWidth: true }
+            UiComboBox { id: condition; model: ["包含","等于","为空","不为空"]; Layout.fillWidth: true }
+            UiTextField { id: conditionValue; visible: condition.currentIndex<2; placeholderText: "条件内容"; Layout.fillWidth: true }
             Item { Layout.fillHeight: true }
         }
         RowLayout {
-            Button { text: "确定"; highlighted: true; onClicked: {
+            UiButton { text: "确定"; highlighted: true; onClicked: {
                 profiles.setColumnFilter(popup.info.key,tabs.currentIndex===0 ? "values" : ["contains","exact","empty","notempty"][condition.currentIndex],popup.selectedValues,conditionValue.text)
                 popup.close()
             } }
-            Button { text: "重置"; onClicked: { profiles.setColumnFilter(popup.info.key,"clear",[],""); popup.close() } }
-            Button { text: "取消"; onClicked: popup.close() }
+            UiButton { text: "重置"; onClicked: { profiles.setColumnFilter(popup.info.key,"clear",[],""); popup.close() } }
+            UiButton { text: "取消"; onClicked: popup.close() }
         }
     }
 }

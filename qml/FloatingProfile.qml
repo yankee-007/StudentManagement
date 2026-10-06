@@ -9,7 +9,7 @@ Window {
     width: 240; height: 490
     minimumWidth: 220; minimumHeight: 280
     title: "学员画像 · 跟随聊天"
-    color: "#f5f7fb"
+    color: UiTheme.canvas
     transientParent: null
     property bool pinned: true
     flags: Qt.Window | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | Qt.WindowCloseButtonHint | (pinned ? Qt.WindowStaysOnTopHint : 0)
@@ -24,15 +24,15 @@ Window {
         RowLayout {
             Layout.fillWidth: true
             Label {
-                text: companion.student.name || "等待识别"; font.pixelSize: 16; font.bold: true; color: "#17213a"
+                text: companion.student.name || "等待识别"; font.pixelSize: 16; font.bold: true; color: UiTheme.ink
                 Layout.fillWidth: true; elide: Text.ElideRight
                 MouseArea { anchors.fill: parent; cursorShape: Qt.SizeAllCursor; onPressed: floating.startSystemMove() }
             }
-            ToolButton { text: "置顶"; font.pixelSize: 11; checkable: true; checked: floating.pinned; onClicked: floating.pinned=checked }
-            ToolButton { text: "重试"; font.pixelSize: 11; onClicked: companion.retryContact(); ToolTip.visible: hovered; ToolTip.text: "重新识别最近激活的企微联系人" }
+            ToolButton { text: "置顶"; font.pixelSize: 12; checkable: true; checked: floating.pinned; onClicked: floating.pinned=checked }
+            ToolButton { text: "重试"; font.pixelSize: 12; onClicked: companion.retryContact(); ToolTip.visible: hovered; ToolTip.text: "重新识别最近激活的企微联系人" }
         }
-        Label { text: companion.notice; font.pixelSize: 10; color: "#667085"; wrapMode: Text.Wrap; Layout.fillWidth: true }
-        Rectangle { Layout.fillWidth: true; height: 1; color: "#e4e7ec" }
+        Label { text: companion.notice; font.pixelSize: 13; color: UiTheme.muted; wrapMode: Text.Wrap; Layout.fillWidth: true }
+        Rectangle { Layout.fillWidth: true; height: 1; color: UiTheme.line }
         ProfileIdentity { visible: !!companion.student.student_id; student: companion.student; showName: false; compact: true }
         ProfileEditor {
             objectName: "floatingProfileEditor"

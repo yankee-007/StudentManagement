@@ -74,7 +74,7 @@ Popup {
     }
     Timer { id: frameTimer; interval: 250; onTriggered: loading.executePending() }
     Timer { id: finishTimer; onTriggered: loading.close() }
-    background: Rectangle { color: "white"; radius: 12; border.color: "#e4e7ec" }
+    background: Rectangle { color: "white"; radius: 12; border.color: UiTheme.line }
     Overlay.modal: Rectangle { color: "#660f172a" }
     contentItem: ColumnLayout {
         spacing: 12
@@ -82,14 +82,14 @@ Popup {
         Label {
             objectName: "classSwitchTitle"
             text: "正在切换 " + loading.targetName
-            font.pixelSize: 17; font.bold: true; color: "#17213a"
+            font.pixelSize: 17; font.bold: true; color: UiTheme.ink
             wrapMode: Text.Wrap; horizontalAlignment: Text.AlignHCenter
             Layout.fillWidth: true
         }
         Label {
             objectName: "classSwitchHint"
             text: loading.largeRoster ? "数据较多，加载时间稍长，请稍候…" : "加载数据中，请稍候…"
-            color: "#667085"; Layout.alignment: Qt.AlignHCenter
+            color: UiTheme.muted; Layout.alignment: Qt.AlignHCenter
         }
     }
 }

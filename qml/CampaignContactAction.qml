@@ -11,13 +11,13 @@ ColumnLayout {
     onContactKeyChanged: prefixInput.text = opener.campaignPrefix(contactKey)
     RowLayout {
         Layout.fillWidth: true; spacing: 6
-        Label { text: "前缀"; font.pixelSize: 12; color: "#667085" }
-        TextField {
+        Label { text: "前缀"; font.pixelSize: 12; color: UiTheme.muted }
+        UiTextField {
             id: prefixInput; objectName: "campaignContactPrefix"
             Layout.fillWidth: true; placeholderText: "可留空"; font.pixelSize: 12
             enabled: !action.opener.active; selectByMouse: true
         }
-        Button {
+        UiButton {
             objectName: "openCampaignContact"
             text: action.opener.active ? "正在打开…" : "打开企微联系人"
             enabled: !!action.service.selected.name && !action.service.selected.is_placeholder && !action.opener.active && !backend.groupCenter.active
@@ -34,5 +34,5 @@ ColumnLayout {
         checked: action.opener.keepFloat; enabled: !action.opener.active && action.opener.verifyContact
         onToggled: action.opener.setKeepFloat(checked)
     }
-    Label { text: action.opener.notice; Layout.fillWidth: true; wrapMode: Text.Wrap; color: "#667085"; font.pixelSize: 11 }
+    Label { text: action.opener.notice; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted; font.pixelSize: 12 }
 }

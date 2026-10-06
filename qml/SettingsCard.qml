@@ -43,12 +43,12 @@ Item {
             spacing: 10
             Label {
                 text: card.title
-                font.pixelSize: 15; font.bold: true; color: "#17213a"
+                font.pixelSize: 15; font.bold: true; color: UiTheme.ink
             }
             Label {
                 visible: text.length > 0
                 text: card.subtitle
-                font.pixelSize: 11; color: "#667085"
+                font.pixelSize: 12; color: UiTheme.muted
                 elide: Text.ElideRight
                 Layout.fillWidth: true
             }
@@ -63,7 +63,7 @@ Item {
         Label {
             visible: card.description.length > 0
             text: card.description
-            font.pixelSize: 11; color: "#667085"; wrapMode: Text.Wrap
+            font.pixelSize: 12; color: UiTheme.muted; wrapMode: Text.Wrap
             Layout.fillWidth: true
         }
 

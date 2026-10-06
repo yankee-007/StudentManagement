@@ -13,10 +13,10 @@ ColumnLayout {
     }
     Layout.fillWidth: true
     spacing: 4
-    Label { visible: identity.showName; text: identity.student.name || "请选择学员"; font.pixelSize: identity.compact ? 16 : 20; font.bold: true; color: "#17213a" }
+    Label { visible: identity.showName; text: identity.student.name || "请选择学员"; font.pixelSize: identity.compact ? 16 : 20; font.bold: true; color: UiTheme.ink }
     Label {
         text: (identity.shown('class_name') && identity.student.class_name ? identity.student.class_name + " · " : "") + (identity.student.student_id || "")
-        color: "#667085"; font.pixelSize: identity.compact ? 10 : 12; Layout.fillWidth: true; elide: Text.ElideRight
+        color: UiTheme.muted; font.pixelSize: identity.compact ? 10 : 12; Layout.fillWidth: true; elide: Text.ElideRight
     }
-    Label { visible: identity.shown('roster_status') && !!identity.student.student_id; text: "状态：" + (identity.student.roster_status || ""); color: "#667085"; font.pixelSize: identity.compact ? 10 : 12 }
+    Label { visible: identity.shown('roster_status') && !!identity.student.student_id; text: "状态：" + (identity.student.roster_status || ""); color: UiTheme.muted; font.pixelSize: identity.compact ? 10 : 12 }
 }

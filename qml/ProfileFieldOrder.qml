@@ -25,7 +25,7 @@ ListView {
         RowLayout {
             anchors.fill: parent; anchors.margins: 3; spacing: 6
             Label {
-                text: "⠿"; font.pixelSize: 22; color: "#667085"
+                text: "⠿"; font.pixelSize: 22; color: UiTheme.muted
                 Layout.preferredWidth: 28; horizontalAlignment: Text.AlignHCenter
                 MouseArea {
                     objectName: "fieldDragHandle"

@@ -7,48 +7,57 @@ Item {
     property var profiles: backend.profilesModule
     property var student: profiles.selected
     property var openFloatingProfile: function() {}
-    property bool cardExpanded: true
+    property bool cardExpanded: width >= 760
     signal openGroupCenter()
     ProfileFilterDialog { id: columnFilter; profiles: page.profiles }
     ColumnLayout {
         anchors.fill: parent; spacing: 10
         RowLayout {
             Layout.fillWidth: true
-            Label { text: "学员画像"; font.pixelSize: 21; font.bold: true; color: "#17213a" }
-            Label { text: page.width>1100 ? "班期名单自动同步 · 人工资料独立保存" : ""; color: "#667085"; Layout.fillWidth: true }
+            Label { text: "学员画像"; font.pixelSize: 21; font.bold: true; color: UiTheme.ink }
+            Label { text: page.width>1100 ? "班期名单自动同步 · 人工资料独立保存" : ""; color: UiTheme.muted; Layout.fillWidth: true }
+            UiButton { objectName: "profileDetailToggle"; text: page.cardExpanded ? "收起画像" : "查看画像"; onClicked: page.cardExpanded = !page.cardExpanded }
+        }
+        Flow {
+            Layout.fillWidth: true; spacing: 6
             CheckBox { text: "全部班级"; checked: profiles.allClasses; onToggled: profiles.setAllClasses(checked) }
-            Button { text: "打开画像浮窗"; enabled: !profiles.allClasses; onClicked: page.openFloatingProfile() }
-            Button { text: "刷新"; onClicked: profiles.refresh() }
-            Button { text: "导出画像"; enabled: profiles.visibleCount > 0; onClicked: exportDialog.open() }
-            Button { text: "管理字段"; enabled: !profiles.allClasses; onClicked: fieldManager.open() }
+            UiButton { text: "打开画像浮窗"; enabled: !profiles.allClasses; onClicked: page.openFloatingProfile() }
+            UiButton { text: "刷新"; onClicked: profiles.refresh() }
+            UiButton { text: "导出画像"; enabled: profiles.visibleCount > 0; onClicked: exportDialog.open() }
+            UiButton { text: "管理字段"; enabled: !profiles.allClasses; onClicked: fieldManager.open() }
         }
         RowLayout {
             Layout.fillWidth: true
-            TextField { id: searchInput; placeholderText: "搜索班期、学号、姓名"; Layout.fillWidth: true; onTextEdited: timer.restart(); Timer { id: timer; interval: 180; onTriggered: profiles.search(searchInput.text) } }
-            Label { text: "显示 " + profiles.visibleCount + " / " + profiles.total + " 人" + (profiles.hasStale ? "（" + profiles.staleCount + " 人已不符合当前筛选）" : "") + (profiles.cursorText.length > 0 ? " · " + profiles.cursorText : ""); color: profiles.hasStale ? "#b54708" : "#667085"; elide: Text.ElideRight; Layout.maximumWidth: 420 }
-            Button { objectName: "profileReapplyFilter"; text: "重新应用筛选"; visible: profiles.hasStale; onClicked: profiles.reapplyFilters() }
-            Button { text: "新建名单到群发中心"; enabled: profiles.recipientKeys.length > 0 && !backend.groupCenter.active; onClicked: profileGroupDialog.open() }
-            Button { text: "清除筛选"; visible: profiles.filteredKeys.length > 0; onClicked: profiles.clearFilters() }
+            UiTextField { id: searchInput; placeholderText: "搜索班期、学号、姓名"; Layout.fillWidth: true; onTextEdited: timer.restart(); Timer { id: timer; interval: 180; onTriggered: profiles.search(searchInput.text) } }
         }
-        Label { text: profiles.allClasses ? "全部班级为只读总览。需要编辑时，取消勾选并在顶部选择对应班级。" : profiles.notice; font.pixelSize: 12; color: "#667085"; wrapMode: Text.Wrap; Layout.fillWidth: true }
+        Flow {
+            Layout.fillWidth: true; spacing: 6
+            UiButton { objectName: "profileReapplyFilter"; text: "重新应用筛选"; visible: profiles.hasStale; onClicked: profiles.reapplyFilters() }
+            UiButton { text: "新建名单到群发中心"; enabled: profiles.recipientKeys.length > 0 && !backend.groupCenter.active; onClicked: profileGroupDialog.open() }
+            UiButton { text: "清除筛选"; visible: profiles.filteredKeys.length > 0; onClicked: profiles.clearFilters() }
+        }
+        Label { text: "显示 " + profiles.visibleCount + " / " + profiles.total + " 人" + (profiles.hasStale ? "（" + profiles.staleCount + " 人已不符合当前筛选）" : "") + (profiles.cursorText.length > 0 ? " · " + profiles.cursorText : ""); color: profiles.hasStale ? UiTheme.warning : UiTheme.muted; elide: Text.ElideRight; Layout.fillWidth: true }
+        Label { text: profiles.allClasses ? "全部班级为只读总览。需要编辑时，取消勾选并在顶部选择对应班级。" : profiles.notice; font.pixelSize: 12; color: UiTheme.muted; wrapMode: Text.Wrap; Layout.fillWidth: true }
         RowLayout {
             Layout.fillWidth: true; Layout.fillHeight: true; spacing: 12
-            Frame {
+            UiPanel {
+                visible: page.width >= 760 || !page.cardExpanded
                 Layout.fillWidth: true; Layout.fillHeight: true; padding: 10
-                background: Rectangle { color: "white"; radius: 10; border.color: "#e4e7ec" }
+                background: Rectangle { color: "white"; radius: 10; border.color: UiTheme.line }
                 ColumnLayout {
                     anchors.fill: parent
-                    Label { text: "点击表头筛选或排序；可组合多个字段条件。修改字段不会把学员移出当前筛选，需点「重新应用筛选」或清除筛选。"; font.pixelSize: 11; color: "#667085" }
+                    Label { text: "表头可筛选或排序。修改后保留当前学员；重新应用筛选时更新名单。"; font.pixelSize: 12; color: UiTheme.muted; Layout.fillWidth: true; wrapMode: Text.Wrap }
                     Item {
                         Layout.fillWidth: true; Layout.fillHeight: true; clip: true
                         HorizontalHeaderView {
-                            id: header; syncView: table; anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; height: 34
+                            id: header; syncView: table; anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; height: UiTheme.headerHeight
                             delegate: Rectangle {
                                 required property int column
                                 required property var display
                                 property bool filtered: { var f=profiles.columnFilterInfo(column); return profiles.filteredKeys.indexOf(f.key)>=0 }
-                                implicitWidth: 115; implicitHeight: 34; color: filtered ? "#e4ecff" : "#f2f4f7"
-                                Text { anchors.fill: parent; anchors.margins: 6; text: display + (parent.filtered ? " • ▾" : " ▾"); verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight; font.pixelSize: 11; color: "#344054" }
+                                implicitWidth: 115; implicitHeight: UiTheme.headerHeight; color: filtered ? "#e4ecff" : UiTheme.stripe
+                                Text { anchors.fill: parent; anchors.margins: 6; anchors.rightMargin: 20; text: display + (parent.filtered ? " •" : ""); verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight; font.pixelSize: 12; color: UiTheme.ink }
+                                UiHeaderMarker { anchors.right: parent.right; anchors.rightMargin: 6; anchors.verticalCenter: parent.verticalCenter; width: 10; height: 10 }
                                 TapHandler { onTapped: columnFilter.openFor(column) }
                             }
                         }
@@ -57,7 +66,7 @@ Item {
                             anchors.left: parent.left; anchors.right: parent.right; anchors.top: header.bottom; anchors.bottom: parent.bottom
                             clip: true; reuseItems: true; rowSpacing: 1; columnSpacing: 1
                             columnWidthProvider: function(c) { return profiles.columnLabels[c] === "学号" ? 135 : 115 }
-                            rowHeightProvider: function() { return 20 }
+                            rowHeightProvider: function() { return UiTheme.rowHeight }
                             ScrollBar.horizontal: ScrollBar { }
                             ScrollBar.vertical: ScrollBar { }
                             delegate: Rectangle {
@@ -66,9 +75,9 @@ Item {
                                 required property string recordKey
                                 required property bool expiredCell
                                 required property bool staleRow
-                                implicitHeight: 20; implicitWidth: 115
-                                color: recordKey === (page.student._record_key || "") ? "#dce6ff" : staleRow ? "#fff4e5" : row % 2 ? "#f8faff" : "white"
-                                Text { anchors.fill: parent; anchors.leftMargin: 6; text: display; elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter; font.pixelSize: 10; color: expiredCell ? "#98a2b3" : staleRow ? "#b54708" : "#344054" }
+                                implicitHeight: UiTheme.rowHeight; implicitWidth: 115
+                                color: recordKey === (page.student._record_key || "") ? UiTheme.selection : staleRow ? "#fff4e5" : row % 2 ? UiTheme.stripe : "white"
+                                Text { anchors.fill: parent; anchors.leftMargin: 6; text: display; elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter; font.pixelSize: 13; color: expiredCell ? "#98a2b3" : staleRow ? UiTheme.warning : UiTheme.ink }
                                 TapHandler { onTapped: profiles.selectRow(row) }
                             }
                         }
@@ -76,20 +85,20 @@ Item {
                     }
                 }
             }
-            Frame {
+            UiPanel {
                 visible: page.cardExpanded
-                Layout.preferredWidth: 340; Layout.minimumWidth: 260; Layout.fillHeight: true; padding: 12
-                background: Rectangle { color: "white"; radius: 10; border.color: "#e4e7ec" }
+                Layout.preferredWidth: 340; Layout.minimumWidth: 260; Layout.fillWidth: page.width < 760; Layout.fillHeight: true; padding: 16
+                background: Rectangle { color: "white"; radius: 10; border.color: UiTheme.line }
                 ColumnLayout {
                     anchors.fill: parent; spacing: 8
-                    Button { text: "收起画像卡片 →"; Layout.alignment: Qt.AlignRight; onClicked: page.cardExpanded=false }
+                    Label { text: profiles.allClasses ? "只读总览" : "资料修改后自动保存"; color: UiTheme.muted; font.pixelSize: 12; Layout.fillWidth: true }
                     ProfileIdentity { student: page.student }
                     ProfileContactAction { student: page.student }
                     ProfileEditor { Layout.fillWidth: true; Layout.fillHeight: true; fields: profiles.fields; saveTarget: profiles }
                 }
             }
-            Button {
-                visible: !page.cardExpanded
+            UiButton {
+                visible: !page.cardExpanded && page.width >= 760
                 Layout.preferredWidth: 40; Layout.fillHeight: true
                 text: "展\n开\n学\n员\n画\n像\n卡\n片"
                 onClicked: page.cardExpanded=true
@@ -108,16 +117,16 @@ Item {
         }
         ColumnLayout {
             anchors.fill: parent
-            TextField { id: groupTitle; placeholderText: "名单名称"; Layout.fillWidth: true }
-            Label { text: "可在话术中使用画像字段变量：{" + profiles.messagePlaceholders.join("}、{") + "}。创建时会把每个人对应的字段值写入消息。将创建 " + profileGroupDialog.recordKeys.length + " 人的名单；无姓名及补位行跳过。仅创建，不会立即发送。"; wrapMode: Text.Wrap; Layout.fillWidth: true; color: "#667085" }
+            UiTextField { id: groupTitle; placeholderText: "名单名称"; Layout.fillWidth: true }
+            Label { text: "可在话术中使用画像字段变量：{" + profiles.messagePlaceholders.join("}、{") + "}。创建时会把每个人对应的字段值写入消息。将创建 " + profileGroupDialog.recordKeys.length + " 人的名单；无姓名及补位行跳过。仅创建，不会立即发送。"; wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.muted }
             ScrollView {
                 id: profileMessageScroll; Layout.fillWidth: true; Layout.fillHeight: true; contentWidth: availableWidth; clip: true
                 MessageFields { id: profileMessages; width: profileMessageScroll.availableWidth }
             }
             Label { text: backend.groupCenter.status; wrapMode: Text.Wrap; Layout.fillWidth: true }
             RowLayout {
-                Button { text: "取消"; onClicked: profileGroupDialog.close() }
-                Button { text: "创建并打开群发中心"; onClicked: {
+                UiButton { text: "取消"; onClicked: profileGroupDialog.close() }
+                UiButton { text: "创建并打开群发中心"; onClicked: {
                     if(backend.groupCenter.createFromProfiles(groupTitle.text,profileMessages.values(),profileGroupDialog.recordKeys)) {
                         profileGroupDialog.close(); page.openGroupCenter()
                     }
@@ -138,9 +147,9 @@ Item {
             anchors.fill: parent
             Label { text: "导出当前筛选的 " + profiles.matchedCount + " 位学员，保持当前排序；已不符合当前筛选的行不计入。\n字段选择独立于表格显示设置。"; wrapMode: Text.Wrap; Layout.fillWidth: true }
             RowLayout {
-                Button { text: "默认字段"; onClicked: exportDialog.resetSelection(false) }
-                Button { text: "全选"; onClicked: exportDialog.resetSelection(true) }
-                Button { text: "清空"; onClicked: exportDialog.selectedKeys=[] }
+                UiButton { text: "默认字段"; onClicked: exportDialog.resetSelection(false) }
+                UiButton { text: "全选"; onClicked: exportDialog.resetSelection(true) }
+                UiButton { text: "清空"; onClicked: exportDialog.selectedKeys=[] }
             }
             ScrollView {
                 id: exportScroll; Layout.fillWidth: true; Layout.fillHeight: true; clip: true; contentWidth: availableWidth
@@ -163,11 +172,11 @@ Item {
                     }
                 }
             }
-            Label { text: profiles.notice; wrapMode: Text.Wrap; Layout.fillWidth: true; color: "#667085" }
+            Label { text: profiles.notice; wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.muted }
             RowLayout {
                 Layout.alignment: Qt.AlignRight
-                Button { text: "取消"; onClicked: exportDialog.close() }
-                Button {
+                UiButton { text: "取消"; onClicked: exportDialog.close() }
+                UiButton {
                     text: "导出 XLSX"; enabled: exportDialog.selectedKeys.length > 0
                     onClicked: {
                         var keys=profiles.exportFields.filter(function(f) { return exportDialog.selectedKeys.indexOf(f.key) >= 0 }).map(function(f) { return f.key })
@@ -191,12 +200,12 @@ Item {
                     Layout.fillWidth: true; profiles: page.profiles
                     onRemoveField: function(fieldId,fieldName) { deleteFieldDialog.fieldId=fieldId; deleteFieldDialog.fieldName=fieldName; deleteFieldDialog.open() }
                 }
-                TextField { id: fieldName; placeholderText: "新字段名称"; Layout.fillWidth: true }
-                ComboBox { id: fieldType; model: ["文本","日期","下拉选项"]; Layout.fillWidth: true }
+                UiTextField { id: fieldName; placeholderText: "新字段名称"; Layout.fillWidth: true }
+                UiComboBox { id: fieldType; model: ["文本","日期","下拉选项"]; Layout.fillWidth: true }
                 TextArea { id: fieldOptions; visible: fieldType.currentIndex === 2; placeholderText: "下拉选项，每行一个"; Layout.fillWidth: true; implicitHeight: 90 }
                 CheckBox { id: showColumn; text: "在表格和画像填写中显示"; checked: true }
-                Button { text: "添加字段"; onClicked: { if (profiles.addField(fieldName.text,["text","date","choice"][fieldType.currentIndex],fieldOptions.text,showColumn.checked)) { fieldName.clear(); fieldOptions.clear() } } }
-                Label { text: profiles.notice; wrapMode: Text.Wrap; Layout.fillWidth: true; color: "#667085" }
+                UiButton { text: "添加字段"; onClicked: { if (profiles.addField(fieldName.text,["text","date","choice"][fieldType.currentIndex],fieldOptions.text,showColumn.checked)) { fieldName.clear(); fieldOptions.clear() } } }
+                Label { text: profiles.notice; wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.muted }
             }
         }
     }

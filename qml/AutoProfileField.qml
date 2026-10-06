@@ -43,8 +43,8 @@ RowLayout {
     onInitialValueChanged: loadValue()
     Layout.fillWidth: true
     spacing: field.compact ? 5 : 10
-    Label { text: field.displayCaption.replace(/\n/g, " "); Layout.preferredWidth: field.compact ? 56 : 76; elide: Text.ElideRight; font.pixelSize: field.compact ? 11 : 12; color: "#667085"; ToolTip.visible: labelHover.hovered; ToolTip.text: field.displayCaption; HoverHandler { id: labelHover } }
-    ComboBox {
+    Label { text: field.displayCaption.replace(/\n/g, " "); Layout.preferredWidth: field.compact ? 56 : 76; elide: Text.ElideRight; font.pixelSize: field.compact ? 11 : 12; color: UiTheme.muted; ToolTip.visible: labelHover.hovered; ToolTip.text: field.displayCaption; HoverHandler { id: labelHover } }
+    UiComboBox {
         id: choice
         objectName: "profileChoice"
         visible: field.options.length > 0
@@ -58,7 +58,7 @@ RowLayout {
         property string savedValue: field.initialValue
         currentIndex: field.options.indexOf(savedValue)
         displayText: currentIndex < 0 ? "原值：" + savedValue : (currentText || "未填写")
-        background: Rectangle { radius: 6; color: choice.down ? "#eef2ff" : "#f9fafb"; border.color: choice.activeFocus ? "#809aff" : "#e4e7ec" }
+        background: Rectangle { radius: 6; color: choice.down ? "#eef2ff" : "#f9fafb"; border.color: choice.activeFocus ? "#809aff" : UiTheme.line }
         delegate: ItemDelegate {
             id: option
             required property string modelData
@@ -72,7 +72,7 @@ RowLayout {
             contentItem: Text {
                 text: option.text
                 font.pixelSize: field.compact ? 11 : 13
-                color: option.hovered ? "#335cff" : "#344054"
+                color: option.hovered ? UiTheme.accent : UiTheme.ink
                 verticalAlignment: Text.AlignVCenter
                 elide: Text.ElideRight
             }
@@ -91,7 +91,7 @@ RowLayout {
             currentIndex = field.options.indexOf(savedValue)
         }
     }
-    TextField {
+    UiTextField {
         id: input
         objectName: "profileInput"
         visible: field.options.length === 0 && field.fieldKind !== "date" && field.fieldKind !== "exemption"
@@ -103,7 +103,7 @@ RowLayout {
         implicitHeight: field.compact ? 27 : 32
         padding: field.compact ? 5 : 7
         selectByMouse: true
-        background: Rectangle { radius: 6; color: field.editable ? "#f9fafb" : "#f2f4f7"; border.color: input.activeFocus ? "#809aff" : "#e4e7ec" }
+        background: Rectangle { radius: 6; color: field.editable ? "#f9fafb" : UiTheme.stripe; border.color: input.activeFocus ? "#809aff" : UiTheme.line }
         function persist() {
             if (field.ready && !field.loading && field.editable && activeFocus && !inputMethodComposing)
                 field.deferTextSave ? field.saveTarget.queueEditorField(field.recordKey, field.caption, text)
@@ -116,19 +116,19 @@ RowLayout {
     RowLayout {
         visible: field.fieldKind === "date" || field.fieldKind === "exemption"
         Layout.fillWidth: true
-        Button {
+        UiButton {
             id: dateButton
             Layout.fillWidth: true; enabled: field.editable
             font.pixelSize: field.compact ? 10 : 12
             text: (field.initialValue || "选择日期") + (field.expired ? " · 已到期" : "")
-            palette.buttonText: field.expired ? "#98a2b3" : "#344054"
+            palette.buttonText: field.expired ? "#98a2b3" : UiTheme.ink
             onClicked: {
                 var capturedKey = field.recordKey
                 var value = field.fieldKind === "exemption" ? backend.chooseDate(field.initialValue) : backend.chooseProfileDate(field.initialValue)
                 if (capturedKey === field.recordKey && value !== field.initialValue) field.saveValue(value)
             }
         }
-        Button { text: "清除"; enabled: field.editable && field.initialValue.length > 0; font.pixelSize: field.compact ? 10 : 12; onClicked: field.saveValue("") }
+        UiButton { text: "清除"; enabled: field.editable && field.initialValue.length > 0; font.pixelSize: field.compact ? 10 : 12; onClicked: field.saveValue("") }
     }
     Component.onCompleted: { ready = true; loadValue() }
 }

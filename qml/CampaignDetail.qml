@@ -50,7 +50,7 @@ ColumnLayout {
     Label {
         visible: card.showName
         text: card.service.selected.name || (card.hasStudent ? "姓名待补全" : "选择学员")
-        font.pixelSize: card.compact ? 16 : 21; font.bold: true; color: "#17213a"
+        font.pixelSize: card.compact ? 16 : 21; font.bold: true; color: UiTheme.ink
     }
     CampaignContactAction {
         visible: card.showContactAction && card.hasStudent && card.service.canEdit
@@ -70,16 +70,16 @@ ColumnLayout {
                     Label {
                         visible: modelData.key !== "feedback" && modelData.key !== "exemption_text"
                         text: modelData.label + "：" + (card.service.selected[modelData.key] || "—")
-                        Layout.fillWidth: true; wrapMode: Text.Wrap; color: "#344054"; font.pixelSize: card.compact ? 11 : 12
+                        Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.ink; font.pixelSize: card.compact ? 11 : 12
                     }
                     ColumnLayout {
                         visible: modelData.key === "feedback"
                         Layout.fillWidth: true; spacing: 6
-                        Label { text: "本次反馈"; font.bold: true; color: "#344054" }
+                        Label { text: "本次反馈"; font.bold: true; color: UiTheme.ink }
                         RowLayout {
                             id: feedbackRow
                             Layout.fillWidth: true; spacing: 4
-                            TextField {
+                            UiTextField {
                                 id: draft; objectName: modelData.key === "feedback" ? (card.service === card.workflow ? "feedbackDraft" : "floatingFeedbackDraft") : ""
                                 Layout.fillWidth: true
                                 implicitHeight: card.compact ? 27 : 32
@@ -101,7 +101,7 @@ ColumnLayout {
                                 onTextEdited: shortcutsMenu.close()
                                 onActiveFocusChanged: if (!activeFocus && !card.loadingDraft) card.workflow.flushFeedback()
                                 onAccepted: card.workflow.flushFeedback()
-                                background: Rectangle { color: "#f9fafb"; radius: 6; border.color: draft.activeFocus ? "#809aff" : "#e4e7ec" }
+                                background: Rectangle { color: "#f9fafb"; radius: 6; border.color: draft.activeFocus ? "#809aff" : UiTheme.line }
                                 TapHandler {
                                     enabled: !draft.readOnly
                                     onTapped: { draft.forceActiveFocus(); shortcutsMenu.open() }
@@ -113,18 +113,24 @@ ColumnLayout {
                                 parent: Overlay.overlay
                                 focus: false; modal: false
                                 width: Math.min(feedbackRow.width, parent ? parent.width - 16 : feedbackRow.width)
-                                property real availableSpace: 320
+                                // Focus can scroll the editor after the menu opens.
+                                // Keep the popup attached to the current editor position.
+                                property point editorPoint: Qt.point(0, 0)
+                                function positionAtEditor() { editorPoint = feedbackRow.mapToItem(parent, 0, 0) }
+                                property real bottomSpace: Math.max(0, parent.height - editorPoint.y - feedbackRow.height - 12)
+                                property real availableSpace: Math.max(bottomSpace, editorPoint.y - 12)
                                 property string capturedKey: ""
                                 height: Math.min(implicitHeight, availableSpace)
+                                x: Math.max(8, Math.min(editorPoint.x, parent.width - width - 8))
+                                y: bottomSpace >= height ? editorPoint.y + feedbackRow.height + 4 : editorPoint.y - 4 - height
                                 onAboutToShow: {
                                     capturedKey = card.loadedKey
-                                    var point = feedbackRow.mapToItem(parent, 0, 0)
-                                    var below = point.y + feedbackRow.height + 4
-                                    var above = point.y - 4
-                                    var bottomSpace = Math.max(0, parent.height - below - 8)
-                                    availableSpace = Math.max(bottomSpace, above - 8)
-                                    x = Math.max(8, Math.min(point.x, parent.width - width - 8))
-                                    y = bottomSpace >= height ? below : above - height
+                                    positionAtEditor()
+                                }
+                                onOpened: positionAtEditor()
+                                Connections {
+                                    target: details.contentItem
+                                    function onContentYChanged() { if (shortcutsMenu.visible) Qt.callLater(shortcutsMenu.positionAtEditor) }
                                 }
                                 Instantiator {
                                     model: modelData.key === "feedback" ? card.workflow.feedbackShortcuts : []
@@ -157,8 +163,8 @@ ColumnLayout {
                                 }
                             }
                         }
-                        Label { text: card.saveState; font.pixelSize: 11; color: card.saveState.indexOf("失败") >= 0 ? "#b42318" : "#667085"; wrapMode: Text.Wrap; Layout.fillWidth: true }
-                        Label { text: card.service.canEdit ? "有内容即计为已回复；清空后恢复待反馈" : "历史反馈仅供查看"; font.pixelSize: 11; color: "#98a2b3"; wrapMode: Text.Wrap; Layout.fillWidth: true }
+                        Label { text: card.saveState; font.pixelSize: 12; color: card.saveState.indexOf("失败") >= 0 ? "#b42318" : UiTheme.muted; wrapMode: Text.Wrap; Layout.fillWidth: true }
+                        Label { text: card.service.canEdit ? "有内容即计为已回复；清空后恢复待反馈" : "历史反馈仅供查看"; font.pixelSize: 12; color: "#98a2b3"; wrapMode: Text.Wrap; Layout.fillWidth: true }
                         CheckBox { id: historyToggle; text: "查看以往反馈（含迁移前记录）" }
                         TextArea {
                             visible: historyToggle.checked; text: historyToggle.checked ? card.service.previousFeedback : ""
@@ -168,11 +174,11 @@ ColumnLayout {
                     ColumnLayout {
                         visible: modelData.key === "exemption_text"
                         Layout.fillWidth: true; spacing: 6
-                        Label { text: "免催日期：" + (card.service.selected.exemption_text || "无"); Layout.fillWidth: true; wrapMode: Text.Wrap; color: "#344054" }
-                        Label { text: card.service.leaveNote; wrapMode: Text.Wrap; Layout.fillWidth: true; font.pixelSize: 12; color: "#667085" }
+                        Label { text: "免催日期：" + (card.service.selected.exemption_text || "无"); Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.ink }
+                        Label { text: card.service.leaveNote; wrapMode: Text.Wrap; Layout.fillWidth: true; font.pixelSize: 12; color: UiTheme.muted }
                         RowLayout {
-                            Button { text: "设置免催日期"; enabled: card.service.canSetExemption && card.hasStudent; onClicked: card.service.setLeave() }
-                            Button { text: "清除免催"; enabled: card.service.canSetExemption && card.hasStudent; onClicked: card.service.clearLeave() }
+                            UiButton { text: "设置免催日期"; enabled: card.service.canSetExemption && card.hasStudent; onClicked: card.service.setLeave() }
+                            UiButton { text: "清除免催"; enabled: card.service.canSetExemption && card.hasStudent; onClicked: card.service.clearLeave() }
                         }
                     }
                 }
@@ -195,7 +201,7 @@ ColumnLayout {
             if (capturedKey !== card.service.editorKey || !card.workflow.addFeedbackShortcut(shortcutText.text))
                 card.saveState = "快捷选项未添加，请检查内容或当前学员"
         }
-        TextField {
+        UiTextField {
             id: shortcutText; objectName: "feedbackShortcutInput"
             width: parent.width; placeholderText: "输入新的快捷反馈"
             selectByMouse: true

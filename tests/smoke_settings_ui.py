@@ -90,15 +90,20 @@ with tempfile.TemporaryDirectory() as folder:
     # 下拉框只列出一个课程时滚轮也应滚动页面，而不是切换选项。
     term = item('settingTermBox')
     term.setProperty('currentIndex', 0)
-    scroll.setProperty('contentY', 0)
+    # The sidebar and larger controls change the form's geometry. Bring the
+    # actual combo into the viewport before sending wheel events over it.
+    term_y = term.mapToScene(QPointF(0, 0)).y()
+    scroll_y = scroll.mapToScene(QPointF(0, 0)).y()
+    scroll.setProperty('contentY', max(0, scroll.property('contentY') + term_y - scroll_y - 50))
     QTest.qWait(50)
+    before_combo_scroll = scroll.property('contentY')
     combo = QPoint(round(term.property('width') / 2), round(term.property('height') / 2))
     windowPoint = term.mapToScene(QPointF(combo)).toPoint()
     for _ in range(3):
         QGuiApplication.sendEvent(window, QWheelEvent(QPointF(windowPoint), QPointF(window.mapToGlobal(windowPoint)), QPoint(),
             QPoint(0, -120), Qt.NoButton, Qt.NoModifier, Qt.ScrollUpdate, False))
         QTest.qWait(30)
-    assert scroll.property('contentY') > 0, '光标停在班期下拉框上时页面无法滚动'
+    assert scroll.property('contentY') > before_combo_scroll, '光标停在班期下拉框上时页面无法滚动'
     assert term.property('currentIndex') == 0, '滚轮不应改动画期下拉框的选中项'
 
     # 窄窗口改为上下排列，内容依旧可以滚动。

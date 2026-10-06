@@ -150,8 +150,11 @@ def run():
         tabs = [b for b in panel_buttons if b.property("text") in ("现有表格 · 累计率", "完课次数")]
         assert [b.property("text") for b in tabs] == ["现有表格 · 累计率", "完课次数"]
         head = texts(panel)
-        assert any("累计完课人数 1 人" in value for value in head), head
-        assert any("累计作业人数 0 人" in value for value in head), head
+        # The revised overview separates the large headcount from its label.
+        metrics = {node.objectName(): node.property("text") for node in descendants(panel)
+                   if node.objectName().startswith("learningMetric-")}
+        assert metrics == {"learningMetric-total": "5", "learningMetric-courses": "1", "learningMetric-homework": "0"}, metrics
+        assert "累计完课人数" in head and "累计作业人数" in head, head
         screenshot = os.environ.get("DASHBOARD_SCREENSHOT")
         if screenshot:
             assert window.grabWindow().save(screenshot + "-lessons.png")

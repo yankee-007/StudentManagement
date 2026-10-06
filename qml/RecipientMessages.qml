@@ -102,17 +102,22 @@ Item {
             visible: tabs.currentIndex===0
             Layout.fillWidth: true
             Label { text: "批量编辑"; font.bold: true }
-            ComboBox {
+            UiComboBox {
                 id: columnSelector; objectName: "groupColumnSelector"; Layout.fillWidth: true; Layout.minimumWidth: 100
                 model: center.messageColumns; textRole: "label"; currentIndex: panel.selectedField>=0 && panel.selectedField<center.pendingFieldCount ? panel.selectedField : (center.pendingFieldCount>0 ? 0 : -1)
                 enabled: panel.canManage && count>0
                 onActivated: panel.selectedField=currentIndex
             }
-            Button { objectName: "groupBulkEditButton"; text: "修改本列"; enabled: panel.canManage && columnSelector.currentIndex>=0; onClicked: panel.openColumnEditor(columnSelector.currentIndex) }
-            Button { id: addFieldButton; text: "添加消息"; enabled: panel.canManage; onClicked: addMenu.popup(addFieldButton,0,addFieldButton.height) }
-            Button { id: columnActions; text: "调整列"; enabled: panel.canManage && columnSelector.currentIndex>=0; onClicked: { panel.selectedField=columnSelector.currentIndex; columnMenu.popup(columnActions,0,columnActions.height) } }
+            UiButton { objectName: "groupBulkEditButton"; text: "修改本列"; enabled: panel.canManage && columnSelector.currentIndex>=0; onClicked: panel.openColumnEditor(columnSelector.currentIndex) }
+            UiButton { id: addFieldButton; text: "添加消息"; enabled: panel.canManage; onClicked: addMenu.popup(addFieldButton,0,addFieldButton.height) }
+            UiButton { id: columnActions; text: "调整列"; enabled: panel.canManage && columnSelector.currentIndex>=0; onClicked: { panel.selectedField=columnSelector.currentIndex; columnMenu.popup(columnActions,0,columnActions.height) } }
         }
-        Label { text: tabs.currentIndex===0 ? "批量修改默认保留个人改动。单击选中消息后可单独编辑，也可双击直接打开。" : "已发送消息只读；需要再次发送时，复制为新名单。"; wrapMode: Text.Wrap; color: "#667085"; Layout.fillWidth: true }
+        Label {
+            text: tabs.currentIndex===0 ? "批量修改默认保留个人改动。单击选中消息后可单独编辑，也可双击直接打开。" : "已发送消息只读；需要再次发送时，复制为新名单。"
+            elide: Text.ElideRight; color: UiTheme.muted; Layout.fillWidth: true
+            ToolTip.visible: hintHover.hovered; ToolTip.text: text
+            HoverHandler { id: hintHover }
+        }
         Item {
             Layout.fillWidth: true; Layout.fillHeight: true; clip: true
             HorizontalHeaderView {
@@ -122,7 +127,7 @@ Item {
                     required property int index
                     property bool configurable: index>0 && index<=center.pendingFieldCount && panel.canManage
                     implicitWidth: 220; implicitHeight: 34; color: headerTap.containsMouse && configurable ? "#dbeafe" : "#eef2f8"
-                    Text { anchors.fill: parent; anchors.margins: 7; text: display + (configurable ? " · 批量编辑" : ""); elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter; color: "#344054" }
+                    Text { anchors.fill: parent; anchors.margins: 7; text: display + (configurable ? " · 批量编辑" : ""); elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter; color: UiTheme.ink }
                     MouseArea { id: headerTap; anchors.fill: parent; enabled: parent.configurable; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: panel.openColumnEditor(index-1) }
                 }
             }
@@ -140,10 +145,10 @@ Item {
                     required property string display
                     required property string recordKey
                     implicitWidth: 220; implicitHeight: 52
-                    color: recordKey===String(panel.selectedRow.id || "") ? "#dce6ff" : row%2 ? "#f8faff" : "white"
+                    color: recordKey===String(panel.selectedRow.id || "") ? UiTheme.selection : row%2 ? UiTheme.stripe : "white"
                     border.width: recordKey===String(panel.selectedRow.id || "") && column>0 && column===panel.selectedField+1 ? 1 : 0
                     border.color: "#809aff"
-                    Text { anchors.fill: parent; anchors.margins: 7; text: display; textFormat: Text.PlainText; wrapMode: Text.Wrap; maximumLineCount: 2; elide: Text.ElideRight; font.pixelSize: 12; color: "#344054" }
+                    Text { anchors.fill: parent; anchors.margins: 7; text: display; textFormat: Text.PlainText; wrapMode: Text.Wrap; maximumLineCount: 2; elide: Text.ElideRight; font.pixelSize: 12; color: UiTheme.ink }
                     TapHandler {
                         onTapped: {
                             var person=panel.currentModel.get(row)
@@ -163,17 +168,17 @@ Item {
         }
         RowLayout {
             Layout.fillWidth: true
-            Label { text: panel.selectedRow.id ? "当前："+panel.selectedRow.name : "选择一位收件人，查看或编辑消息"; textFormat: Text.PlainText; elide: Text.ElideRight; Layout.fillWidth: true; color: "#344054" }
-            Button { objectName: "groupEditCellButton"; text: panel.selectedRow.editable && tabs.currentIndex===0 ? "编辑所选消息" : "查看所选消息"; enabled: !center.active && !!panel.selectedRow.id && panel.selectedField>=0 && panel.selectedField<(panel.selectedRow.items || []).length; onClicked: panel.openCellEditor(panel.selectedRow,panel.selectedField) }
-            Button { objectName: "groupEditPersonButton"; text: panel.selectedRow.editable && tabs.currentIndex===0 ? "编辑此人全部消息" : "查看此人全部消息"; enabled: !!panel.selectedRow.id && !center.active; onClicked: panel.openEditor() }
+            Label { text: panel.selectedRow.id ? "当前："+panel.selectedRow.name : "选择一位收件人，查看或编辑消息"; textFormat: Text.PlainText; elide: Text.ElideRight; Layout.fillWidth: true; color: UiTheme.ink }
+            UiButton { objectName: "groupEditCellButton"; text: panel.selectedRow.editable && tabs.currentIndex===0 ? "编辑所选消息" : "查看所选消息"; enabled: !center.active && !!panel.selectedRow.id && panel.selectedField>=0 && panel.selectedField<(panel.selectedRow.items || []).length; onClicked: panel.openCellEditor(panel.selectedRow,panel.selectedField) }
+            UiButton { objectName: "groupEditPersonButton"; text: panel.selectedRow.editable && tabs.currentIndex===0 ? "编辑此人全部消息" : "查看此人全部消息"; enabled: !!panel.selectedRow.id && !center.active; onClicked: panel.openEditor() }
         }
-        Label { text: (panel.selectedRow.state || "") + " " + (panel.selectedRow.detail || "") + (panel.selectedRow.sync_pending ? "（催办结果尚未回写）" : ""); visible: !!panel.selectedRow.id; wrapMode: Text.Wrap; Layout.fillWidth: true; color: "#b54708" }
+        Label { text: (panel.selectedRow.state || "") + " " + (panel.selectedRow.detail || "") + (panel.selectedRow.sync_pending ? "（催办结果尚未回写）" : ""); visible: !!panel.selectedRow.id; wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.warning }
         RowLayout {
             visible: panel.selectedRow.state==="结果待确认" || panel.selectedRow.state==="仅粘贴未发送"
             enabled: !center.active
             Label { text: "核实前不可编辑或重发" }
-            Button { text: "核实已发送"; onClicked: panel.resolveRequested(panel.selectedRow.id,true) }
-            Button { text: "核实未发送"; onClicked: panel.resolveRequested(panel.selectedRow.id,false) }
+            UiButton { text: "核实已发送"; onClicked: panel.resolveRequested(panel.selectedRow.id,true) }
+            UiButton { text: "核实未发送"; onClicked: panel.resolveRequested(panel.selectedRow.id,false) }
         }
     }
     Dialog {
@@ -200,12 +205,12 @@ Item {
         ColumnLayout {
             anchors.fill: parent
             Label { text: fieldDialog.isAdding ? "将为 " + fieldDialog.impactCount + " 位可编辑人员追加消息。" : "将修改 " + fieldDialog.impactCount + " 人 · " + (fieldDialog.overridePersonal ? "包含" : "保留") + " " + (fieldDialog.columnSummary.personalCount || 0) + " 人的个人改动"; wrapMode: Text.Wrap; Layout.fillWidth: true; font.bold: true }
-            Label { text: "已发送、发送中和待核实记录不修改；保存后重新预览。"; wrapMode: Text.Wrap; Layout.fillWidth: true; color: "#667085" }
+            Label { text: "已发送、发送中和待核实记录不修改；保存后重新预览。"; wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.muted }
             RowLayout {
                 visible: !fieldDialog.isAdding && !!fieldDialog.columnSummary.mixed
                 Layout.fillWidth: true
                 Label { text: "此列含文字和文件，统一改为：" }
-                ComboBox { model: ["文字","文件"]; currentIndex: fieldDialog.fieldType==="file" ? 1 : 0; onActivated: fieldDialog.fieldType=currentIndex===1 ? "file" : "text" }
+                UiComboBox { model: ["文字","文件"]; currentIndex: fieldDialog.fieldType==="file" ? 1 : 0; onActivated: fieldDialog.fieldType=currentIndex===1 ? "file" : "text" }
             }
             ScrollView {
                 visible: fieldDialog.fieldType==="text"; Layout.fillWidth: true; Layout.preferredHeight: 120; clip: true
@@ -213,15 +218,15 @@ Item {
             }
             RowLayout {
                 visible: fieldDialog.fieldType==="file"; Layout.fillWidth: true
-                TextField { id: columnFile; readOnly: true; Layout.fillWidth: true; placeholderText: "选择统一文件" }
-                Button { text: "选择文件"; onClicked: { var path=center.chooseMessageFile(); if(path) columnFile.text=path } }
+                UiTextField { id: columnFile; readOnly: true; Layout.fillWidth: true; placeholderText: "选择统一文件" }
+                UiButton { text: "选择文件"; onClicked: { var path=center.chooseMessageFile(); if(path) columnFile.text=path } }
             }
             CheckBox { visible: !fieldDialog.isAdding; text: "同时覆盖单独编辑过的内容"; checked: fieldDialog.overridePersonal; onToggled: fieldDialog.overridePersonal=checked; Layout.fillWidth: true }
-            Label { text: "文字变量：{" + backend.profilesModule.messagePlaceholders.join("}、{") + "}；另支持 {学号}。保存后需重新预览。"; visible: fieldDialog.fieldType==="text"; wrapMode: Text.Wrap; Layout.fillWidth: true; color: "#667085" }
-            Label { text: center.status; wrapMode: Text.Wrap; Layout.fillWidth: true; color: "#b54708" }
+            Label { text: "文字变量：{" + backend.profilesModule.messagePlaceholders.join("}、{") + "}；另支持 {学号}。保存后需重新预览。"; visible: fieldDialog.fieldType==="text"; wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.muted }
+            Label { text: center.status; wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.warning }
             RowLayout {
-                Button { objectName: "saveGroupColumnField"; text: (fieldDialog.isAdding ? "追加到 " : "保存到 ") + fieldDialog.impactCount + " 人"; highlighted: true; enabled: !center.active && fieldDialog.listId===center.selected.id && fieldDialog.impactCount>0 && (fieldDialog.fieldType==="text" ? columnText.text.trim().length>0 : columnFile.text.length>0); onClicked: { var item=fieldDialog.fieldType==="text" ? {type:"text",text:columnText.text} : {type:"file",path:columnFile.text}; var ok=fieldDialog.isAdding ? center.appendField(item) : center.bulkField(fieldDialog.listId,fieldDialog.fieldIndex,item,fieldDialog.overridePersonal); if(ok) { if(fieldDialog.isAdding) selectedField=panel.maxFieldIndex(); fieldDialog.close() } } }
-                Button { text: "取消"; onClicked: fieldDialog.close() }
+                UiButton { objectName: "saveGroupColumnField"; text: (fieldDialog.isAdding ? "追加到 " : "保存到 ") + fieldDialog.impactCount + " 人"; highlighted: true; enabled: !center.active && fieldDialog.listId===center.selected.id && fieldDialog.impactCount>0 && (fieldDialog.fieldType==="text" ? columnText.text.trim().length>0 : columnFile.text.length>0); onClicked: { var item=fieldDialog.fieldType==="text" ? {type:"text",text:columnText.text} : {type:"file",path:columnFile.text}; var ok=fieldDialog.isAdding ? center.appendField(item) : center.bulkField(fieldDialog.listId,fieldDialog.fieldIndex,item,fieldDialog.overridePersonal); if(ok) { if(fieldDialog.isAdding) selectedField=panel.maxFieldIndex(); fieldDialog.close() } } }
+                UiButton { text: "取消"; onClicked: fieldDialog.close() }
             }
         }
     }
@@ -265,13 +270,13 @@ Item {
             }
             RowLayout {
                 visible: cellDialog.fieldType==="file"; Layout.fillWidth: true
-                TextField { id: cellFile; readOnly: true; Layout.fillWidth: true }
-                Button { text: "更换文件"; visible: cellDialog.canEdit; enabled: !center.active; onClicked: { var path=center.chooseMessageFile(); if(path) cellFile.text=path } }
+                UiTextField { id: cellFile; readOnly: true; Layout.fillWidth: true }
+                UiButton { text: "更换文件"; visible: cellDialog.canEdit; enabled: !center.active; onClicked: { var path=center.chooseMessageFile(); if(path) cellFile.text=path } }
             }
-            Label { text: center.status; Layout.fillWidth: true; wrapMode: Text.Wrap; color: "#b54708" }
+            Label { text: center.status; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.warning }
             RowLayout {
-                Button { text: "关闭"; onClicked: cellDialog.close() }
-                Button { objectName: "saveGroupSingleCell"; text: "保存此格"; visible: cellDialog.canEdit; enabled: !center.active && (cellDialog.fieldType==="text" ? cellText.text.trim().length>0 : cellFile.text.length>0); highlighted: true; onClicked: { var item=cellDialog.fieldType==="text" ? {type:"text",text:cellText.text} : {type:"file",path:cellFile.text}; if(center.saveRecipientField(cellDialog.listId,cellDialog.recipientId,cellDialog.fieldIndex,item)) cellDialog.close() } }
+                UiButton { text: "关闭"; onClicked: cellDialog.close() }
+                UiButton { objectName: "saveGroupSingleCell"; text: "保存此格"; visible: cellDialog.canEdit; enabled: !center.active && (cellDialog.fieldType==="text" ? cellText.text.trim().length>0 : cellFile.text.length>0); highlighted: true; onClicked: { var item=cellDialog.fieldType==="text" ? {type:"text",text:cellText.text} : {type:"file",path:cellFile.text}; if(center.saveRecipientField(cellDialog.listId,cellDialog.recipientId,cellDialog.fieldIndex,item)) cellDialog.close() } }
             }
         }
     }
@@ -291,8 +296,8 @@ Item {
             }
             Label { text: center.status; Layout.fillWidth: true; wrapMode: Text.Wrap }
             RowLayout {
-                Button { text: "关闭"; onClicked: editor.close() }
-                Button { text: "保存该学员消息"; visible: editor.canEdit; enabled: !center.active; onClicked: { if(center.saveRecipientContent(editor.listId,editor.recipientId,messages.values())) editor.close() } }
+                UiButton { text: "关闭"; onClicked: editor.close() }
+                UiButton { text: "保存该学员消息"; visible: editor.canEdit; enabled: !center.active; onClicked: { if(center.saveRecipientContent(editor.listId,editor.recipientId,messages.values())) editor.close() } }
             }
         }
     }

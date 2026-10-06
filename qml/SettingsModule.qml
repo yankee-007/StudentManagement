@@ -65,21 +65,21 @@ Item {
 
             RowLayout {
                 Layout.fillWidth: true
-                Label { text: "设置"; font.pixelSize: 19; font.bold: true; color: "#17213a" }
-                Label { text: "平台账号与班期对应关系"; font.pixelSize: 11; color: "#98a2b3"; Layout.fillWidth: true }
-                Button { objectName: "refreshSettingsButton"; text: "刷新状态"; enabled: !page.settings.busy; onClicked: page.settings.refresh() }
+                Label { text: "设置"; font.pixelSize: 19; font.bold: true; color: UiTheme.ink }
+                Label { text: "平台账号与班期对应关系"; font.pixelSize: 12; color: "#98a2b3"; Layout.fillWidth: true }
+                UiButton { objectName: "refreshSettingsButton"; text: "刷新状态"; enabled: !page.settings.busy; onClicked: page.settings.refresh() }
             }
             Label {
                 objectName: "settingsNotice"
                 text: page.settings.notice
-                color: "#667085"; font.pixelSize: 11; wrapMode: Text.Wrap
+                color: UiTheme.muted; font.pixelSize: 12; wrapMode: Text.Wrap
                 Layout.fillWidth: true
             }
 
             Label {
                 text: page.cardsSideBySide ? "平台账号 · 两个平台各一份账号，保存后下次获取数据生效"
                                            : "平台账号"
-                font.pixelSize: 13; font.bold: true; color: "#17213a"
+                font.pixelSize: 13; font.bold: true; color: UiTheme.ink
             }
             GridLayout {
                 Layout.fillWidth: true
@@ -116,8 +116,8 @@ Item {
                         id: bindingTag
                         anchors.centerIn: parent
                         text: page.hasBinding() ? "已绑定" : "未绑定"
-                        font.pixelSize: 11
-                        color: page.hasBinding() ? "#027a48" : "#b54708"
+                        font.pixelSize: 12
+                        color: page.hasBinding() ? "#027a48" : UiTheme.warning
                     }
                 }
 
@@ -126,11 +126,11 @@ Item {
                     columns: 2
                     columnSpacing: 12
                     rowSpacing: 10
-                    Label { text: "追光鲸鱼班期"; color: "#475467"; font.pixelSize: 12; Layout.preferredWidth: 96; Layout.alignment: Qt.AlignVCenter }
+                    Label { text: "追光鲸鱼班期"; color: UiTheme.muted; font.pixelSize: 12; Layout.preferredWidth: 96; Layout.alignment: Qt.AlignVCenter }
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 8
-                        ComboBox {
+                        UiComboBox {
                             id: termBox; objectName: "settingTermBox"
                             Layout.fillWidth: true
                             model: page.settings.termClasses; textRole: "name"
@@ -138,13 +138,13 @@ Item {
                             onActivated: page.syncBinding()
                             SettingsWheelGuard { view: pageScroll }
                         }
-                        Button { objectName: "refreshTermsButton"; text: "刷新班期"; enabled: !backend.busy && !backend.termsModule.busy; onClicked: backend.termsModule.refreshAll() }
+                        UiButton { objectName: "refreshTermsButton"; text: "刷新班期"; enabled: !backend.busy && !backend.termsModule.busy; onClicked: backend.termsModule.refreshAll() }
                     }
-                    Label { text: "作业平台班级"; color: "#475467"; font.pixelSize: 12; Layout.preferredWidth: 96; Layout.alignment: Qt.AlignVCenter }
+                    Label { text: "作业平台班级"; color: UiTheme.muted; font.pixelSize: 12; Layout.preferredWidth: 96; Layout.alignment: Qt.AlignVCenter }
                     RowLayout {
                         Layout.fillWidth: true
                         spacing: 8
-                        ComboBox {
+                        UiComboBox {
                             id: classBox; objectName: "settingClassBox"
                             Layout.fillWidth: true
                             model: page.settings.homeworkClasses; textRole: "name"
@@ -153,9 +153,9 @@ Item {
                             onCurrentIndexChanged: courseBox.currentIndex = 0
                             SettingsWheelGuard { view: pageScroll }
                         }
-                        Button { objectName: "fetchHomeworkClassesButton"; text: page.settings.busy ? "获取中…" : "获取作业班级"; enabled: !page.settings.busy; onClicked: page.settings.fetchHomeworkClasses() }
+                        UiButton { objectName: "fetchHomeworkClassesButton"; text: page.settings.busy ? "获取中…" : "获取作业班级"; enabled: !page.settings.busy; onClicked: page.settings.fetchHomeworkClasses() }
                     }
-                    Label { text: "课程"; color: "#475467"; font.pixelSize: 12; Layout.preferredWidth: 96; Layout.alignment: Qt.AlignTop; topPadding: 6 }
+                    Label { text: "课程"; color: UiTheme.muted; font.pixelSize: 12; Layout.preferredWidth: 96; Layout.alignment: Qt.AlignTop; topPadding: 6 }
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 4
@@ -167,14 +167,14 @@ Item {
                                 Layout.fillWidth: true
                                 implicitHeight: 28
                                 radius: 6
-                                color: "#f8fafc"; border.color: "#e4e7ec"
+                                color: "#f8fafc"; border.color: UiTheme.line
                                 Label {
                                     anchors.left: parent.left; anchors.leftMargin: 9; anchors.verticalCenter: parent.verticalCenter
                                     text: page.selectedClass.course_ids && page.selectedClass.course_ids.length ? "课程 ID " + page.selectedClass.course_ids[0] : "尚未获取课程"
-                                    font.pixelSize: 12; color: "#475467"
+                                    font.pixelSize: 12; color: UiTheme.muted
                                 }
                             }
-                            ComboBox {
+                            UiComboBox {
                                 id: courseBox
                                 objectName: "settingCourseBox"
                                 visible: (page.selectedClass.course_ids || []).length > 1
@@ -183,7 +183,7 @@ Item {
                                 SettingsWheelGuard { view: pageScroll }
                             }
                         }
-                        Label { text: page.courseLabel(); font.pixelSize: 11; color: "#98a2b3"; wrapMode: Text.Wrap; Layout.fillWidth: true }
+                        Label { text: page.courseLabel(); font.pixelSize: 12; color: "#98a2b3"; wrapMode: Text.Wrap; Layout.fillWidth: true }
                     }
                 }
 
@@ -193,8 +193,8 @@ Item {
                     Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: "#eef1f6" }
                     RowLayout {
                         Layout.fillWidth: true
-                        Label { text: "修改班期或班级后需要重新确认。"; color: "#98a2b3"; font.pixelSize: 11; Layout.fillWidth: true; elide: Text.ElideRight }
-                        Button {
+                        Label { text: "修改班期或班级后需要重新确认。"; color: "#98a2b3"; font.pixelSize: 12; Layout.fillWidth: true; elide: Text.ElideRight }
+                        UiButton {
                             objectName: "confirmBindingButton"
                             text: "确认绑定"
                             highlighted: true
@@ -212,8 +212,8 @@ Item {
                         RowLayout {
                             anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10
                             spacing: 8
-                            Label { text: "✓ 已绑定"; color: "#027a48"; font.pixelSize: 11; font.bold: true }
-                            Label { text: page.bindingText(); color: "#475467"; font.pixelSize: 11; elide: Text.ElideRight; Layout.fillWidth: true }
+                            Label { text: "✓ 已绑定"; color: "#027a48"; font.pixelSize: 12; font.bold: true }
+                            Label { text: page.bindingText(); color: UiTheme.muted; font.pixelSize: 12; elide: Text.ElideRight; Layout.fillWidth: true }
                         }
                     }
                 }
@@ -227,7 +227,7 @@ Item {
                 Label {
                     Layout.fillWidth: true
                     text: "密码由 Windows 凭据管理器保管，保存后不在界面回显；更换账号时必须同时输入该账号的密码。\n作业平台班级目录按当前作业账号缓存在本地，换账号后需要重新「获取作业班级」。"
-                    color: "#667085"; font.pixelSize: 11; wrapMode: Text.Wrap; lineHeight: 1.6
+                    color: UiTheme.muted; font.pixelSize: 12; wrapMode: Text.Wrap; lineHeight: 1.6
                 }
             }
 
