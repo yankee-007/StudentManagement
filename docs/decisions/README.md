@@ -17,3 +17,11 @@
 | [ADR-011](ADR-011-inline-wecom-remark-tool.md) | 备注批改的 OCR 工具内联进 app/，不再依赖 wecomrename/ 目录 | Accepted | 备注批改、依赖声明、仓库入库范围 |
 
 新增条目需满足：不知道这一决定很可能重踩坑或破坏业务。改变已接受决策时，更新原条目状态并链接替代条目，避免互相矛盾的规则。
+
+## 记录规范与导航
+
+创建门槛包括跨模块架构、数据模型、长期接口、实质方案取舍、真实失败或显著兼容/回归风险；普通实现写法和小布局改动不机械生成 ADR。
+
+沿用 ADR-001 等项目编号并检查冲突。新记录包含标题、Status、Context、Options Considered、Decision、Rationale、Consequences、Related Areas；真实有失败证据时才加 Failed Approaches。既有记录不为格式统一而重写。状态使用 Proposed、Accepted、Deprecated、Superseded；Agent 提议不能写成用户已接受，被替代时保留原原因并链接后继。
+
+当前结构见 [架构](../architecture.md)，任务执行与交接见 [活动任务](../tasks/README.md)。只更新受影响的记忆，不复制任务日志。

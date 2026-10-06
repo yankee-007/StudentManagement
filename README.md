@@ -2,7 +2,7 @@
 
 本地单机桌面工具：获取学习数据、保存催办批次、企业微信正式群发、记录反馈、导出全班记录。
 
-开发交接：先读 [AGENTS.md](AGENTS.md)、[PROJECT_CONTEXT.md](PROJECT_CONTEXT.md) 和 [ADR 索引](docs/decisions/README.md)，再按任务查阅 [架构说明](docs/architecture.md)。无需一次读取全部文档。
+开发交接：先读 [AGENTS.md](AGENTS.md)、[PROJECT_CONTEXT.md](PROJECT_CONTEXT.md)、[项目策略](docs/agent/policy.md) 和 [ADR 索引](docs/decisions/README.md)；有 Task ID 时直接读对应任务，否则查 [活动任务](docs/tasks/README.md)。按需查阅 [架构说明](docs/architecture.md)、[工作协议](docs/agent/workflow.md)；Git 写操作前读 [Git 协议](docs/agent/git.md)。无需一次读取全部文档。
 
 ## 功能模块
 
