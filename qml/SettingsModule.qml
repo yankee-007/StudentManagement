@@ -220,6 +220,30 @@ Item {
             }
 
             SettingsCard {
+                objectName: "contactDefaultsCard"
+                Layout.fillWidth: true
+                title: "企微联系人"
+                subtitle: "学员画像与催办工作台共用"
+                description: "未配置过前缀的班期使用此默认值。已记住的班期前缀保留，可在填写卡片的「选项」中改用默认值。"
+                pageScroll: pageScroll
+                RowLayout {
+                    Layout.fillWidth: true; spacing: 8
+                    Label { text: "默认前缀"; color: UiTheme.muted }
+                    UiTextField {
+                        id: defaultPrefix; objectName: "defaultContactPrefix"
+                        Layout.fillWidth: true; text: backend.contactOpener.defaultPrefix
+                        placeholderText: "可留空，例如 py169"; enabled: !backend.contactOpener.active
+                        Accessible.name: "默认联系人前缀"
+                    }
+                    UiButton {
+                        objectName: "saveDefaultContactPrefix"; text: "保存默认值"
+                        enabled: !backend.contactOpener.active
+                        onClicked: { contactDefaultStatus.text = backend.contactOpener.setDefaultPrefix(defaultPrefix.text) ? "默认前缀已保存" : backend.contactOpener.notice }
+                    }
+                }
+                Label { id: contactDefaultStatus; objectName: "contactDefaultStatus"; text: ""; visible: text.length > 0; color: UiTheme.muted; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.Wrap }
+            }
+            SettingsCard {
                 objectName: "credentialNotesCard"
                 Layout.fillWidth: true
                 title: "凭据说明"

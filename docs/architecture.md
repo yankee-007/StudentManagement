@@ -28,7 +28,7 @@ Backend / TermModule / SettingsModule / LiveAbsence → AcquisitionTask（QThrea
 
 ## Python ↔ QML 与状态
 
-- QML 展示层共用 UiTheme、UiButton、UiTextField、UiComboBox、UiPanel；本地 qmldir 注册主题单例。左侧导航调用原 switchModule，顶部班期切换与调试重启保留原保护条件。工作台／画像窄窗口切换列表与详情的可见性，不销毁编辑组件、不改保存和业务接口。群发参数常驻左侧，消息视口保留横向滚动。
+- QML 展示层共用 UiTheme、UiButton、UiTextField、UiComboBox、UiPanel；本地 qmldir 注册主题单例。左侧导航调用原 switchModule，群发中心位于最后。班期学员／画像／催办等共用顶部 classSelector，班期页通过 Workflow.selectClass → TermModule.alignTerm/activate 跟随当前班级；activate 和班期目录刷新均按当前班级 term_id 选择缓存，未关联平台的旧导入班级显示空名单及选择提示，避免显示另一班期的缓存。调试重启保留原保护条件。工作台／画像窄窗口切换列表与详情的可见性，不销毁编辑组件、不改保存和业务接口。群发参数常驻左侧，消息视口保留横向滚动。
 
 - Backend 以常量 QObject Property 暴露模块；QML 使用 QVariantMap/List 读取行、字段、参数，调用 Slot，以 notify signal 更新绑定。
 - DictTableModel 是 QAbstractTableModel，角色包括 display、studentId、recordKey、expiredCell、staleRow。set_rows 重置模型，reconcile_rows 用增删移动/数据通知减少委托重建。
@@ -58,7 +58,7 @@ Backend / TermModule / SettingsModule / LiveAbsence → AcquisitionTask（QThrea
 - markUnreplied → mark_unreplied(batch, visible_ids)：事务中跳过补位、空姓名、已有任何反馈或非空草稿，不检查发送成功。
 - setLeave/clearLeave → profile_storage.set_exemption：画像/催办共享免催表；日历返回后复查身份，刷新当前资料但不修改历史快照。
 - 两个浮窗是无主窗口从属关系的独立窗口，主窗口最小化时仍可见；主窗口关闭时显式关闭浮窗。浮窗定时读取经进程验证的前台企微标题，只接受唯一姓名匹配。CampaignCompanion 限最新批次，独立于主表选择；切班/批次清身份。ProfileCompanion 的画像身份格式不同，不能混用 key。
-- ContactOpener 使用 ContactOpenTask 打开/验证联系人，不发送消息；与群发互斥，退出等待任务结束。
+- ContactOpener 使用 ContactOpenTask 打开/验证联系人，不发送消息；与群发互斥，退出等待任务结束。画像和催办填写卡片的姓名右侧提供打开按钮，ContactOptions 弹层共用前缀输入、使用前缀／验证联系人／保留浮窗多选项。设置页通过 defaultPrefix / setDefaultPrefix 在固定主库保存 settings.contact_default_prefix；原班期 profile_contact_prefix / campaign_contact_prefix 优先（包括显式空值），缺失才回退默认值。使用默认值可在弹层显式选择；不改变已有打开接口的身份校验与按班期记忆。
 
 ### 群发
 

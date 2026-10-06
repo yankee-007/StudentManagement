@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QApplication
 from app.backend import Backend
 from app.database import Database
 from app.term_roster import arrange_students, TermRosterStore, COLUMNS
+from tests.profile_fixtures import insert_profile
 
 TERM = dict(termId=551, termNo='P2026169', termName='编程169期')
 
@@ -16,6 +17,33 @@ def student(n, letter='A', name='测试'):
 
 
 class TermRosterTest(unittest.TestCase):
+    def test_shared_class_selection_never_shows_another_terms_cache(self):
+        app = QApplication.instance() or QApplication([])
+        with tempfile.TemporaryDirectory() as tmp:
+            backend = Backend(Path(tmp) / 'main.db')
+            with backend.db.connect() as conn:
+                conn.execute("INSERT INTO students(student_id,name,updated_at) VALUES('legacy001','示例旧班','2026-10-06')")
+                insert_profile(conn, 'legacy001', '示例旧班', 1)
+            module = backend.termsModule
+            # Refreshing remote terms must leave the unrelated legacy class selected.
+            self.assertIsNone(module._accept('terms', [TERM]))
+            self.assertEqual(backend.workflow.classIndex, 0)
+            self.assertEqual(module.termIndex, -1)
+            module.store.save_lessons(TERM['termId'], [dict(resource_id='first', label='01【Python】')], 'first')
+            module.store.save(TERM, [student(1)], 'first')
+            with patch.object(module, '_start') as start:
+                backend.workflow.selectClass(1)
+                module.activate()
+                self.assertEqual(module.termIndex, 0)
+                self.assertEqual(module.visibleCount, 1)
+                backend.workflow.selectClass(0)
+                module.activate()
+                self.assertEqual(module.termIndex, -1)
+                self.assertEqual(module.visibleCount, 0)
+                self.assertEqual(module.lessons, [])
+                self.assertIn('未关联平台班期', module.notice)
+                start.assert_not_called()
+
     def test_sort_gaps_and_letters(self):
         rows = arrange_students(TERM['termNo'], [student(10,'E'), student(2,'D'), student(4,'B')])
         self.assertEqual([r['ordinal'] for r in rows], ['',2,'',4,'','','','','',10])

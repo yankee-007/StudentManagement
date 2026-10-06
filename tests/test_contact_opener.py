@@ -89,5 +89,46 @@ class ContactOpenTests(unittest.TestCase):
                 self.assertFalse(b.workflow.send_busy)
                 self.assertEqual(b.workflow.store.batches(),[])
 
+    def test_default_prefix_persists_and_preserves_class_overrides(self):
+        with tempfile.TemporaryDirectory() as folder:
+            b = Backend(Path(folder) / 'test.db')
+            with b.db.connect() as conn:
+                conn.execute("INSERT INTO students(student_id,name,updated_at) VALUES('001','示例甲','2026-10-06')")
+                insert_profile(conn, '001', '示例甲', 1)
+            b.refresh()
+            b.workflow.createBatch()
+            opener = b.contactOpener
+            profile_key = b.profilesModule.selected['_record_key']
+            campaign_key = b.workflow.editorKey
+            self.assertTrue(opener.setDefaultPrefix('  py169  '))
+            self.assertEqual(opener.prefix(profile_key), 'py169')
+            self.assertEqual(opener.campaignPrefix(campaign_key), 'py169')
+            self.assertEqual(opener.prefix('stale'), '')
+            self.assertEqual(opener.campaignPrefix('stale'), '')
+            b.repo.set_setting('profile_contact_prefix', '')
+            b.repo.set_setting('campaign_contact_prefix', '旧班')
+            self.assertTrue(opener.setDefaultPrefix('新默认'))
+            self.assertEqual(opener.prefix(profile_key), '')
+            self.assertEqual(opener.campaignPrefix(campaign_key), '旧班')
+            # The fallback is global and survives construction of the next session.
+            reopened = Backend(Path(folder) / 'test.db')
+            self.assertEqual(reopened.contactOpener.defaultPrefix, '新默认')
+
+    def test_invalid_or_busy_default_prefix_does_not_change_saved_value(self):
+        with tempfile.TemporaryDirectory() as folder:
+            b = Backend(Path(folder) / 'test.db')
+            opener = b.contactOpener
+            self.assertTrue(opener.setDefaultPrefix('py169'))
+            for invalid in ('a\nb', 'a\rb', 'a\0b'):
+                self.assertFalse(opener.setDefaultPrefix(invalid))
+                self.assertEqual(opener.defaultPrefix, 'py169')
+            with patch.object(b.workflow.registry, 'set_setting', side_effect=RuntimeError('临时写入失败')):
+                self.assertFalse(opener.setDefaultPrefix('失败写入'))
+                self.assertEqual(opener.defaultPrefix, 'py169')
+            opener._worker = Mock()
+            self.assertFalse(opener.setDefaultPrefix('忙碌时修改'))
+            self.assertEqual(opener.defaultPrefix, 'py169')
+            opener._finished()
+
 
 if __name__=='__main__':unittest.main()

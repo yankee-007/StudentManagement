@@ -6,7 +6,8 @@ ColumnLayout {
     id: panel
     property var service: backend.termsModule
     property string selectedId: ""
-    ClassSwitchOverlay { id: termSwitch }
+    property int currentClassIndex: backend.workflow.classIndex
+    onCurrentClassIndexChanged: selectedId = ""
     spacing: 10
     RowLayout {
         Layout.fillWidth: true
@@ -21,24 +22,7 @@ ColumnLayout {
             anchors.fill: parent; spacing: 8
             RowLayout {
                 Layout.fillWidth: true
-                Label { text: "班期"; color: UiTheme.muted }
-                UiComboBox {
-                    objectName: "termClassSelector"
-                    popup.objectName: "termClassSelectorPopup"
-                    model: service.terms; textRole: "label"; currentIndex: service.termIndex
-                    Layout.preferredWidth: 250; enabled: !service.busy && !backend.busy
-                    displayText: currentIndex < 0 ? "正在初始化班期" : currentText
-                    onActivated: function(index) {
-                        popup.close()
-                        if (index === service.termIndex) return
-                        var name = service.terms[index].label
-                        var size = service.termRosterSize(index)
-                        termSwitch.begin(name, function() {
-                            panel.selectedId = ""
-                            service.selectTerm(index)
-                        }, size < 0 || size >= 300)
-                    }
-                }
+                Label { text: backend.workflow.className; color: UiTheme.ink; elide: Text.ElideRight }
                 Item { Layout.fillWidth: true }
                 UiButton { text: "导出当前显示 XLSX"; enabled: service.visibleCount > 0; onClicked: service.exportRoster() }
             }
@@ -52,11 +36,6 @@ ColumnLayout {
                     displayText: currentIndex < 0 ? "展开查看课程列表" : currentText
                     enabled: service.lessons.length > 0 && !service.busy && !backend.busy
                     onActivated: service.selectLesson(currentIndex)
-                    delegate: ItemDelegate {
-                        required property var modelData
-                        width: parent ? parent.width : 300; text: modelData.label
-                        hoverEnabled: true; highlighted: hovered
-                    }
                 }
                 UiButton { text: "取消"; visible: service.busy; onClicked: service.cancel() }
             }

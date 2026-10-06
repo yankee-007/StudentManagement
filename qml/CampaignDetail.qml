@@ -48,7 +48,7 @@ ColumnLayout {
         function onChanged() { card.loadSelection(false) }
     }
     Label {
-        visible: card.showName
+        visible: card.showName && !(card.showContactAction && card.hasStudent && card.service.canEdit)
         text: card.service.selected.name || (card.hasStudent ? "姓名待补全" : "选择学员")
         font.pixelSize: card.compact ? 16 : 21; font.bold: true; color: UiTheme.ink
     }

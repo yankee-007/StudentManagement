@@ -98,9 +98,20 @@ class TermModule(QObject):
     def activate(self):
         if self._busy or self.owner.busy: return
         self._force_roster = False
+        if self._terms:
+            self._term_index = self._current_term_index()
         self._load_cache()
+        if self._terms and self._term_index < 0:
+            self._notice = '当前班级未关联平台班期，请在顶部选择平台班期。'
+            self.changed.emit()
+            return
         action = 'terms' if not self._terms else self._next_missing()
         if action: self._start(action)
+
+    def _current_term_index(self):
+        workflow = self.owner.workflow
+        term_id = workflow._classes[workflow.class_index].get('term_id')
+        return next((i for i, term in enumerate(self._terms) if str(term['termId']) == str(term_id)), -1)
 
     @Slot()
     def refreshAll(self):
@@ -231,15 +242,17 @@ class TermModule(QObject):
     def _accept(self, action, data):
         next_action = None
         if action == 'terms':
-            old_id = str((self._term() or {}).get('termId', ''))
             self.registry.set_setting('remote_terms', json.dumps(data, ensure_ascii=False))
             self._terms = data
             self.owner.workflow.sync_terms(data,self.store)
-            self._term_index = next((i for i, t in enumerate(data) if str(t['termId']) == old_id), 0 if data else -1)
+            self._term_index = self._current_term_index()
             self._lessons, self._lesson_index = [], -1
             self._load_cache()
             if not data:
                 self._notice = '当前账号没有可见班期。'
+                self._force_roster = False
+            elif self._term_index < 0:
+                self._notice = '当前班级未关联平台班期，请在顶部选择平台班期。'
                 self._force_roster = False
             else:
                 next_action = 'lessons' if self._force_roster else self._next_missing()

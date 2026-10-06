@@ -16,28 +16,10 @@ Item {
             Layout.fillWidth: true
             Label { text: "学员画像"; font.pixelSize: 21; font.bold: true; color: UiTheme.ink }
             Label { text: page.width>1100 ? "班期名单自动同步 · 人工资料独立保存" : ""; color: UiTheme.muted; Layout.fillWidth: true }
+            UiButton { text: "刷新数据"; onClicked: profiles.refresh() }
+            UiButton { text: "导出画像 XLSX"; enabled: profiles.visibleCount > 0; onClicked: exportDialog.open() }
             UiButton { objectName: "profileDetailToggle"; text: page.cardExpanded ? "收起画像" : "查看画像"; onClicked: page.cardExpanded = !page.cardExpanded }
         }
-        Flow {
-            Layout.fillWidth: true; spacing: 6
-            CheckBox { text: "全部班级"; checked: profiles.allClasses; onToggled: profiles.setAllClasses(checked) }
-            UiButton { text: "打开画像浮窗"; enabled: !profiles.allClasses; onClicked: page.openFloatingProfile() }
-            UiButton { text: "刷新"; onClicked: profiles.refresh() }
-            UiButton { text: "导出画像"; enabled: profiles.visibleCount > 0; onClicked: exportDialog.open() }
-            UiButton { text: "管理字段"; enabled: !profiles.allClasses; onClicked: fieldManager.open() }
-        }
-        RowLayout {
-            Layout.fillWidth: true
-            UiTextField { id: searchInput; placeholderText: "搜索班期、学号、姓名"; Layout.fillWidth: true; onTextEdited: timer.restart(); Timer { id: timer; interval: 180; onTriggered: profiles.search(searchInput.text) } }
-        }
-        Flow {
-            Layout.fillWidth: true; spacing: 6
-            UiButton { objectName: "profileReapplyFilter"; text: "重新应用筛选"; visible: profiles.hasStale; onClicked: profiles.reapplyFilters() }
-            UiButton { text: "新建名单到群发中心"; enabled: profiles.recipientKeys.length > 0 && !backend.groupCenter.active; onClicked: profileGroupDialog.open() }
-            UiButton { text: "清除筛选"; visible: profiles.filteredKeys.length > 0; onClicked: profiles.clearFilters() }
-        }
-        Label { text: "显示 " + profiles.visibleCount + " / " + profiles.total + " 人" + (profiles.hasStale ? "（" + profiles.staleCount + " 人已不符合当前筛选）" : "") + (profiles.cursorText.length > 0 ? " · " + profiles.cursorText : ""); color: profiles.hasStale ? UiTheme.warning : UiTheme.muted; elide: Text.ElideRight; Layout.fillWidth: true }
-        Label { text: profiles.allClasses ? "全部班级为只读总览。需要编辑时，取消勾选并在顶部选择对应班级。" : profiles.notice; font.pixelSize: 12; color: UiTheme.muted; wrapMode: Text.Wrap; Layout.fillWidth: true }
         RowLayout {
             Layout.fillWidth: true; Layout.fillHeight: true; spacing: 12
             UiPanel {
@@ -46,7 +28,24 @@ Item {
                 background: Rectangle { color: "white"; radius: 10; border.color: UiTheme.line }
                 ColumnLayout {
                     anchors.fill: parent
-                    Label { text: "表头可筛选或排序。修改后保留当前学员；重新应用筛选时更新名单。"; font.pixelSize: 12; color: UiTheme.muted; Layout.fillWidth: true; wrapMode: Text.Wrap }
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Label { text: (profiles.cursorText.length > 0 ? profiles.cursorText + " · " : "") + "显示 " + profiles.visibleCount + " / " + profiles.total + " 人" + (profiles.hasStale ? " · " + profiles.staleCount + " 人已不符合当前筛选" : ""); color: profiles.hasStale ? UiTheme.warning : UiTheme.muted; font.pixelSize: 12; Layout.fillWidth: true; elide: Text.ElideRight }
+                        UiTextField { id: searchInput; objectName: "profileSearchInput"; placeholderText: "搜索班期、学号、姓名、备注"; Layout.preferredWidth: Math.min(280, parent.width * 0.5); onTextEdited: timer.restart(); Timer { id: timer; interval: 180; onTriggered: profiles.search(searchInput.text) } }
+                    }
+                    Flow {
+                        Layout.fillWidth: true; spacing: 6
+                        UiButton { objectName: "createProfileList"; text: "生成群发名单"; highlighted: true; enabled: profiles.recipientKeys.length > 0 && !backend.groupCenter.active; onClicked: profileGroupDialog.open() }
+                        UiButton { text: "管理字段"; enabled: !profiles.allClasses; onClicked: fieldManager.open() }
+                        UiButton { text: "聊天跟随浮窗"; enabled: !profiles.allClasses; onClicked: page.openFloatingProfile() }
+                    }
+                    Flow {
+                        Layout.fillWidth: true; spacing: 6
+                        CheckBox { text: "全部班级"; checked: profiles.allClasses; onToggled: profiles.setAllClasses(checked) }
+                        UiButton { objectName: "profileReapplyFilter"; text: "重新应用筛选"; visible: profiles.hasStale; onClicked: profiles.reapplyFilters() }
+                        UiButton { text: "清除列筛选"; visible: profiles.filteredKeys.length > 0; onClicked: profiles.clearFilters() }
+                    }
+                    Label { text: profiles.allClasses ? "全部班级为只读总览，取消勾选后可填写资料。" : profiles.notice; font.pixelSize: 12; color: UiTheme.muted; wrapMode: Text.Wrap; Layout.fillWidth: true; visible: text.length > 0 }
                     Item {
                         Layout.fillWidth: true; Layout.fillHeight: true; clip: true
                         HorizontalHeaderView {
@@ -92,8 +91,8 @@ Item {
                 ColumnLayout {
                     anchors.fill: parent; spacing: 8
                     Label { text: profiles.allClasses ? "只读总览" : "资料修改后自动保存"; color: UiTheme.muted; font.pixelSize: 12; Layout.fillWidth: true }
-                    ProfileIdentity { student: page.student }
                     ProfileContactAction { student: page.student }
+                    ProfileIdentity { student: page.student; showName: false }
                     ProfileEditor { Layout.fillWidth: true; Layout.fillHeight: true; fields: profiles.fields; saveTarget: profiles }
                 }
             }

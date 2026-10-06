@@ -55,7 +55,8 @@ ApplicationWindow {
                 id: classBox
                 objectName: "classSelector"
                 popup.objectName: "classSelectorPopup"
-                visible: root.moduleIndex === 0 || root.moduleIndex === 1 || root.moduleIndex === 5 || root.moduleIndex === 6
+                visible: root.moduleIndex === 0 || root.moduleIndex === 1 || root.moduleIndex === 2 || root.moduleIndex === 5 || root.moduleIndex === 6
+                popupMinimumWidth: 360
                 model: wf.classes; currentIndex: wf.classIndex
                 enabled: !backend.busy && !backend.termsModule.busy && !sender.active && !wf.sender.active && !backend.contactOpener.active && !backend.remarkRenamer.active && !backend.liveAbsence.busy
                 Layout.preferredWidth: Math.min(240, root.width * 0.28)
@@ -64,7 +65,10 @@ ApplicationWindow {
                     if (index === wf.classIndex) return
                     var name = wf.classes[index]
                     var size = wf.classRosterSize(index)
-                    classSwitch.begin(name, function() { wf.selectClass(index) }, size < 0 || size >= 300)
+                    classSwitch.begin(name, function() {
+                        wf.selectClass(index)
+                        if (root.moduleIndex === 2) backend.termsModule.activate()
+                    }, size < 0 || size >= 300)
                 }
             }
             Item { Layout.fillWidth: true }
@@ -91,9 +95,8 @@ ApplicationWindow {
         color: "#203047"
         ColumnLayout {
             anchors.fill: parent; anchors.margins: 10; spacing: 6
-            Label { text: "班级日常"; color: "#b8c9df"; font.pixelSize: 12; Layout.topMargin: 12; Layout.bottomMargin: 8; Layout.leftMargin: 8 }
             Repeater {
-                model: [0, 1, 2, 6, 4, 5]
+                model: [0, 1, 2, 6, 5]
                 UiButton {
                     required property int modelData
                     objectName: "moduleButton" + modelData
@@ -117,6 +120,14 @@ ApplicationWindow {
                 Accessible.selected: root.moduleIndex === 3
                 contentItem: Text { text: parent.text; color: "#f2f6fc"; font.pixelSize: 14; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
                 background: Rectangle { radius: 5; color: root.moduleIndex === 3 ? UiTheme.accent : parent.hovered ? "#304660" : "transparent"; border.width: parent.visualFocus ? 2 : 0; border.color: "#bcd3fa" }
+            }
+            UiButton {
+                objectName: "moduleButton4"; text: "群发中心"; Layout.fillWidth: true; implicitHeight: root.height < 620 ? 38 : 44; hoverEnabled: true
+                onClicked: root.switchModule(4)
+                Accessible.role: Accessible.PageTab
+                Accessible.selected: root.moduleIndex === 4
+                contentItem: Text { text: parent.text; color: "#f2f6fc"; font.pixelSize: 14; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                background: Rectangle { radius: 5; color: root.moduleIndex === 4 ? UiTheme.accent : parent.hovered ? "#304660" : "transparent"; border.width: parent.visualFocus ? 2 : 0; border.color: "#bcd3fa" }
             }
         }
     }
@@ -155,27 +166,27 @@ ApplicationWindow {
                 Layout.fillWidth: true; Layout.fillHeight: true; padding: 10
                 background: Rectangle { color: "white"; radius: 10; border.color: UiTheme.line }
                 ColumnLayout {
-                    anchors.fill: parent; spacing: 8
+                    anchors.fill: parent; spacing: root.height < 620 ? 4 : 8
                     RowLayout {
                         Layout.fillWidth: true
-                        UiComboBox {
-                            id: viewBox; objectName: "campaignViewSelector"; textRole: "label"; valueRole: "key"; Layout.preferredWidth: 125
-                            displayText: currentText
-                            model: [{label:"全班快照",key:"all"},{label:"本次催办",key:"targets"}]
-                            onActivated: root.applyFilter()
-                        }
-                        UiTextField { id: search; placeholderText: "学号、姓名、备注"; Layout.fillWidth: true; onTextEdited: searchTimer.restart(); Timer { id: searchTimer; interval: 180; onTriggered: root.applyFilter() } }
+                        Label { text: (wf.cursorText.length > 0 ? wf.cursorText + " · " : "") + "显示 " + wf.visibleCount + " 人" + (wf.hasStale ? " · " + wf.staleCount + " 人已不符合当前筛选" : ""); color: wf.hasStale ? UiTheme.warning : UiTheme.muted; font.pixelSize: 12; elide: Text.ElideRight; Layout.fillWidth: true }
+                        UiTextField { id: search; objectName: "campaignSearchInput"; placeholderText: "搜索学号、姓名、备注"; Layout.preferredWidth: Math.min(280, parent.width * 0.5); onTextEdited: searchTimer.restart(); Timer { id: searchTimer; interval: 180; onTriggered: root.applyFilter() } }
                     }
                     Flow {
                         Layout.fillWidth: true; spacing: 6
                         UiButton { objectName: "createCampaignList"; text: "生成群发名单"; highlighted: true; enabled: wf.canEdit && !sender.active && !backend.busy && wf.recipientKeys.length > 0; onClicked: templateDialog.open() }
-                        UiButton { objectName: "markUnrepliedButton"; text: "批量未回复"; visible: viewBox.currentValue === "targets"; enabled: wf.canEdit && wf.visibleCount > 0; onClicked: noReplyDialog.open() }
                         UiButton { text: "管理字段"; onClicked: fieldDialog.open() }
                         UiButton { text: "聊天跟随浮窗"; enabled: wf.canEdit; onClicked: campaignFloat.show() }
+                        UiButton { objectName: "markUnrepliedButton"; text: "批量未回复"; visible: viewBox.currentValue === "targets"; enabled: wf.canEdit && wf.visibleCount > 0; onClicked: noReplyDialog.open() }
                     }
-                    RowLayout {
-                        Layout.fillWidth: true
-                        Label { text: (wf.cursorText.length > 0 ? wf.cursorText + " · " : "") + "显示 " + wf.visibleCount + " 人" + (wf.hasStale ? " · " + wf.staleCount + " 人已不符合当前筛选" : ""); color: wf.hasStale ? UiTheme.warning : UiTheme.muted; font.pixelSize: 12; elide: Text.ElideRight; Layout.fillWidth: true }
+                    Flow {
+                        Layout.fillWidth: true; spacing: 6
+                        UiComboBox {
+                            id: viewBox; objectName: "campaignViewSelector"; textRole: "label"; valueRole: "key"; width: 125
+                            displayText: currentText
+                            model: [{label:"全班快照",key:"all"},{label:"本次催办",key:"targets"}]
+                            onActivated: root.applyFilter()
+                        }
                         UiButton { objectName: "campaignReapplyFilter"; text: "重新应用筛选"; visible: wf.hasStale; onClicked: wf.reapplyFilters() }
                         UiButton { text: "清除列筛选／排序"; visible: wf.hasColumnQuery; onClicked: wf.clearColumnQuery() }
                     }

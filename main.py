@@ -44,8 +44,8 @@ def main() -> int:
     primary_screen = app.primaryScreen()
     if primary_screen is not None:
         available = primary_screen.availableGeometry()
-        width = round(available.width() * 0.8)
-        height = round(available.height() * 0.8)
+        width = round(available.width() * 0.9)
+        height = round(available.height() * 0.9)
         window.setScreen(primary_screen)
         window.setMinimumWidth(min(720, width))
         window.setMinimumHeight(min(480, height))

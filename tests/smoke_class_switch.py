@@ -4,7 +4,7 @@ from pathlib import Path
 import tempfile
 import time
 
-from PySide6.QtCore import QObject, QMetaObject, Q_ARG, QUrl
+from PySide6.QtCore import QObject, QMetaObject, Q_ARG, QUrl, QPointF, Qt
 from PySide6.QtGui import QFontDatabase
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuick import QQuickItem
@@ -67,11 +67,12 @@ def run():
 
         b.refresh = refresh
         for module, selector, index, name, width in ((0, 'classSelector', 1, '测试乙班', 1280),
-                                                    (2, 'termClassSelector', 0, '测试甲班', 960)):
+                                                    (2, 'classSelector', 0, '测试甲班', 960)):
             window.resize(width, 720)
             QMetaObject.invokeMethod(window, 'switchModule', Q_ARG('QVariant', module))
             QTest.qWait(50)
             combo = window.findChild(QQuickItem, selector)
+            assert combo.isVisible(), (module, selector)
             popup = window.findChild(QObject, selector + 'Popup')
             QMetaObject.invokeMethod(popup, 'open')
             QTest.qWait(80)
@@ -83,16 +84,59 @@ def run():
             while any(item.property('visible') for item in window.findChildren(QObject, 'classSwitchOverlay')) and time.monotonic() < deadline:
                 QTest.qWait(20)
             assert b.workflow.classIndex == index
+            assert b.termsModule.termIndex == index
             assert not any(item.property('visible') for item in window.findChildren(QObject, 'classSwitchOverlay'))
         assert len(checks) == 2
+        # Actual pointer opening and keyboard selection exercise the custom delegate.
+        combo = window.findChild(QQuickItem, 'classSelector')
+        popup = window.findChild(QObject, 'classSelectorPopup')
+        QTest.mouseClick(window, Qt.LeftButton, Qt.NoModifier,
+                        combo.mapToScene(QPointF(combo.width()/2, combo.height()/2)).toPoint())
+        QTest.qWait(80)
+        assert popup.property('visible')
+        expected.update(popup=popup, frames=len(frames), name='测试乙班')
+        QTest.keyClick(window, Qt.Key_Down)
+        QTest.keyClick(window, Qt.Key_Return)
+        deadline = time.monotonic() + 3
+        while any(item.property('visible') for item in window.findChildren(QObject, 'classSwitchOverlay')) and time.monotonic() < deadline:
+            QTest.qWait(20)
+        assert b.workflow.classIndex == b.termsModule.termIndex == 1
+        assert len(checks) == 3
+        QTest.mouseClick(window, Qt.LeftButton, Qt.NoModifier,
+                        combo.mapToScene(QPointF(combo.width()/2, combo.height()/2)).toPoint())
+        QTest.qWait(80)
+        assert popup.property('visible')
+        output = Path('output/ui-refresh')
+        output.mkdir(parents=True, exist_ok=True)
+        window.grabWindow().save(str(output / 'shared-class-dropdown.png'))
+        view = popup.property('contentItem')
+        def text_item(parent):
+            for child in parent.childItems():
+                if child.property('text') == '测试甲班':
+                    return child
+                found = text_item(child)
+                if found is not None:
+                    return found
+            return None
+        option = text_item(view)
+        assert option is not None
+        expected.update(popup=popup, frames=len(frames), name='测试甲班')
+        QTest.mouseClick(window, Qt.LeftButton, Qt.NoModifier,
+                        option.mapToScene(QPointF(option.width()/2, option.height()/2)).toPoint())
+        deadline = time.monotonic() + 3
+        while any(item.property('visible') for item in window.findChildren(QObject, 'classSwitchOverlay')) and time.monotonic() < deadline:
+            QTest.qWait(20)
+        assert b.workflow.classIndex == b.termsModule.termIndex == 0
+        assert len(checks) == 4
         # Closing before the loading frame cancels the deferred operation.
-        combo = window.findChild(QQuickItem, 'termClassSelector')
+        assert window.findChild(QQuickItem, 'termClassSelector') is None
+        combo = window.findChild(QQuickItem, 'classSelector')
         QMetaObject.invokeMethod(combo, 'activated', Q_ARG(int, 1))
         window.close()
         QTest.qWait(80)
         assert b.workflow.classIndex == 0
         assert not warnings, warnings
-        print('Class switch UI OK: popup dismissed, loading frame first, both selectors, close cancellation')
+        print('Class switch UI OK: one shared selector, synchronized roster term, popup dismissed, loading frame first, close cancellation')
 
 
 if __name__ == '__main__':

@@ -26,6 +26,7 @@ class ContactOpenTask(QThread):
 
 class ContactOpener(QObject):
     changed = Signal()
+    defaultPrefixChanged = Signal()
 
     def __init__(self,owner):
         super().__init__(owner)
@@ -49,6 +50,28 @@ class ContactOpener(QObject):
     @Property(bool,notify=changed)
     def verifyContact(self):return self._verify_contact
 
+    @Property(str, notify=defaultPrefixChanged)
+    def defaultPrefix(self):
+        return self.owner.workflow.registry.get_setting('contact_default_prefix', '')
+
+    @Slot(str, result=bool)
+    def setDefaultPrefix(self, value):
+        if self.active:
+            return False
+        value = value.strip()
+        if any(ch in value for ch in ('\r', '\n', '\0')):
+            self._notice = '联系人前缀不能包含换行'
+            self.changed.emit()
+            return False
+        try:
+            self.owner.workflow.registry.set_setting('contact_default_prefix', value)
+        except Exception as exc:
+            self._notice = '默认前缀保存失败：' + str(exc)
+            self.changed.emit()
+            return False
+        self.defaultPrefixChanged.emit()
+        return True
+
     @Slot(bool)
     def setVerifyContact(self,value):
         if self.active:return
@@ -67,7 +90,7 @@ class ContactOpener(QObject):
     def prefix(self,key):
         student=self.owner.profilesModule.selected
         if key!=student.get('_record_key'):return ''
-        return StudentRepository(Database(student['_db_path'])).get_setting('profile_contact_prefix','')
+        return StudentRepository(Database(student['_db_path'])).get_setting('profile_contact_prefix',self.defaultPrefix)
 
     def _campaign_student(self, key):
         wf = self.owner.workflow
@@ -93,7 +116,7 @@ class ContactOpener(QObject):
     def campaignPrefix(self, key):
         try:
             self._campaign_student(key)
-            return self.owner.repo.get_setting('campaign_contact_prefix', '')
+            return self.owner.repo.get_setting('campaign_contact_prefix', self.defaultPrefix)
         except ValueError:
             return ''
 
