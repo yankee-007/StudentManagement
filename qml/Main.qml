@@ -49,7 +49,6 @@ ApplicationWindow {
         RowLayout {
             anchors.fill: parent; anchors.leftMargin: 18; anchors.rightMargin: 18; spacing: 14
             Label { text: "学员管理"; font.pixelSize: 18; font.bold: true; color: UiTheme.ink; Layout.preferredWidth: navigation.width - 18 }
-            Label { text: "当前班期"; color: UiTheme.muted; visible: classBox.visible && root.width >= 900 }
             UiComboBox {
                 id: classBox
                 objectName: "classSelector"
@@ -57,7 +56,16 @@ ApplicationWindow {
                 visible: root.moduleIndex === 0 || root.moduleIndex === 1 || root.moduleIndex === 2 || root.moduleIndex === 5 || root.moduleIndex === 6
                 model: wf.classes; currentIndex: wf.classIndex
                 enabled: !backend.busy && !backend.termsModule.busy && !sender.active && !wf.sender.active && !backend.contactOpener.active && !backend.remarkRenamer.active && !backend.liveAbsence.busy
-                Layout.preferredWidth: Math.min(200, root.width * 0.28)
+                Layout.preferredWidth: 100
+                popupTextAlignment: Text.AlignHCenter
+                Accessible.name: "班期"
+                contentItem: Text {
+                    text: classBox.displayText; font: classBox.font; color: UiTheme.ink
+                    horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter
+                    elide: Text.ElideRight
+                }
+                ToolTip.visible: hovered && contentItem.truncated
+                ToolTip.text: currentText
                 onActivated: function(index) {
                     popup.close()
                     if (index === wf.classIndex) return

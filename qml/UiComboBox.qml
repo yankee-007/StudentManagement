@@ -8,6 +8,7 @@ ComboBox {
     font.pixelSize: 13
     leftPadding: 9
     property real popupMinimumWidth: width
+    property int popupTextAlignment: Text.AlignLeft
     palette.text: UiTheme.ink
     palette.buttonText: UiTheme.ink
     delegate: ItemDelegate {
@@ -21,6 +22,7 @@ ComboBox {
         contentItem: Text {
             text: parent.text; font: control.font; color: UiTheme.ink
             elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter
+            horizontalAlignment: control.popupTextAlignment
         }
         background: Rectangle {
             radius: 4
