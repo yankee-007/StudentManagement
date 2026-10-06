@@ -4,7 +4,6 @@
 
 | Task ID | 标题 | 工作状态 | 分支或范围 | 文件 |
 | --- | --- | --- | --- | --- |
-| TASK-20261006-e751c908ab34 | 回退标题栏方案并交付 GitHub | verifying | main／回退至 6d5df95 并推送现有 origin | [任务](TASK-20261006-e751c908ab34-rollback-github.md) |
 | TASK-20261006-76ec258f174b | 班期切换与学员操作界面细化 | awaiting_acceptance | main／QML、联系人默认配置 | [任务](TASK-20261006-76ec258f174b-ui-refinements.md) |
 | TASK-20261006-3d2ba861e904 | 学员管理桌面 UI 优化 | awaiting_acceptance | main／QML 界面 | [任务](TASK-20261006-3d2ba861e904-ui-refresh.md) |
 | TASK-20261006-a834b72e9c51 | 催办反馈卡片自动保存与输入性能 | awaiting_acceptance | main／反馈编辑链 | [任务](TASK-20261006-a834b72e9c51-feedback-autosave.md) |
