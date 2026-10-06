@@ -74,9 +74,9 @@ def run():
         draft = visual(detail, "feedbackDraft")
         assert draft is not None
         assert draft.height() < 40
-        choice = visual(detail, 'feedbackShortcutChoice')
-        assert choice.property('editable')
-        assert choice.property('count') == 2
+        shortcut_button = visual(detail, 'feedbackShortcutButton')
+        menu = shortcut_button.property('menu')
+        assert shortcut_button is not None and menu.property('count') == 4
         assert backend.workflow.feedbackShortcuts == ['答应补课', '未接听电话']
         draft.forceActiveFocus()
         draft.setProperty("text", "界面草稿")
@@ -116,29 +116,57 @@ def run():
         assert '军训' in backend.workflow.store.rows(backend.workflow._batch, sid)[0]['feedback']
         draft.setProperty('text', '界面修改')
         QTest.qWait(650)
-        choice.setProperty('currentIndex', 0)
-        assert QMetaObject.invokeMethod(choice, 'activated', Q_ARG(int, 0))
+        def open_shortcuts():
+            assert QMetaObject.invokeMethod(shortcut_button, 'click')
+            app.processEvents()
+            assert menu.property('visible')
+            top = draft.mapToScene(QPointF(0, 0)).y()
+            assert menu.property('y') >= top + draft.height() or menu.property('y') + menu.property('height') <= top
+        def pick_shortcut(name):
+            item = visual(menu.property('contentItem'), name)
+            assert item is not None, name
+            assert QMetaObject.invokeMethod(item, 'triggered')
+            app.processEvents()
+        open_shortcuts()
+        assert draft.property('text') == '界面修改'
+        if os.environ.get('WORKBENCH_MENU_SCREENSHOT'):
+            assert window.grabWindow().save(os.environ['WORKBENCH_MENU_SCREENSHOT'])
+        pick_shortcut('feedbackShortcutOption0')
         QTest.qWait(650)
-        assert backend.workflow.store.rows(backend.workflow._batch, sid)[0]['feedback'] == '答应补课'
-        choice.setProperty('currentIndex', 1)
-        assert QMetaObject.invokeMethod(choice, 'activated', Q_ARG(int, 1))
+        assert backend.workflow.store.rows(backend.workflow._batch, sid)[0]['feedback'] == '界面修改；答应补课'
+        open_shortcuts()
+        pick_shortcut('feedbackShortcutOption1')
         QTest.qWait(650)
-        assert backend.workflow.store.rows(backend.workflow._batch, sid)[0]['feedback'] == '未接听电话'
-        add_button = visual(detail, 'addFeedbackShortcutButton')
-        assert QMetaObject.invokeMethod(add_button, 'click')
-        app.processEvents()
+        assert backend.workflow.store.rows(backend.workflow._batch, sid)[0]['feedback'] == '界面修改；答应补课；未接听电话'
+        open_shortcuts()
+        footer = visual(menu.property('contentItem'), 'addFeedbackShortcutItem')
+        assert footer.y() >= visual(menu.property('contentItem'), 'feedbackShortcutOption1').y()
+        pick_shortcut('addFeedbackShortcutItem')
         shortcut_dialog = detail.findChild(QObject, 'feedbackShortcutDialog')
         shortcut_input = shortcut_dialog.findChild(QObject, 'feedbackShortcutInput')
         assert shortcut_dialog.property('visible')
         shortcut_input.setProperty('text', '已联系家长')
         assert QMetaObject.invokeMethod(shortcut_dialog, 'accept')
         app.processEvents()
-        assert choice.property('count') == 3
-        assert draft.property('text') == '未接听电话'
-        choice.setProperty('currentIndex', 2)
-        assert QMetaObject.invokeMethod(choice, 'activated', Q_ARG(int, 2))
+        assert menu.property('count') == 5
+        assert draft.property('text') == '界面修改；答应补课；未接听电话'
+        open_shortcuts()
+        pick_shortcut('feedbackShortcutOption2')
         QTest.qWait(650)
-        assert backend.workflow.store.rows(backend.workflow._batch, sid)[0]['feedback'] == '已联系家长'
+        assert backend.workflow.store.rows(backend.workflow._batch, sid)[0]['feedback'] == '界面修改；答应补课；未接听电话；已联系家长'
+        draft.forceActiveFocus()
+        draft.setProperty('text', '')
+        open_shortcuts()
+        pick_shortcut('feedbackShortcutOption0')
+        QTest.qWait(650)
+        assert backend.workflow.store.rows(backend.workflow._batch, sid)[0]['feedback'] == '答应补课'
+        if size > 1:
+            open_shortcuts()
+            backend.workflow.selectRow(1)
+            pick_shortcut('feedbackShortcutOption0')
+            QTest.qWait(650)
+            assert backend.workflow.selected['feedback'] == ''
+            backend.workflow.selectRow(0)
         draft.forceActiveFocus()
         draft.setProperty('text', '界面修改')
         QTest.qWait(650)
@@ -158,13 +186,39 @@ def run():
             float_draft=visual(floating.contentItem(),'floatingFeedbackDraft')
             assert float_draft is not None
             assert float_draft.property('text')=='界面修改'
-            assert visual(floating.contentItem(),'floatingFeedbackShortcutChoice').property('count') == 3
+            assert visual(floating.contentItem(), 'floatingFeedbackShortcutButton').property('menu').property('count') == 5
             float_draft.forceActiveFocus()
             float_draft.setProperty('text','浮窗草稿')
             app.processEvents()
             QTest.qWait(650)
             assert backend.workflow.store.rows(backend.workflow._batch,sid)[0]['feedback']=='浮窗草稿'
             assert visual(floating.contentItem(),'floatingFeedbackDraft') == float_draft
+            float_button = visual(floating.contentItem(), 'floatingFeedbackShortcutButton')
+            float_menu = float_button.property('menu')
+            assert QMetaObject.invokeMethod(float_button, 'click')
+            app.processEvents()
+            float_top = float_draft.mapToScene(QPointF(0, 0)).y()
+            assert float_menu.property('y') >= float_top + float_draft.height() or float_menu.property('y') + float_menu.property('height') <= float_top
+            if os.environ.get('WORKBENCH_FLOAT_MENU_SCREENSHOT'):
+                assert floating.grabWindow().save(os.environ['WORKBENCH_FLOAT_MENU_SCREENSHOT'])
+            assert QMetaObject.invokeMethod(visual(float_menu.property('contentItem'), 'feedbackShortcutOption0'), 'triggered')
+            QTest.qWait(650)
+            assert backend.workflow.store.rows(backend.workflow._batch,sid)[0]['feedback']=='浮窗草稿；答应补课'
+            if size > 1:
+                for index in range(20):
+                    assert backend.workflow.addFeedbackShortcut(f'更多快捷选项{index}')
+                assert QMetaObject.invokeMethod(float_button, 'click')
+                app.processEvents()
+                assert float_menu.property('height') < float_menu.property('implicitHeight')
+                viewport = float_menu.property('contentItem')
+                assert viewport.property('contentHeight') > viewport.property('height') and viewport.property('interactive')
+                viewport.setProperty('contentY', viewport.property('contentHeight') - viewport.property('height'))
+                app.processEvents()
+                last_item = visual(viewport, 'addFeedbackShortcutItem')
+                last_top = last_item.mapToScene(QPointF(0, 0)).y()
+                assert last_top >= float_menu.property('y') and last_top + last_item.height() <= float_menu.property('y') + float_menu.property('height')
+                assert float_menu.property('y') >= float_top + float_draft.height() or float_menu.property('y') + float_menu.property('height') <= float_top
+                assert QMetaObject.invokeMethod(float_menu, 'close')
             float_draft.forceActiveFocus()
             float_draft.setProperty('text','关闭前输入')
             assert backend.workflow._pending_feedback, (float_draft.property('activeFocus'), float_draft.property('text'))

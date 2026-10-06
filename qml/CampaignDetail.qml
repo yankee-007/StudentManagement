@@ -77,49 +77,100 @@ ColumnLayout {
                         Layout.fillWidth: true; spacing: 6
                         Label { text: "本次反馈"; font.bold: true; color: "#344054" }
                         RowLayout {
+                            id: feedbackRow
                             Layout.fillWidth: true; spacing: 4
-                            ComboBox {
-                                id: feedbackChoice
-                                objectName: modelData.key === "feedback" ? (card.service === card.workflow ? "feedbackShortcutChoice" : "floatingFeedbackShortcutChoice") : ""
+                            TextField {
+                                id: draft; objectName: modelData.key === "feedback" ? (card.service === card.workflow ? "feedbackDraft" : "floatingFeedbackDraft") : ""
                                 Layout.fillWidth: true
                                 implicitHeight: card.compact ? 27 : 32
-                                editable: true; currentIndex: -1; wheelEnabled: false
-                                model: card.workflow.feedbackShortcuts
-                                enabled: card.service.canEdit && card.hasStudent && !!card.service.selected.name && !card.service.selected.is_placeholder
-                                contentItem: TextField {
-                                    id: draft; objectName: modelData.key === "feedback" ? (card.service === card.workflow ? "feedbackDraft" : "floatingFeedbackDraft") : ""
-                                    text: feedbackChoice.editText
-                                    padding: card.compact ? 5 : 7; rightPadding: feedbackChoice.indicator.width + 8
-                                    font.pixelSize: card.compact ? 11 : 13
-                                    selectByMouse: true
-                                    readOnly: !card.service.canEdit || !card.hasStudent || !card.service.selected.name || !!card.service.selected.is_placeholder
-                                    placeholderText: card.service.canEdit ? "填写或选择反馈" : "暂无反馈"
-                                    background: null
-                                    Component.onCompleted: if (modelData.key === "feedback") { card.draftEditor = draft; card.loadSelection(true) }
-                                    Component.onDestruction: if (card.draftEditor === draft) card.draftEditor = null
-                                    function save() {
-                                        if (!card.loadingDraft && !readOnly && activeFocus && !inputMethodComposing)
-                                            card.saveState = card.service.queueFeedbackForSelection(card.loadedKey,text) ? "等待自动保存…" : "未保存，请检查当前学员和批次"
-                                    }
-                                    onTextChanged: save()
-                                    onInputMethodComposingChanged: save()
-                                    onActiveFocusChanged: if (!activeFocus && !card.loadingDraft) card.workflow.flushFeedback()
-                                    onAccepted: card.workflow.flushFeedback()
+                                text: ""
+                                padding: card.compact ? 5 : 7
+                                font.pixelSize: card.compact ? 11 : 13
+                                selectByMouse: true
+                                readOnly: !card.service.canEdit || !card.hasStudent || !card.service.selected.name || !!card.service.selected.is_placeholder
+                                placeholderText: card.service.canEdit ? "填写反馈" : "暂无反馈"
+                                Component.onCompleted: if (modelData.key === "feedback") { card.draftEditor = draft; card.loadSelection(true) }
+                                Component.onDestruction: if (card.draftEditor === draft) card.draftEditor = null
+                                function save() {
+                                    if (!card.loadingDraft && !readOnly && activeFocus && !inputMethodComposing)
+                                        card.saveState = card.service.queueFeedbackForSelection(card.loadedKey,text) ? "等待自动保存…" : "未保存，请检查当前学员和批次"
                                 }
+                                onTextChanged: save()
+                                onInputMethodComposingChanged: save()
+                                onActiveFocusChanged: if (!activeFocus && !card.loadingDraft) card.workflow.flushFeedback()
+                                onAccepted: card.workflow.flushFeedback()
                                 background: Rectangle { color: "#f9fafb"; radius: 6; border.color: draft.activeFocus ? "#809aff" : "#e4e7ec" }
-                                onActivated: {
-                                    card.loadingDraft = true
-                                    draft.text = currentText
-                                    card.loadingDraft = false
-                                    card.saveState = card.service.queueFeedbackForSelection(card.loadedKey, draft.text) ? "等待自动保存…" : "未保存，请检查当前学员和批次"
-                                    draft.forceActiveFocus()
-                                }
                             }
                             ToolButton {
-                                objectName: modelData.key === "feedback" ? "addFeedbackShortcutButton" : ""
-                                text: "+"; enabled: feedbackChoice.enabled
-                                ToolTip.visible: hovered; ToolTip.text: "新增快捷填写选项"
-                                onClicked: shortcutDialog.open()
+                                objectName: modelData.key === "feedback" ? (card.service === card.workflow ? "feedbackShortcutButton" : "floatingFeedbackShortcutButton") : ""
+                                enabled: !draft.readOnly
+                                implicitWidth: 28; implicitHeight: card.compact ? 27 : 32
+                                Accessible.name: "快捷填写"
+                                contentItem: Canvas {
+                                    implicitWidth: 10; implicitHeight: 6
+                                    onEnabledChanged: requestPaint()
+                                    onPaint: {
+                                        var context = getContext("2d")
+                                        context.clearRect(0, 0, width, height)
+                                        context.fillStyle = enabled ? "#344054" : "#98a2b3"
+                                        context.beginPath()
+                                        context.moveTo(width / 2 - 4, height / 2 - 2)
+                                        context.lineTo(width / 2 + 4, height / 2 - 2)
+                                        context.lineTo(width / 2, height / 2 + 2)
+                                        context.closePath(); context.fill()
+                                    }
+                                }
+                                property var menu: shortcutsMenu
+                                ToolTip.visible: hovered; ToolTip.text: "快捷填写"
+                                onClicked: { Qt.inputMethod.commit(); shortcutsMenu.open() }
+                            }
+                            Menu {
+                                id: shortcutsMenu
+                                objectName: modelData.key === "feedback" ? (card.service === card.workflow ? "feedbackShortcutMenu" : "floatingFeedbackShortcutMenu") : ""
+                                parent: Overlay.overlay
+                                width: Math.min(feedbackRow.width, parent ? parent.width - 16 : feedbackRow.width)
+                                property real availableSpace: 320
+                                property string capturedKey: ""
+                                height: Math.min(implicitHeight, availableSpace)
+                                onAboutToShow: {
+                                    capturedKey = card.loadedKey
+                                    var point = feedbackRow.mapToItem(parent, 0, 0)
+                                    var below = point.y + feedbackRow.height + 4
+                                    var above = point.y - 4
+                                    var bottomSpace = Math.max(0, parent.height - below - 8)
+                                    availableSpace = Math.max(bottomSpace, above - 8)
+                                    x = Math.max(8, Math.min(point.x, parent.width - width - 8))
+                                    y = bottomSpace >= height ? below : above - height
+                                }
+                                Instantiator {
+                                    model: modelData.key === "feedback" ? card.workflow.feedbackShortcuts : []
+                                    delegate: MenuItem {
+                                        required property string modelData
+                                        required property int index
+                                        objectName: "feedbackShortcutOption" + index
+                                        text: modelData
+                                        onTriggered: {
+                                            shortcutsMenu.close()
+                                            if (draft.readOnly || shortcutsMenu.capturedKey !== card.loadedKey || card.loadedKey !== card.service.editorKey) return
+                                            card.loadingDraft = true
+                                            draft.text = draft.text.length ? draft.text + "；" + modelData : modelData
+                                            card.loadingDraft = false
+                                            card.saveState = card.service.queueFeedbackForSelection(card.loadedKey, draft.text) ? "等待自动保存…" : "未保存，请检查当前学员和批次"
+                                            draft.forceActiveFocus(); draft.cursorPosition = draft.text.length
+                                        }
+                                    }
+                                    onObjectAdded: function(index, object) { shortcutsMenu.insertItem(index, object) }
+                                    onObjectRemoved: function(index, object) { shortcutsMenu.removeItem(object) }
+                                }
+                                MenuSeparator {}
+                                MenuItem {
+                                    objectName: "addFeedbackShortcutItem"
+                                    text: "添加选项…"
+                                    onTriggered: {
+                                        shortcutsMenu.close()
+                                        if (shortcutsMenu.capturedKey === card.loadedKey && card.loadedKey === card.service.editorKey) shortcutDialog.open()
+                                    }
+                                }
                             }
                         }
                         Label { text: card.saveState; font.pixelSize: 11; color: card.saveState.indexOf("失败") >= 0 ? "#b42318" : "#667085"; wrapMode: Text.Wrap; Layout.fillWidth: true }
