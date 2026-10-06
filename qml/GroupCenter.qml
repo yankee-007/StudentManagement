@@ -46,6 +46,11 @@ Item {
     Component.onCompleted: loadOptions()
     function previewMessages() {
         if (!saveSettings()) return
+        // 只提醒，不强制：前缀为空时确认后再继续预览。
+        if (!prefix.text.trim()) { prefixReminder.open(); return }
+        openPreview()
+    }
+    function openPreview() {
         if(center.prepare(center.selected.prefix || "",center.selected.options)) {
             acceptRisk.checked=false
             previewList.currentIndex=0
@@ -98,9 +103,9 @@ Item {
                             Label { text: "联系人匹配方式" }
                             ComboBox { id: match; model: ["完整匹配（推荐）","包含匹配（有误匹配风险）"]; Layout.fillWidth: true; onActivated: page.scheduleSave() }
                             CheckBox { id: verifyContact; text: "使用浮窗验证联系人"; Layout.fillWidth: true; onToggled: page.scheduleSave() }
-                            CheckBox { id: singleSend; text: "每条文字或文件单独发送"; Layout.fillWidth: true; onToggled: page.scheduleSave() }
                             CheckBox { id: doSend; objectName: "groupConfirmSend"; text: "粘贴后回车发送"; Layout.fillWidth: true; onToggled: page.scheduleSave() }
-                            Label { text: "浮窗仅用于核对；取消回车发送时只粘贴，不记为已发送。"; wrapMode: Text.Wrap; Layout.fillWidth: true; color: "#667085" }
+                            CheckBox { id: singleSend; objectName: "groupSingleSend"; text: "每条消息单独发送"; Layout.fillWidth: true; enabled: doSend.checked; onToggled: page.scheduleSave() }
+                            Label { text: "浮窗仅用于核对；取消回车发送时只粘贴，不记为已发送，也不启用每条消息单独发送。"; wrapMode: Text.Wrap; Layout.fillWidth: true; color: "#667085" }
                             CheckBox { id: advanced; text: "高级等待设置"; checked: false }
                             ColumnLayout {
                                 visible: advanced.checked; Layout.fillWidth: true
@@ -181,13 +186,28 @@ Item {
         }
     }
     Dialog {
+        id: prefixReminder; objectName: "groupEmptyPrefixReminder"; anchors.centerIn: parent; modal: true; title: "联系人前缀为空"
+        width: Math.min(page.width-30,520)
+        ColumnLayout {
+            anchors.fill: parent
+            Label { text: "当前名单的联系人前缀为空，将直接使用名单中的姓名作为企业微信联系人备注。"; wrapMode: Text.Wrap; Layout.fillWidth: true }
+            Label { text: "若企业微信备注带有班级等前缀，或名单中存在同名联系人，可能匹配到错误的人。这里只提醒、不强制填写：可以返回补充前缀，也可以继续预览逐人核对。"; wrapMode: Text.Wrap; Layout.fillWidth: true; color: "#b54708" }
+            RowLayout {
+                Layout.fillWidth: true
+                Item { Layout.fillWidth: true }
+                Button { objectName: "groupEmptyPrefixBack"; text: "返回填写"; highlighted: true; onClicked: prefixReminder.close() }
+                Button { objectName: "groupEmptyPrefixContinue"; text: "继续预览"; onClicked: { prefixReminder.close(); page.openPreview() } }
+            }
+        }
+    }
+    Dialog {
         id: previewDialog; objectName: "groupSendPreview"; anchors.centerIn: parent; modal: true; title: center.selected.options.confirm_send ? "确认真实群发" : "确认仅粘贴（不发送）"
         width: Math.min(page.width-24,960); height: Math.min(page.height-24,660)
         property var currentRecipient: previewList.currentIndex>=0 && previewList.currentIndex<center.preview.length ? center.preview[previewList.currentIndex] : ({})
         ColumnLayout {
             anchors.fill: parent
             Label { text: "本轮处理 " + center.preview.length + " 人 · 其余 " + Math.max(0,center.pendingCount+center.sentCount-center.preview.length) + " 人跳过（已发送、待核实或不符合条件）"; font.bold: true; Layout.fillWidth: true; wrapMode: Text.Wrap }
-            Label { text: (center.selected.options.confirm_send ? "回车发送" : "仅粘贴，不发送") + " · " + (center.selected.options.single_send ? "按下列顺序逐条处理" : "按下列顺序粘贴"+(center.selected.options.confirm_send ? "后统一发送" : "")) + " · " + (center.selected.options.substring_mode ? "包含匹配" : "完整匹配") + " · " + (center.selected.options.verify_contact ? "验证联系人" : "不验证联系人"); Layout.fillWidth: true; wrapMode: Text.Wrap; color: "#667085" }
+            Label { objectName: "groupPreviewSummary"; text: (center.selected.options.confirm_send ? "回车发送" : "仅粘贴，不发送") + " · " + (center.selected.options.confirm_send && center.selected.options.single_send ? "按下列顺序逐条处理" : "按下列顺序粘贴"+(center.selected.options.confirm_send ? "后统一发送" : "")) + " · " + (center.selected.options.substring_mode ? "包含匹配" : "完整匹配") + " · " + (center.selected.options.verify_contact ? "验证联系人" : "不验证联系人"); Layout.fillWidth: true; wrapMode: Text.Wrap; color: "#667085" }
             RowLayout {
                 Layout.fillWidth: true; Layout.fillHeight: true; spacing: 12
                 Frame {
@@ -234,7 +254,7 @@ Item {
                     }
                 }
             }
-            Label { text: "请登录企业微信并保持空输入框。处理期间不要操作电脑；F11 会在当前联系人完成后暂停。"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: "#b54708" }
+            Label { text: "请登录企业微信并保持空输入框。处理期间不要操作电脑；F11 会在当前联系人完成后暂停。单个联系人失败不会中止本轮：未粘贴的记为「未发送失败」并留在待处理，粘贴后异常记为「结果待确认」，需核对后重试。"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: "#b54708" }
             CheckBox { id: acceptRisk; objectName: "groupAcceptRisk"; visible: center.selected.options.substring_mode || !center.selected.options.verify_contact; text: "已核对联系人，了解包含匹配或不验证联系人可能导致误发"; Layout.fillWidth: true }
             Label { text: center.status; Layout.fillWidth: true; wrapMode: Text.Wrap; color: "#b54708" }
             RowLayout {

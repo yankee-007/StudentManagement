@@ -211,6 +211,26 @@ class GroupCenter(QObject):
             self._reload_snapshot(lists=True);self._notify_preview();self._notify_status();return True
         except Exception as exc:self._notice='创建失败：'+str(exc);self._notify_status();return False
 
+    @Slot(str,'QVariantList','QVariantList',result=bool)
+    def createFromLiveAbsence(self,title,fields,record_keys):
+        """Independent list of the students the live-absence module is currently showing."""
+        if self.active:return False
+        try:
+            source=self.owner.liveAbsence
+            if list(record_keys)!=source.recipientKeys:raise ValueError('班级、节次或名单已变化，请重新打开生成名单窗口')
+            people=source.build_people(fields)
+            if not people:raise ValueError('当前没有可提醒的未进入学员')
+            self._id=self.store.create(title,people,content_template=fields)
+            # 每节课只提醒一次：名单真的建出来以后才写下本节的提醒标记。
+            # 名单已经存在，标记失败只能提示，不能让操作者以为创建失败。
+            try:source.mark_reminded([p['learning_data']['student_id'] for p in people],self._id)
+            except Exception as exc:mark_error='；本节提醒标记写入失败：'+str(exc)
+            else:mark_error=''
+            self._preview=[];self._confirmation=None
+            self._notice=f'已创建 {len(people)} 人的独立名单，尚未发送'+mark_error
+            self._reload_snapshot(lists=True);self._notify_preview();self._notify_status();return True
+        except Exception as exc:self._notice='创建失败：'+str(exc);self._notify_status();return False
+
     @Slot(str,'QVariantList','QVariantList',bool,result=bool)
     def createFromCampaignSelection(self,title,fields,record_keys,names_only):
         wf=self.owner.workflow
@@ -420,7 +440,8 @@ class GroupCenter(QObject):
             options=self.selected['options']
             driver=WeComSender(options)
             self._hotkey.start()
-            self._worker=SendWorker(self.store,self._id,list(self._preview),lambda:driver,self,adapter=adapter,options=options)
+            # 发送失败不中断本轮：失败者保留在待处理，其余联系人继续处理。
+            self._worker=SendWorker(self.store,self._id,list(self._preview),lambda:driver,self,adapter=adapter,options=options,continue_on_failure=True)
             self._worker.progress.connect(self._progress)
             self._worker.rowFinished.connect(self._row_finished)
             self._worker.paused.connect(self._on_paused)

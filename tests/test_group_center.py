@@ -1,12 +1,13 @@
 import unittest
 from unittest.mock import Mock, patch
 from PySide6.QtCore import QCoreApplication
+from PySide6.QtTest import QTest
 from app.group_dispatch import GroupStore
 from app.send_options import normalize
 from app import group_dispatch as adapter
-from app.send_controller import SendWorker
+from app.send_controller import F11Hotkey, SendWorker
 from app import sending_store as source
-from app.wecom_sender import WeComSender
+from app.wecom_sender import DispatchError, WeComSender
 from tests.test_business_logic import seeded
 from tests.test_real_sending import prepare
 
@@ -38,6 +39,31 @@ class GroupCenterTests(unittest.TestCase):
         self.assertIn((.8,),[c.args for c in sleep.call_args_list])
         self.assertIn((.9,),[c.args for c in sleep.call_args_list])
         self.assertEqual(driver._copy.call_args.args,('指定消息',))
+
+    def test_send_failure_continues_and_failed_recipient_stays_pending(self):
+        with seeded(3) as b, patch('app.wecom_sender.WeComSender') as factory, patch.object(F11Hotkey,'start'):
+            g=b.groupCenter
+            self.assertTrue(g.createCustom('失败继续','甲|第一条\n乙|第二条\n丙|第三条'))
+            list_id=g.selected['id']
+            self.assertTrue(g.prepare('',{}),g.status)
+            driver=factory.return_value
+            def send(contact,content):
+                if contact=='甲':raise DispatchError('联系人浮窗标题不匹配，未发送')
+                return source.SENT
+            driver.send.side_effect=send
+            self.assertTrue(g.start(),g.status)
+            worker=g._worker
+            self.assertTrue(worker and worker.wait(10000),'发送线程未结束')
+            for _ in range(200):
+                QTest.qWait(10)
+                if not g.active:break
+            self.assertFalse(g.active,'发送线程状态未回收')
+            self.assertEqual(driver.send.call_count,3)  # The failure does not end the round.
+            self.assertEqual({r['name']:r['state'] for r in g.store.rows(list_id)},
+                             {'甲':source.FAILED,'乙':source.SENT,'丙':source.SENT})
+            self.assertEqual([r['name'] for r in g.pendingModel.rows],['甲'])
+            self.assertEqual([r['name'] for r in g.store.plan(list_id)],['甲'])
+            self.assertIn('1 人发送失败仍在待处理',g.status)
 
     def test_custom_names_messages_persist_without_creating_campaign(self):
         with seeded(1) as b:

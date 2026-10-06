@@ -671,6 +671,9 @@ class Workflow(QObject):
             # The remark module reads this class's own database, so switching class
             # must re-read its roster and prefix (never mid-run).
             self.owner.remarkRenamer.reload()
+        if hasattr(self.owner,'_live_absence'):
+            # Same reason: lesson cache, roster join and reminder marks are per class/term.
+            self.owner.liveAbsence.reload()
 
     def select_term_id(self, term_id):
         index=next((i for i,e in enumerate(self._classes) if str(e.get('term_id'))==str(term_id)),-1)

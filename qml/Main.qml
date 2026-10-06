@@ -28,6 +28,7 @@ ApplicationWindow {
         else if (index === 3) backend.settingsModule.refresh()
         else if (index === 4) backend.groupCenter.refresh()
         else if (index === 5) backend.remarkRenamer.reload()
+        else if (index === 6) backend.liveAbsence.activate()
     }
     CampaignExportDialog { id: batchExportDialog; workflow: root.wf }
     CampaignFieldDialog { id: fieldDialog; workflow: root.wf }
@@ -45,12 +46,13 @@ ApplicationWindow {
             Button { text: "设置"; highlighted: root.moduleIndex === 3; onClicked: root.switchModule(3) }
             Button { text: "群发中心"; highlighted: root.moduleIndex === 4; onClicked: root.switchModule(4) }
             Button { text: "备注批改"; highlighted: root.moduleIndex === 5; onClicked: root.switchModule(5) }
+            Button { text: "未进直播间"; highlighted: root.moduleIndex === 6; onClicked: root.switchModule(6) }
             ComboBox {
                 objectName: "classSelector"
                 popup.objectName: "classSelectorPopup"
-                visible: root.moduleIndex === 0 || root.moduleIndex === 1 || root.moduleIndex === 5
+                visible: root.moduleIndex === 0 || root.moduleIndex === 1 || root.moduleIndex === 5 || root.moduleIndex === 6
                 model: wf.classes; currentIndex: wf.classIndex
-                enabled: !backend.busy && !backend.termsModule.busy && !sender.active && !wf.sender.active && !backend.contactOpener.active && !backend.remarkRenamer.active
+                enabled: !backend.busy && !backend.termsModule.busy && !sender.active && !wf.sender.active && !backend.contactOpener.active && !backend.remarkRenamer.active && !backend.liveAbsence.busy
                 Layout.preferredWidth: 125
                 onActivated: function(index) {
                     popup.close()
@@ -189,6 +191,7 @@ ApplicationWindow {
     SettingsModule { visible: root.moduleIndex === 3; anchors.fill: parent; anchors.margins: 12 }
     GroupCenter { id: groupCenterPage; visible: root.moduleIndex === 4; anchors.fill: parent; anchors.margins: 12 }
     RemarkRenamer { id: remarkRenamerPage; visible: root.moduleIndex === 5; anchors.fill: parent; anchors.margins: 12 }
+    LiveAbsence { id: liveAbsencePage; visible: root.moduleIndex === 6; anchors.fill: parent; anchors.margins: 12; onOpenGroupCenter: root.switchModule(4) }
     ProfileFilterDialog { id: columnDialog; filterObjectName: "campaignColumnFilter"; profiles: root.wf }
     Dialog {
         id: createDialog; anchors.centerIn: parent; modal: true; title: "建立新的催办批次"; standardButtons: Dialog.Ok | Dialog.Cancel

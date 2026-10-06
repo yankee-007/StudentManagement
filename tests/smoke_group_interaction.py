@@ -105,17 +105,36 @@ def run():
         assert item('groupPreviewButton').parent().property('visible')
         assert window.findChild(QObject, 'saveGroupSettings') is None
         assert window.findChild(QObject, 'resetGroupSettings') is None
+        # The per-message option sits directly under "paste then Enter" and follows it.
+        confirm_send = item('groupConfirmSend')
+        single_send = item('groupSingleSend')
+        assert single_send.property('text') == '每条消息单独发送'
+        assert single_send.property('enabled') and single_send.property('y') > confirm_send.property('y')
+        # An empty contact prefix only warns: the preview can still continue.
+        click('groupPreviewButton')
+        reminder = item('groupEmptyPrefixReminder')
+        assert reminder.property('visible') and not item('groupSendPreview').property('visible')
+        capture('group-empty-prefix.png')
+        click('groupEmptyPrefixBack')
+        assert not reminder.property('visible') and not item('groupSendPreview').property('visible')
+        click('groupPreviewButton')
+        assert reminder.property('visible')
+        click('groupEmptyPrefixContinue')
+        assert item('groupSendPreview').property('visible')
+        click('groupPreviewBack')
         item('groupContactPrefix').setProperty('text', '测试班-')
-        item('groupConfirmSend').setProperty('checked', False)
+        confirm_send.setProperty('checked', False)
         QTest.qWait(750)
         assert g.selected['prefix'] == '测试班-'
         assert not g.selected['options']['confirm_send']
+        assert not single_send.property('enabled'), '未勾选回车发送时不应还能选择每条消息单独发送'
         assert not g.preview
 
         # Preview is per person, preserves file/text order, and never invokes the driver.
         click('groupPreviewButton')
         preview = item('groupSendPreview')
         assert preview.property('visible') and len(g.preview) == 3
+        assert item('groupPreviewSummary').property('text').startswith('仅粘贴，不发送 · 按下列顺序粘贴')
         assert item('groupPreviewContact').property('text') == '联系人：测试班-张三'
         assert item('groupStartButton').property('text') == '开始粘贴 · 3 人'
         click('groupPreviewNext')
@@ -153,7 +172,9 @@ def run():
         # The existing contact-risk acknowledgment remains required and resets each preview.
         assert g.saveOptions(list_id, '测试班-', dict(confirm_send=True, verify_contact=False))
         invoke(item('groupCenterPage'), 'loadOptions')
+        assert item('groupSingleSend').property('enabled'), '恢复回车发送后应重新可选'
         click('groupPreviewButton')
+        assert item('groupPreviewSummary').property('text').startswith('回车发送 · ')
         assert item('groupAcceptRisk').property('visible')
         assert not item('groupStartButton').property('enabled')
         item('groupAcceptRisk').setProperty('checked', True)

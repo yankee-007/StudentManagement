@@ -40,11 +40,14 @@ class SendWorker(QThread):
     progress=Signal(str)
     rowFinished=Signal()
     paused=Signal()
-    def __init__(self,store,batch,tasks,driver_factory,parent=None,adapter=None,options=None):
+    def __init__(self,store,batch,tasks,driver_factory,parent=None,adapter=None,options=None,continue_on_failure=False):
         super().__init__(parent)
         self.store,self.batch,self.tasks,self.driver_factory=store,batch,tasks,driver_factory
         self.receipts=adapter or receipts
         self.options=options or {}
+        # Group-center rounds keep going after a per-contact failure; the campaign
+        # sender keeps stopping the round so the operator can inspect the desktop.
+        self.continue_on_failure=continue_on_failure
         self.pause_requested=threading.Event()
         self.stop_requested=threading.Event()
         self.wake=threading.Event()
@@ -57,6 +60,7 @@ class SendWorker(QThread):
         try:
             driver=self.driver_factory()
             driver.pause_requested=self.pause_requested.is_set
+            failed=0;uncertain=0
             for index,task in enumerate(self.tasks):
                 if self.pause_requested.is_set() and not self.stop_requested.is_set():
                     self.paused.emit()
@@ -75,8 +79,15 @@ class SendWorker(QThread):
                     result=receipts.UNKNOWN if exc.uncertain else receipts.FAILED
                     self.receipts.finish(self.store,self.batch,task,attempt,result,str(exc))
                     self.rowFinished.emit()
-                    self.progress.emit(f'{task["name"]}：{result}，{exc}。本轮停止，请检查后重新预览。')
-                    return
+                    if not self.continue_on_failure:
+                        self.progress.emit(f'{task["name"]}：{result}，{exc}。本轮停止，请检查后重新预览。')
+                        return
+                    # The failure stays in the pending list; the round keeps its order.
+                    if exc.uncertain:uncertain+=1
+                    else:failed+=1
+                    self.progress.emit(f'{index+1}/{len(self.tasks)} · {task["name"]}：{result}，{exc}。已记录，继续下一位')
+                    self.wake.wait(self.options.get('interval',0));self.wake.clear()
+                    continue
                 except Exception as exc:
                     self.receipts.finish(self.store,self.batch,task,attempt,receipts.UNKNOWN,str(exc))
                     self.rowFinished.emit()
@@ -85,7 +96,13 @@ class SendWorker(QThread):
                 self.receipts.finish(self.store,self.batch,task,attempt,state,'仅粘贴，未执行回车' if state!='已发送' else '已发送')
                 self.rowFinished.emit()
                 self.wake.wait(self.options.get('interval',0));self.wake.clear()
-            self.progress.emit('本轮处理完成，发送结果已自动记录')
+            if failed or uncertain:
+                summary=[]
+                if failed:summary.append(f'{failed} 人发送失败仍在待处理，可重新预览后重试')
+                if uncertain:summary.append(f'{uncertain} 人结果待确认，需人工核实')
+                self.progress.emit('本轮处理完成；'+'；'.join(summary))
+            else:
+                self.progress.emit('本轮处理完成，发送结果已自动记录')
         except Exception as exc:
             self.progress.emit('发送停止：'+str(exc)+'；如有发送中记录，请人工确认，勿直接重发')
 
