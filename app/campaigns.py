@@ -7,6 +7,7 @@ import re
 from datetime import date, datetime
 from .dashboard import learning_dashboard
 from .profile_storage import format_exemption
+from .remark_scan import SCHEMA as REMARK_SCHEMA
 
 EXPORT_COLUMNS = [('student_id','学号'), ('name','姓名'), ('courses','未完课次'),
                   ('homework','未完作业'), ('missing_total','欠交合计'),
@@ -39,6 +40,7 @@ CREATE TABLE IF NOT EXISTS campaign_drafts (
  FOREIGN KEY(batch_id,student_id) REFERENCES campaign_students(batch_id,student_id)
 );
 CREATE TABLE IF NOT EXISTS student_contacts (student_id TEXT PRIMARY KEY, remark TEXT NOT NULL);
+''' + REMARK_SCHEMA + '''
 CREATE TABLE IF NOT EXISTS campaign_dashboards (
  batch_id INTEGER PRIMARY KEY REFERENCES campaigns(id), data TEXT NOT NULL
 );
@@ -102,6 +104,13 @@ class CampaignStore:
                     item.update(singleCompleted=item['completed'],singleRate=item['completedRate'],
                                 completed='—',completedRate='—',difference='—')
                 notice+=' · 旧版仅保存单节数据，累计指标无法还原，显示 —'
+            if data.get('version',1)<3:
+                # 累计人数与完课次数分布是 version 3 才写入快照的；旧快照只在累计率可还原时显示 —。
+                if data.get('version',1)>=2:
+                    data['cumulative']=dict(opened=0,courses='—',homework='—')
+                    data['cumulativeCourse']=data['cumulativeHomework']='—'
+                data['completion']={'courses':[],'homework':[]}
+                notice+=' · 旧版快照未保存完课次数分布，该分栏暂无数据'
             return dict(data,notice=notice,available=True)
         return dict(total=0,matched=0,courses=[],homework=[],available=False,
                     notice='该历史批次未保存看板快照，无法准确还原；请新建催办生成快照' if batch else '尚未建立催办，请新建催办生成学习数据快照')

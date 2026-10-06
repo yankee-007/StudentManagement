@@ -152,3 +152,57 @@ class CampaignTests(unittest.TestCase):
             self.assertEqual(rows['002']['completed_courses'],'')
             self.assertEqual(rows['002']['source_sync'],'')
             self.assertFalse(rows['002']['eligible'])
+
+    def _dashboard_batch(self,folder):
+        """在读身份必须走班期名单同步：看板分母只认 roster_status='在读'。"""
+        from app.roster_sync import sync_roster
+        b=Backend(Path(folder)/'test.db')
+        term=dict(termId=564,termNo='P2026175',termName='测试班')
+        sync_roster(b.db,term,[dict(student_id=f'P2026175{i:03d}A',name=f'学员{i}',status='在读',
+                                    student_type='新生',nickname='',source='接口学员') for i in (1,2)])
+        for sid in ('P2026175001A','P2026175002A'):
+            b.repo.update_profile_field(sid,'微信','是')
+        b.repo.set_setting('snapshot',json.dumps([
+            {'student_id':'P2026175001A','flags':{'c1':'T','c2':'T','z1':'T','z2':'F'}},
+            {'student_id':'P2026175002A','flags':{'c1':'T','c2':'F','z1':'F','z2':'F'}}]))
+        b.workflow.createBatch()
+        return b
+
+    def test_dashboard_total_and_cumulative_agree_with_completion_buckets(self):
+        with tempfile.TemporaryDirectory() as folder:
+            b=self._dashboard_batch(folder)
+            data=b.workflow.dashboard
+            self.assertEqual(data['version'],3)
+            self.assertEqual(data['total'],2)
+            self.assertEqual(data['opened'],2)
+            self.assertEqual(data['cumulative']['courses'],1)   # 只有 001 完成第 1～2 节
+            self.assertEqual(data['cumulative']['courses'],b.workflow.store.dashboard(b.workflow._batch)['courses'][-1]['completed'])
+            buckets=data['completion']['courses']
+            self.assertEqual([(r['count'],r['people']) for r in buckets],[(2,1),(1,1),(0,0)])
+            self.assertEqual(sum(r['people'] for r in buckets),data['total'])
+            self.assertEqual([r['cumulative'] for r in buckets],[1,2,2])
+            # 历史批次冻结，因此由 Workflow 补算的「可跟进人数」只在最新批次出现。
+            self.assertEqual([r.get('followable') for r in buckets],[1,1,0])
+            self.assertNotIn('followable',b.workflow.store.dashboard(b.workflow._batch)['completion']['courses'][0])
+
+    def test_old_snapshot_versions_hide_completion_buckets(self):
+        with tempfile.TemporaryDirectory() as folder:
+            b=self._dashboard_batch(folder)
+            batch=b.workflow._batch
+            with b.db.connect() as conn:
+                stored=json.loads(conn.execute('SELECT data FROM campaign_dashboards WHERE batch_id=?',(batch,)).fetchone()[0])
+                stored['version']=2
+                conn.execute('UPDATE campaign_dashboards SET data=? WHERE batch_id=?',(json.dumps(stored,ensure_ascii=False),batch))
+            b.workflow.refresh_dashboard()
+            old=b.workflow.dashboard
+            self.assertEqual(old['completion'],{'courses':[],'homework':[]})
+            self.assertEqual((old['cumulative']['courses'],old['cumulativeHomework']),('—','—'))
+            self.assertIn('旧版快照未保存完课次数分布',old['notice'])
+            self.assertNotIn('累计指标无法还原',old['notice'])
+            with b.db.connect() as conn:
+                stored=json.loads(conn.execute('SELECT data FROM campaign_dashboards WHERE batch_id=?',(batch,)).fetchone()[0])
+                stored['version']=1
+                conn.execute('UPDATE campaign_dashboards SET data=? WHERE batch_id=?',(json.dumps(stored,ensure_ascii=False),batch))
+            b.workflow.refresh_dashboard()
+            self.assertIn('累计指标无法还原',b.workflow.dashboard['notice'])
+            self.assertEqual(b.workflow.dashboard['courses'][0]['completedRate'],'—')

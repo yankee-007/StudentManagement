@@ -250,6 +250,30 @@ class Workflow(QObject):
 
     def refresh_dashboard(self):
         self._dashboard=self.store.dashboard(self._batch)
+        self._attach_followable()
+
+    def _attach_followable(self):
+        """「可跟进人数」＝该完课次数桶里已有反馈记录、且不是「未回复」标记的学员。
+
+        分布本身是快照口径（历史批次冻结），但反馈会随登记变化，且只有最新批次的反馈可改，
+        因此只在最新批次上计算；历史批次这一列保持为空。
+        """
+        data=self._dashboard
+        completion=data.get('completion') if isinstance(data,dict) else None
+        if not completion or not self._batch:return
+        if self._batches and self._batch!=self._batches[0]['id']:return
+        try:
+            opened=data.get('opened',0)
+            states={}
+            for row in self.store.rows(self._batch):
+                if row.get('is_placeholder'):continue
+                try:value=int(row.get('completed_courses') or 0)
+                except (TypeError,ValueError):continue
+                states[min(value,opened)]=states.get(min(value,opened),0)+(row['reply_state']not in ('未回复','—'))
+            for bucket in completion.get('courses') or []:
+                bucket['followable']=states.get(bucket['count'],0)
+        except Exception as exc:
+            self.owner.toast.emit('可跟进人数统计失败：'+str(exc))
     @Property(str,notify=changed)
     def template(self): return self.owner.repo.get_setting('campaign_template',TEST_TEMPLATE)
     @Property(str,notify=changed)
