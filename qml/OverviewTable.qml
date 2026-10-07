@@ -41,7 +41,7 @@ Rectangle {
                         required property int index
                         width: body.width; height: 34; padding: 0
                         Accessible.name: modelData.cells.join("，")
-                        background: Rectangle { color: root.selectedKey === parent.modelData.key ? UiTheme.selection : parent.hovered ? "#eef3fb" : parent.index % 2 ? UiTheme.stripe : UiTheme.surface; border.width: parent.visualFocus ? 1 : 0; border.color: UiTheme.accent }
+                        background: Rectangle { color: root.selectedKey === parent.modelData.key ? UiTheme.selection : parent.hovered ? UiTheme.hover : parent.index % 2 ? UiTheme.stripe : UiTheme.surface; border.width: parent.visualFocus ? 1 : 0; border.color: UiTheme.accent }
                         contentItem: Row {
                             Repeater {
                                 model: modelData.cells

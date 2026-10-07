@@ -60,6 +60,10 @@ Rectangle {
     onEndIndexChanged: redraw()
     onMinimumChanged: redraw()
     onMaximumChanged: redraw()
+    Connections {
+        target: UiTheme
+        function onDarkModeChanged() { root.redraw() }
+    }
     ColumnLayout {
         id: content; anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; anchors.margins: 12; spacing: 8
         Label { text: root.title; font.bold: true; color: UiTheme.ink; Layout.fillWidth: true }
@@ -70,7 +74,7 @@ Rectangle {
                 Row {
                     required property var modelData
                     spacing: 4
-                    Label { text: modelData.dashed ? "┄┄" : "━━"; color: modelData.color; font.bold: true }
+                    Label { text: modelData.dashed ? "┄┄" : "━━"; color: UiTheme.chartColor(modelData.color); font.bold: true }
                     Label { text: modelData.name; color: UiTheme.muted; font.pixelSize: 12 }
                 }
             }
@@ -91,11 +95,11 @@ Rectangle {
                 for (var t = 0; t <= 4; ++t) {
                     var value = root.minimum + (root.maximum-root.minimum)*t/4
                     var yv = plotY(value)
-                    ctx.beginPath(); ctx.strokeStyle = "#e7edf3"; ctx.moveTo(leftEdge,yv); ctx.lineTo(rightEdge,yv); ctx.stroke()
+                    ctx.beginPath(); ctx.strokeStyle = UiTheme.chartGrid; ctx.moveTo(leftEdge,yv); ctx.lineTo(rightEdge,yv); ctx.stroke()
                     ctx.fillText(Math.round(value) + root.chart.suffix, leftEdge-7, yv+4)
                 }
                 for (var threshold of root.chart.thresholds) {
-                    ctx.beginPath(); ctx.strokeStyle = threshold <= 5 ? "#14765a" : threshold <= 10 ? UiTheme.accent : UiTheme.warning
+                    ctx.beginPath(); ctx.strokeStyle = threshold <= 5 ? UiTheme.chartSuccess : threshold <= 10 ? UiTheme.accent : UiTheme.warning
                     ctx.setLineDash([4,4]); ctx.moveTo(leftEdge,plotY(threshold)); ctx.lineTo(rightEdge,plotY(threshold)); ctx.stroke(); ctx.setLineDash([])
                     ctx.textAlign = "left"; ctx.fillStyle=ctx.strokeStyle
                     if (root.chart.thresholds.length !== 3 || Math.abs(plotY(threshold)-plotY(threshold+5)) >= 14)
@@ -108,7 +112,7 @@ Rectangle {
                     if ((i-root.startIndex)%stride===0 || i===root.endIndex) ctx.fillText(root.categoryPrefix+root.chart.labels[i]+root.categorySuffix, plotX(i), height-8)
                 }
                 for (var series of root.chart.series) {
-                    ctx.beginPath(); ctx.strokeStyle=series.color; ctx.lineWidth=2; ctx.setLineDash(series.dashed ? [6,4] : [])
+                    ctx.beginPath(); ctx.strokeStyle=UiTheme.chartColor(series.color); ctx.lineWidth=2; ctx.setLineDash(series.dashed ? [6,4] : [])
                     var move=true
                     for (var j=root.startIndex; j<=root.endIndex; ++j) {
                         var v=series.values[j]
@@ -119,7 +123,7 @@ Rectangle {
                     ctx.stroke(); ctx.setLineDash([])
                     for (var k=root.startIndex; k<=root.endIndex; ++k) if (series.values[k]!==null && series.values[k]!==undefined) {
                         ctx.beginPath(); ctx.arc(plotX(k),plotY(series.values[k]),series.dashed ? 4 : 3,0,Math.PI*2)
-                        ctx.fillStyle=series.dashed ? "white" : series.color; ctx.fill(); ctx.stroke()
+                        ctx.fillStyle=series.dashed ? UiTheme.surface : UiTheme.chartColor(series.color); ctx.fill(); ctx.stroke()
                     }
                 }
                 var selected = root.chart.labels.indexOf(root.selectedKey)
@@ -147,7 +151,7 @@ Rectangle {
                     required property var modelData
                     font.pixelSize: 12
                     text: "┄ " + (root.chart.thresholds.length === 3 ? (modelData===5 ? "优秀 " : modelData===10 ? "良好 " : "及格 ") : "目标 ") + modelData + root.chart.suffix
-                    color: modelData <= 5 ? "#14765a" : modelData <= 10 ? UiTheme.accent : UiTheme.warning
+                    color: modelData <= 5 ? UiTheme.chartSuccess : modelData <= 10 ? UiTheme.accent : UiTheme.warning
                 }
             }
         }

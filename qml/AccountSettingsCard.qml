@@ -14,8 +14,8 @@ SettingsCard {
 
     subtitle: platform === "completion" ? "追光鲸鱼后台账号" : "作业平台后台账号"
     tag: record.saved ? "密码已保存" : "尚未保存密码"
-    tagColor: record.saved ? "#027a48" : UiTheme.warning
-    tagBackground: record.saved ? "#ecfdf3" : "#fffaeb"
+    tagColor: record.saved ? UiTheme.success : UiTheme.warning
+    tagBackground: record.saved ? UiTheme.successSurface : UiTheme.warningSurface
 
     headerRight: Rectangle {
         implicitWidth: tagLabel.implicitWidth + 16
@@ -55,7 +55,7 @@ SettingsCard {
     Label {
         text: card.verification.message || ""
         visible: text.length > 0
-        color: card.verification.state === "success" ? "#027a48" : card.verification.state === "error" ? "#b42318" : UiTheme.muted
+        color: card.verification.state === "success" ? UiTheme.success : card.verification.state === "error" ? UiTheme.danger : UiTheme.muted
         font.pixelSize: 12; wrapMode: Text.Wrap
         Layout.fillWidth: true
     }
@@ -65,7 +65,7 @@ SettingsCard {
         spacing: 8
         Label {
             text: card.record.saved ? "保存后不会在界面回显密码。" : "保存后不会在界面回显密码，下次获取数据时生效。"
-            color: "#98a2b3"; font.pixelSize: 12
+            color: UiTheme.subtle; font.pixelSize: 12
             elide: Text.ElideRight
             Layout.fillWidth: true
         }

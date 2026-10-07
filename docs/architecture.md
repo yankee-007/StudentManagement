@@ -30,6 +30,7 @@ Backend / TermModule / SettingsModule / LiveAbsence → AcquisitionTask（QThrea
 ## Python ↔ QML 与状态
 
 - QML 展示层共用 UiTheme、UiButton、UiTextField、UiComboBox、UiPanel；本地 qmldir 注册主题单例。左侧导航调用原 switchModule，群发中心位于最后。班期学员／画像／催办等共用顶部 classSelector，班期页通过 Workflow.selectClass → TermModule.alignTerm/activate 跟随当前班级；activate 和班期目录刷新均按当前班级 term_id 选择缓存，未关联平台的旧导入班级显示空名单及选择提示，避免显示另一班期的缓存。调试重启保留原保护条件。工作台／画像窄窗口切换列表与详情的可见性，不销毁编辑组件、不改保存和业务接口。群发参数常驻左侧，消息视口保留横向滚动。
+- SettingsModule.appearanceMode 读取主 registry 的 settings.appearance_mode（light/dark，旧库或无效值默认 light），保存成功后只发 appearanceChanged，不广播账号/绑定 changed。UiTheme 绑定该属性，统一语义颜色与 Fusion Palette；主窗口和两个独立 Window 共享此 Palette。OverviewChart 将既有业务颜色映射为主题颜色并延迟重绘，保留当前选择/缩放。Backend 日期弹窗和 LeaveCalendar 使用对应 QWidget Palette，包含自绘日期格与星期标题；文件选择器仍由 Windows 原生界面承载。
 
 - Backend 以常量 QObject Property 暴露模块；QML 使用 QVariantMap/List 读取行、字段、参数，调用 Slot，以 notify signal 更新绑定。
 - DictTableModel 是 QAbstractTableModel，角色包括 display、studentId、recordKey、expiredCell、staleRow。set_rows 重置模型，reconcile_rows 用增删移动/数据通知减少委托重建。

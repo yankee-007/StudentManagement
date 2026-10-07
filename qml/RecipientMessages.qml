@@ -126,7 +126,7 @@ Item {
                     required property var display
                     required property int index
                     property bool configurable: index>0 && index<=center.pendingFieldCount && panel.canManage
-                    implicitWidth: 220; implicitHeight: 34; color: headerTap.containsMouse && configurable ? "#dbeafe" : "#eef2f8"
+                    implicitWidth: 220; implicitHeight: 34; color: headerTap.containsMouse && configurable ? UiTheme.selection : UiTheme.stripe
                     Text { anchors.fill: parent; anchors.margins: 7; text: display + (configurable ? " · 批量编辑" : ""); elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter; color: UiTheme.ink }
                     MouseArea { id: headerTap; anchors.fill: parent; enabled: parent.configurable; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: panel.openColumnEditor(index-1) }
                 }
@@ -145,9 +145,9 @@ Item {
                     required property string display
                     required property string recordKey
                     implicitWidth: 220; implicitHeight: 52
-                    color: recordKey===String(panel.selectedRow.id || "") ? UiTheme.selection : row%2 ? UiTheme.stripe : "white"
+                    color: recordKey===String(panel.selectedRow.id || "") ? UiTheme.selection : row%2 ? UiTheme.stripe : UiTheme.surface
                     border.width: recordKey===String(panel.selectedRow.id || "") && column>0 && column===panel.selectedField+1 ? 1 : 0
-                    border.color: "#809aff"
+                    border.color: UiTheme.focus
                     Text { anchors.fill: parent; anchors.margins: 7; text: display; textFormat: Text.PlainText; wrapMode: Text.Wrap; maximumLineCount: 2; elide: Text.ElideRight; font.pixelSize: 12; color: UiTheme.ink }
                     TapHandler {
                         onTapped: {
@@ -164,7 +164,7 @@ Item {
                     }
                 }
             }
-            Label { anchors.centerIn: parent; visible: tabs.currentIndex===0 ? center.pendingCount===0 : center.sentCount===0; text: center.selectedIndex<0 ? "先新建名单，或从催办 / 画像生成名单" : tabs.currentIndex===0 ? "本名单暂无待处理人员" : "本名单还没有已发送记录"; color: "#98a2b3" }
+            Label { anchors.centerIn: parent; visible: tabs.currentIndex===0 ? center.pendingCount===0 : center.sentCount===0; text: center.selectedIndex<0 ? "先新建名单，或从催办 / 画像生成名单" : tabs.currentIndex===0 ? "本名单暂无待处理人员" : "本名单还没有已发送记录"; color: UiTheme.subtle }
         }
         RowLayout {
             Layout.fillWidth: true

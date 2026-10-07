@@ -9,8 +9,8 @@ TextField {
     font.pixelSize: 13
     color: UiTheme.ink
     placeholderTextColor: UiTheme.muted
-    selectionColor: UiTheme.accent
-    selectedTextColor: "white"
+    selectionColor: UiTheme.accentFill
+    selectedTextColor: UiTheme.accentText
     background: Rectangle {
         radius: 5
         color: control.enabled && !control.readOnly ? UiTheme.surface : UiTheme.stripe

@@ -16,7 +16,7 @@ ColumnLayout {
         selectByMouse: true
         background: Rectangle {
             radius: 6
-            color: input.enabled ? "#f9fafc" : UiTheme.stripe
+            color: input.enabled ? UiTheme.input : UiTheme.stripe
             border.color: input.activeFocus ? UiTheme.accent : UiTheme.line
         }
     }

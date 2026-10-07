@@ -74,8 +74,8 @@ Popup {
     }
     Timer { id: frameTimer; interval: 250; onTriggered: loading.executePending() }
     Timer { id: finishTimer; onTriggered: loading.close() }
-    background: Rectangle { color: "white"; radius: 12; border.color: UiTheme.line }
-    Overlay.modal: Rectangle { color: "#660f172a" }
+    background: Rectangle { color: UiTheme.surface; radius: 12; border.color: UiTheme.line }
+    Overlay.modal: Rectangle { color: UiTheme.modalOverlay }
     contentItem: ColumnLayout {
         spacing: 12
         BusyIndicator { running: loading.visible; Layout.alignment: Qt.AlignHCenter }

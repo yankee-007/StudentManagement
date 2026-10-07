@@ -13,10 +13,13 @@ HOMEWORK_CLASSES_KEY = 'homework_classes'
 
 class SettingsModule(QObject):
     changed = Signal()
+    appearanceChanged = Signal()
 
     def __init__(self, owner):
         super().__init__(owner)
         self.owner=owner
+        saved_mode = owner.workflow.registry.get_setting('appearance_mode', 'light')
+        self._appearance_mode = saved_mode if saved_mode in ('light', 'dark') else 'light'
         self._accounts={}
         self._homework_classes=[]
         self._homework_admin=''
@@ -32,6 +35,26 @@ class SettingsModule(QObject):
 
     def shutdown(self):
         if self._task and self._task.isRunning():self._task.wait()
+
+    @Property(str, notify=appearanceChanged)
+    def appearanceMode(self):
+        return self._appearance_mode
+
+    @Slot(str, result=bool)
+    def setAppearanceMode(self, mode):
+        if mode not in ('light', 'dark'):
+            return False
+        if mode == self._appearance_mode:
+            return True
+        try:
+            self.owner.workflow.registry.set_setting('appearance_mode', mode)
+        except Exception:
+            self._notice = '外观设置保存失败，请重试。'
+            self.changed.emit()
+            return False
+        self._appearance_mode = mode
+        self.appearanceChanged.emit()
+        return True
 
     @Property('QVariantMap',notify=changed)
     def accounts(self):return self._accounts

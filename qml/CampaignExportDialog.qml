@@ -74,8 +74,8 @@ Dialog {
                 required property var modelData
                 required property int index
                 width: list.width; height: 42; radius: 5
-                color: dialog.dropIndex === index ? "#e9efff" : index % 2 ? "#f9fafb" : "white"
-                border.color: dialog.dropIndex === index ? "#809aff" : "transparent"
+                color: dialog.dropIndex === index ? UiTheme.selection : index % 2 ? UiTheme.input : UiTheme.surface
+                border.color: dialog.dropIndex === index ? UiTheme.focus : "transparent"
                 RowLayout {
                     anchors.fill: parent; anchors.margins: 3
                     Label {

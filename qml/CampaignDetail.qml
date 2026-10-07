@@ -101,7 +101,7 @@ ColumnLayout {
                                 onTextEdited: shortcutsMenu.close()
                                 onActiveFocusChanged: if (!activeFocus && !card.loadingDraft) card.workflow.flushFeedback()
                                 onAccepted: card.workflow.flushFeedback()
-                                background: Rectangle { color: "#f9fafb"; radius: 6; border.color: draft.activeFocus ? "#809aff" : UiTheme.line }
+                                background: Rectangle { color: UiTheme.input; radius: 6; border.color: draft.activeFocus ? UiTheme.focus : UiTheme.line }
                                 TapHandler {
                                     enabled: !draft.readOnly
                                     onTapped: { draft.forceActiveFocus(); shortcutsMenu.open() }
@@ -163,8 +163,8 @@ ColumnLayout {
                                 }
                             }
                         }
-                        Label { text: card.saveState; font.pixelSize: 12; color: card.saveState.indexOf("失败") >= 0 ? "#b42318" : UiTheme.muted; wrapMode: Text.Wrap; Layout.fillWidth: true }
-                        Label { text: card.service.canEdit ? "有内容即计为已回复；清空后恢复待反馈" : "历史反馈仅供查看"; font.pixelSize: 12; color: "#98a2b3"; wrapMode: Text.Wrap; Layout.fillWidth: true }
+                        Label { text: card.saveState; font.pixelSize: 12; color: card.saveState.indexOf("失败") >= 0 ? UiTheme.danger : UiTheme.muted; wrapMode: Text.Wrap; Layout.fillWidth: true }
+                        Label { text: card.service.canEdit ? "有内容即计为已回复；清空后恢复待反馈" : "历史反馈仅供查看"; font.pixelSize: 12; color: UiTheme.subtle; wrapMode: Text.Wrap; Layout.fillWidth: true }
                         CheckBox { id: historyToggle; text: "查看以往反馈（含迁移前记录）" }
                         TextArea {
                             visible: historyToggle.checked; text: historyToggle.checked ? card.service.previousFeedback : ""

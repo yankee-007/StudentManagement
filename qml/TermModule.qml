@@ -17,7 +17,7 @@ ColumnLayout {
     }
     UiPanel {
         Layout.fillWidth: true; padding: 12
-        background: Rectangle { color: "white"; radius: 8; border.color: UiTheme.line }
+        background: Rectangle { color: UiTheme.surface; radius: 8; border.color: UiTheme.line }
         ColumnLayout {
             anchors.fill: parent; spacing: 8
             RowLayout {
@@ -51,7 +51,7 @@ ColumnLayout {
     }
     UiPanel {
         Layout.fillWidth: true; Layout.fillHeight: true; padding: 1
-        background: Rectangle { color: "white"; radius: 8; border.color: UiTheme.line }
+        background: Rectangle { color: UiTheme.surface; radius: 8; border.color: UiTheme.line }
         Item {
             anchors.fill: parent
             HorizontalHeaderView {
@@ -77,12 +77,12 @@ ColumnLayout {
                     required property string display
                     required property string studentId
                     implicitHeight: UiTheme.rowHeight; implicitWidth: 100
-                    color: studentId === panel.selectedId ? UiTheme.selection : row % 2 ? UiTheme.stripe : "white"
+                    color: studentId === panel.selectedId ? UiTheme.selection : row % 2 ? UiTheme.stripe : UiTheme.surface
                     Text { anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 6; text: display; font.pixelSize: 13; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight; color: UiTheme.ink }
                     TapHandler { onTapped: panel.selectedId = studentId }
                 }
             }
-            Label { anchors.centerIn: parent; visible: service.visibleCount === 0; text: "暂无名单，或没有符合搜索条件的学员"; color: "#98a2b3" }
+            Label { anchors.centerIn: parent; visible: service.visibleCount === 0; text: "暂无名单，或没有符合搜索条件的学员"; color: UiTheme.subtle }
         }
     }
     Label {

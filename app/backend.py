@@ -311,18 +311,13 @@ class Backend(QObject):
         dialog = QDialog()
         dialog.setWindowTitle("选择免催日期" if exemption else "选择日期")
         dialog.setFixedSize(340, 300)
-        dialog.setStyleSheet('''
-            QDialog { background: #ffffff; }
-            QCalendarWidget { font-size: 14px; }
-            QCalendarWidget QWidget#qt_calendar_navigationbar { background: #eef2ff; border-radius: 8px; }
-            QCalendarWidget QToolButton { color: #335cff; padding: 10px; border: none; border-radius: 6px; }
-            QCalendarWidget QToolButton:hover { background: #dce6ff; }
-            QCalendarWidget QAbstractItemView { background: white; color: #344054; selection-background-color: #335cff; selection-color: white; border: none; outline: none; }
-            QPushButton { padding: 9px 22px; border: 1px solid #d0d5dd; border-radius: 6px; background: #f9fafb; color: #344054; }
-            QPushButton:default { background: #335cff; color: white; border: none; }
-        ''')
+        from .calendar_widget import date_dialog_theme
+        palette, stylesheet = date_dialog_theme(self.settingsModule.appearanceMode == 'dark')
+        dialog.setPalette(palette)
+        dialog.setStyleSheet(stylesheet)
         layout = QVBoxLayout(dialog)
         calendar = LeaveCalendar(dialog)
+        calendar.set_theme_palette(palette)
         calendar.setLocale(QLocale(QLocale.Chinese, QLocale.China))
         calendar.setGridVisible(False)
         calendar.setVerticalHeaderFormat(QCalendarWidget.NoVerticalHeader)

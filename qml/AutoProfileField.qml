@@ -62,7 +62,7 @@ RowLayout {
         property string savedValue: field.initialValue
         currentIndex: field.choiceOptions.indexOf(savedValue)
         displayText: currentIndex < 0 ? "原值：" + savedValue : (currentText || "未填写")
-        background: Rectangle { radius: 6; color: choice.down ? "#eef2ff" : "#f9fafb"; border.color: choice.activeFocus ? "#809aff" : UiTheme.line }
+        background: Rectangle { radius: 6; color: choice.down ? UiTheme.selection : UiTheme.input; border.color: choice.activeFocus ? UiTheme.focus : UiTheme.line }
         delegate: ItemDelegate {
             id: option
             required property string modelData
@@ -84,7 +84,7 @@ RowLayout {
                 anchors.fill: parent
                 anchors.margins: 2
                 radius: 5
-                color: option.hovered ? "#eef2ff" : "transparent"
+                color: option.hovered ? UiTheme.selection : "transparent"
             }
         }
         onActivated: {
@@ -107,7 +107,7 @@ RowLayout {
         implicitHeight: field.compact ? 27 : 32
         padding: field.compact ? 5 : 7
         selectByMouse: true
-        background: Rectangle { radius: 6; color: field.editable ? "#f9fafb" : UiTheme.stripe; border.color: input.activeFocus ? "#809aff" : UiTheme.line }
+        background: Rectangle { radius: 6; color: field.editable ? UiTheme.input : UiTheme.stripe; border.color: input.activeFocus ? UiTheme.focus : UiTheme.line }
         function persist() {
             if (field.ready && !field.loading && field.editable && activeFocus && !inputMethodComposing)
                 field.deferTextSave ? field.saveTarget.queueEditorField(field.recordKey, field.caption, text)
@@ -125,7 +125,7 @@ RowLayout {
             Layout.fillWidth: true; enabled: field.editable
             font.pixelSize: field.compact ? 10 : 12
             text: (field.initialValue || "选择日期") + (field.expired ? " · 已到期" : "")
-            palette.buttonText: field.expired ? "#98a2b3" : UiTheme.ink
+            palette.buttonText: field.expired ? UiTheme.subtle : UiTheme.ink
             onClicked: {
                 var capturedKey = field.recordKey
                 var value = field.fieldKind === "exemption" ? backend.chooseDate(field.initialValue) : backend.chooseProfileDate(field.initialValue)

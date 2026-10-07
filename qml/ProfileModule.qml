@@ -25,7 +25,7 @@ Item {
             UiPanel {
                 visible: page.width >= 760 || !page.cardExpanded
                 Layout.fillWidth: true; Layout.fillHeight: true; padding: 10
-                background: Rectangle { color: "white"; radius: 10; border.color: UiTheme.line }
+                background: Rectangle { color: UiTheme.surface; radius: 10; border.color: UiTheme.line }
                 ColumnLayout {
                     anchors.fill: parent
                     RowLayout {
@@ -54,7 +54,7 @@ Item {
                                 required property int column
                                 required property var display
                                 property bool filtered: { var f=profiles.columnFilterInfo(column); return profiles.filteredKeys.indexOf(f.key)>=0 }
-                                implicitWidth: 115; implicitHeight: UiTheme.headerHeight; color: filtered ? "#e4ecff" : UiTheme.stripe
+                                implicitWidth: 115; implicitHeight: UiTheme.headerHeight; color: filtered ? UiTheme.selection : UiTheme.stripe
                                 Text { anchors.fill: parent; anchors.margins: 6; anchors.rightMargin: 20; text: display + (parent.filtered ? " •" : ""); verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight; font.pixelSize: 12; color: UiTheme.ink }
                                 UiHeaderMarker { anchors.right: parent.right; anchors.rightMargin: 6; anchors.verticalCenter: parent.verticalCenter; width: 10; height: 10 }
                                 TapHandler { onTapped: columnFilter.openFor(column) }
@@ -75,19 +75,19 @@ Item {
                                 required property bool expiredCell
                                 required property bool staleRow
                                 implicitHeight: UiTheme.rowHeight; implicitWidth: 115
-                                color: recordKey === (page.student._record_key || "") ? UiTheme.selection : staleRow ? "#fff4e5" : row % 2 ? UiTheme.stripe : "white"
-                                Text { anchors.fill: parent; anchors.leftMargin: 6; text: display; elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter; font.pixelSize: 13; color: expiredCell ? "#98a2b3" : staleRow ? UiTheme.warning : UiTheme.ink }
+                                color: recordKey === (page.student._record_key || "") ? UiTheme.selection : staleRow ? UiTheme.warningSurface : row % 2 ? UiTheme.stripe : UiTheme.surface
+                                Text { anchors.fill: parent; anchors.leftMargin: 6; text: display; elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter; font.pixelSize: 13; color: expiredCell ? UiTheme.subtle : staleRow ? UiTheme.warning : UiTheme.ink }
                                 TapHandler { onTapped: profiles.selectRow(row) }
                             }
                         }
-                        Label { anchors.centerIn: parent; visible: profiles.visibleCount === 0; text: profiles.total ? "没有匹配的学员" : "请在班期学员中获取名单，画像将自动同步"; color: "#98a2b3" }
+                        Label { anchors.centerIn: parent; visible: profiles.visibleCount === 0; text: profiles.total ? "没有匹配的学员" : "请在班期学员中获取名单，画像将自动同步"; color: UiTheme.subtle }
                     }
                 }
             }
             UiPanel {
                 visible: page.cardExpanded
                 Layout.preferredWidth: 340; Layout.minimumWidth: 260; Layout.fillWidth: page.width < 760; Layout.fillHeight: true; padding: 16
-                background: Rectangle { color: "white"; radius: 10; border.color: UiTheme.line }
+                background: Rectangle { color: UiTheme.surface; radius: 10; border.color: UiTheme.line }
                 ColumnLayout {
                     anchors.fill: parent; spacing: 8
                     Label { text: profiles.allClasses ? "只读总览" : "资料修改后自动保存"; color: UiTheme.muted; font.pixelSize: 12; Layout.fillWidth: true }

@@ -66,7 +66,7 @@ Item {
             RowLayout {
                 Layout.fillWidth: true
                 Label { text: "设置"; font.pixelSize: 19; font.bold: true; color: UiTheme.ink }
-                Label { text: "平台账号与班期对应关系"; font.pixelSize: 12; color: "#98a2b3"; Layout.fillWidth: true }
+                Label { text: "外观、平台账号与班期对应关系"; font.pixelSize: 12; color: UiTheme.subtle; Layout.fillWidth: true }
                 UiButton { objectName: "refreshSettingsButton"; text: "刷新状态"; enabled: !page.settings.busy; onClicked: page.settings.refresh() }
             }
             Label {
@@ -76,6 +76,28 @@ Item {
                 Layout.fillWidth: true
             }
 
+            SettingsCard {
+                objectName: "appearanceSettingsCard"
+                Layout.fillWidth: true
+                title: "外观"
+                description: "切换后立即生效，主界面与浮窗同步。下次启动沿用此选择。"
+                pageScroll: pageScroll
+                RowLayout {
+                    Layout.fillWidth: true; spacing: 8
+                    Label { text: "界面模式"; color: UiTheme.muted }
+                    UiButton {
+                        objectName: "appearanceLightButton"; text: "亮色"; checked: !UiTheme.darkMode
+                        Accessible.name: "亮色模式"
+                        onClicked: page.settings.setAppearanceMode("light")
+                    }
+                    UiButton {
+                        objectName: "appearanceDarkButton"; text: "暗色"; checked: UiTheme.darkMode
+                        Accessible.name: "暗色模式"
+                        onClicked: page.settings.setAppearanceMode("dark")
+                    }
+                    Item { Layout.fillWidth: true }
+                }
+            }
             Label {
                 text: page.cardsSideBySide ? "平台账号 · 两个平台各一份账号，保存后下次获取数据生效"
                                            : "平台账号"
@@ -111,13 +133,13 @@ Item {
                     implicitWidth: bindingTag.implicitWidth + 16
                     implicitHeight: 20
                     radius: 10
-                    color: page.hasBinding() ? "#ecfdf3" : "#fffaeb"
+                    color: page.hasBinding() ? UiTheme.successSurface : UiTheme.warningSurface
                     Label {
                         id: bindingTag
                         anchors.centerIn: parent
                         text: page.hasBinding() ? "已绑定" : "未绑定"
                         font.pixelSize: 12
-                        color: page.hasBinding() ? "#027a48" : UiTheme.warning
+                        color: page.hasBinding() ? UiTheme.success : UiTheme.warning
                     }
                 }
 
@@ -167,7 +189,7 @@ Item {
                                 Layout.fillWidth: true
                                 implicitHeight: 28
                                 radius: 6
-                                color: "#f8fafc"; border.color: UiTheme.line
+                                color: UiTheme.stripe; border.color: UiTheme.line
                                 Label {
                                     anchors.left: parent.left; anchors.leftMargin: 9; anchors.verticalCenter: parent.verticalCenter
                                     text: page.selectedClass.course_ids && page.selectedClass.course_ids.length ? "课程 ID " + page.selectedClass.course_ids[0] : "尚未获取课程"
@@ -183,17 +205,17 @@ Item {
                                 SettingsWheelGuard { view: pageScroll }
                             }
                         }
-                        Label { text: page.courseLabel(); font.pixelSize: 12; color: "#98a2b3"; wrapMode: Text.Wrap; Layout.fillWidth: true }
+                        Label { text: page.courseLabel(); font.pixelSize: 12; color: UiTheme.subtle; wrapMode: Text.Wrap; Layout.fillWidth: true }
                     }
                 }
 
                 footer: ColumnLayout {
                     Layout.fillWidth: true
                     spacing: 10
-                    Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: "#eef1f6" }
+                    Rectangle { Layout.fillWidth: true; implicitHeight: 1; color: UiTheme.line }
                     RowLayout {
                         Layout.fillWidth: true
-                        Label { text: "修改班期或班级后需要重新确认。"; color: "#98a2b3"; font.pixelSize: 12; Layout.fillWidth: true; elide: Text.ElideRight }
+                        Label { text: "修改班期或班级后需要重新确认。"; color: UiTheme.subtle; font.pixelSize: 12; Layout.fillWidth: true; elide: Text.ElideRight }
                         UiButton {
                             objectName: "confirmBindingButton"
                             text: "确认绑定"
@@ -208,11 +230,11 @@ Item {
                         visible: page.hasBinding()
                         implicitHeight: 30
                         radius: 8
-                        color: "#ecfdf3"; border.color: "#d3f1e0"
+                        color: UiTheme.successSurface; border.color: UiTheme.successLine
                         RowLayout {
                             anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 10
                             spacing: 8
-                            Label { text: "✓ 已绑定"; color: "#027a48"; font.pixelSize: 12; font.bold: true }
+                            Label { text: "✓ 已绑定"; color: UiTheme.success; font.pixelSize: 12; font.bold: true }
                             Label { text: page.bindingText(); color: UiTheme.muted; font.pixelSize: 12; elide: Text.ElideRight; Layout.fillWidth: true }
                         }
                     }

@@ -70,7 +70,16 @@ with tempfile.TemporaryDirectory() as folder, \
             assert child.property('x') >= 0 and child.property('x') + child.property('width') <= card.property('width') + 1, \
                 (field, child.property('x'), child.property('width'), card.property('width'))
 
+    scroll = item('settingsScroll')
+
     def click(control):
+        # 外观卡片与后续设置可以增长：先把目标滚入视口再做真实点击。
+        top = scroll.mapToScene(QPointF()).y()
+        center = control.mapToScene(QPointF(0, control.property('height') / 2)).y()
+        if center < top + 20 or center > top + scroll.property('height') - 20:
+            target = scroll.property('contentY') + center - top - scroll.property('height') / 2
+            scroll.setProperty('contentY', min(max(0, target), max(0, scroll.property('contentHeight') - scroll.property('height'))))
+            QTest.qWait(40)
         point = control.mapToScene(QPointF(control.property('width') / 2, control.property('height') / 2)).toPoint()
         assert 0 <= point.x() < window.width() and 0 <= point.y() < window.height(), point
         QTest.mouseClick(window, Qt.LeftButton, Qt.NoModifier, point)

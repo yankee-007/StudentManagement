@@ -26,7 +26,7 @@ Item {
         }
         UiPanel {
             Layout.fillWidth: true; padding: 10
-            background: Rectangle { color: "white"; radius: 8; border.color: UiTheme.line }
+            background: Rectangle { color: UiTheme.surface; radius: 8; border.color: UiTheme.line }
             ColumnLayout {
                 anchors.fill: parent; spacing: 6
                 RowLayout {
@@ -99,7 +99,7 @@ Item {
         }
         UiPanel {
             Layout.fillWidth: true; Layout.fillHeight: true; padding: 1
-            background: Rectangle { color: "white"; radius: 8; border.color: UiTheme.line }
+            background: Rectangle { color: UiTheme.surface; radius: 8; border.color: UiTheme.line }
             Item {
                 anchors.fill: parent
                 HorizontalHeaderView {
@@ -128,9 +128,9 @@ Item {
                         required property string studentId
                         implicitHeight: UiTheme.rowHeight; implicitWidth: 100
                         color: studentId === page.selectedId ? UiTheme.selection
-                             : (column === 3 && display === "未进入") ? "#fff1f0"
-                             : (column === 7 && display !== "") ? "#fff7e6"
-                             : row % 2 ? UiTheme.stripe : "white"
+                             : (column === 3 && display === "未进入") ? UiTheme.dangerSurface
+                             : (column === 7 && display !== "") ? UiTheme.warningSurface
+                             : row % 2 ? UiTheme.stripe : UiTheme.surface
                         Text {
                             anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 6
                             text: display; font.pixelSize: 12; verticalAlignment: Text.AlignVCenter
@@ -142,7 +142,7 @@ Item {
                 Label {
                     anchors.centerIn: parent; visible: service.visibleCount === 0
                     text: service.hasResult ? "本节没有符合条件的未进入学员" : "选择节次后点「获取未进直播间名单」"
-                    color: "#98a2b3"
+                    color: UiTheme.subtle
                 }
             }
         }

@@ -37,7 +37,7 @@ UiPanel {
     }
     Layout.fillWidth: true
     padding: panel.compact ? 6 : 10
-    background: Rectangle { color: "white"; radius: 8; border.color: UiTheme.line }
+    background: Rectangle { color: UiTheme.surface; radius: 8; border.color: UiTheme.line }
     ColumnLayout {
         anchors.fill: parent
         spacing: 5
@@ -105,7 +105,7 @@ UiPanel {
             delegate: Rectangle {
                 required property var modelData
                 required property int index
-                width: list.width; height: 24; color: index % 2 ? UiTheme.stripe : "#ffffff"
+                width: list.width; height: 24; color: index % 2 ? UiTheme.stripe : UiTheme.surface
                 RowLayout {
                     anchors.fill: parent; spacing: 0
                     Repeater {
@@ -114,7 +114,7 @@ UiPanel {
                     }
                 }
             }
-            Label { anchors.centerIn: parent; visible: list.count === 0; text: !panel.stats.available ? "暂无看板快照" : panel.stats.total ? "创建该批次时暂无已开启节次的有效数据" : "该批次暂无在读学员"; color: "#98a2b3" }
+            Label { anchors.centerIn: parent; visible: list.count === 0; text: !panel.stats.available ? "暂无看板快照" : panel.stats.total ? "创建该批次时暂无已开启节次的有效数据" : "该批次暂无在读学员"; color: UiTheme.subtle }
         }
         RowLayout {
             visible: panel.expanded && panel.tab === 1; Layout.fillWidth: true; spacing: 0
@@ -132,7 +132,7 @@ UiPanel {
             delegate: Rectangle {
                 required property var modelData
                 required property int index
-                width: completionList.width; height: 24; color: index % 2 ? UiTheme.stripe : "#ffffff"
+                width: completionList.width; height: 24; color: index % 2 ? UiTheme.stripe : UiTheme.surface
                 RowLayout {
                     anchors.fill: parent; spacing: 0
                     Repeater {
@@ -142,7 +142,7 @@ UiPanel {
                 }
             }
             Label {
-                anchors.centerIn: parent; visible: completionList.count === 0; horizontalAlignment: Text.AlignHCenter; color: "#98a2b3"
+                anchors.centerIn: parent; visible: completionList.count === 0; horizontalAlignment: Text.AlignHCenter; color: UiTheme.subtle
                 text: !panel.stats.available ? "暂无看板快照" : panel.stats.total ? "创建该批次时暂无已开启节次的有效数据" : "该批次暂无在读学员"
             }
         }

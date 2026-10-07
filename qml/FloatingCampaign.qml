@@ -8,6 +8,7 @@ Window {
     objectName: "campaignFloatingWindow"
     width: 246; height: 520; minimumWidth: 230; minimumHeight: 300
     title: "催办反馈 · 跟随聊天"; color: UiTheme.canvas
+    palette: UiTheme.controlPalette
     transientParent: null
     property bool pinned: true
     property var companion: backend.campaignCompanion
@@ -42,7 +43,7 @@ Window {
             Layout.fillWidth: true; Layout.fillHeight: true
             verticalAlignment: Text.AlignVCenter; horizontalAlignment: Text.AlignHCenter
             text: "激活学员的企业微信独立聊天窗口\n按当前班期和姓名自动匹配"
-            color: "#98a2b3"; wrapMode: Text.Wrap
+            color: UiTheme.subtle; wrapMode: Text.Wrap
         }
     }
 }

@@ -10,6 +10,7 @@ ApplicationWindow {
     height: 800
     title: "学员管理 · 催办与画像"
     color: UiTheme.canvas
+    palette: UiTheme.controlPalette
     font.pixelSize: 13
     property bool campaignDetailOpen: width >= 1000
     readonly property var moduleNames: ["催办工作台", "学员画像", "班期学员", "设置", "群发中心", "备注批改", "未进直播间", "学习概览"]
@@ -98,7 +99,7 @@ ApplicationWindow {
         objectName: "moduleNavigation"
         anchors.left: parent.left; anchors.top: parent.top; anchors.bottom: parent.bottom
         width: root.width >= 1180 ? 156 : 100
-        color: "#203047"
+        color: UiTheme.navigation
         ColumnLayout {
             anchors.fill: parent; anchors.margins: 10; spacing: 6
             Repeater {
@@ -113,27 +114,27 @@ ApplicationWindow {
                     Accessible.role: Accessible.PageTab
                     Accessible.selected: root.moduleIndex === modelData
                     onClicked: root.switchModule(modelData)
-                    contentItem: Text { text: parent.text; color: "#f2f6fc"; font.pixelSize: navigation.width > 100 ? 14 : 12; verticalAlignment: Text.AlignVCenter; horizontalAlignment: navigation.width > 100 ? Text.AlignLeft : Text.AlignHCenter }
-                    background: Rectangle { radius: 5; color: root.moduleIndex === parent.modelData ? UiTheme.accent : parent.hovered ? "#304660" : "transparent"; border.width: parent.visualFocus ? 2 : 0; border.color: "#bcd3fa" }
+                    contentItem: Text { text: parent.text; color: UiTheme.navigationText; font.pixelSize: navigation.width > 100 ? 14 : 12; verticalAlignment: Text.AlignVCenter; horizontalAlignment: navigation.width > 100 ? Text.AlignLeft : Text.AlignHCenter }
+                    background: Rectangle { radius: 5; color: root.moduleIndex === parent.modelData ? UiTheme.accentFill : parent.hovered ? UiTheme.navigationHover : "transparent"; border.width: parent.visualFocus ? 2 : 0; border.color: UiTheme.navigationFocus }
                 }
             }
             Item { Layout.fillHeight: true }
-            Label { text: "工具与配置"; color: "#b8c9df"; font.pixelSize: 12; Layout.leftMargin: 8 }
+            Label { text: "工具与配置"; color: UiTheme.navigationMuted; font.pixelSize: 12; Layout.leftMargin: 8 }
             UiButton {
                 objectName: "moduleButton3"; text: "设置"; Layout.fillWidth: true; implicitHeight: root.height < 620 ? 38 : 44; hoverEnabled: true
                 onClicked: root.switchModule(3)
                 Accessible.role: Accessible.PageTab
                 Accessible.selected: root.moduleIndex === 3
-                contentItem: Text { text: parent.text; color: "#f2f6fc"; font.pixelSize: 14; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                background: Rectangle { radius: 5; color: root.moduleIndex === 3 ? UiTheme.accent : parent.hovered ? "#304660" : "transparent"; border.width: parent.visualFocus ? 2 : 0; border.color: "#bcd3fa" }
+                contentItem: Text { text: parent.text; color: UiTheme.navigationText; font.pixelSize: 14; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                background: Rectangle { radius: 5; color: root.moduleIndex === 3 ? UiTheme.accentFill : parent.hovered ? UiTheme.navigationHover : "transparent"; border.width: parent.visualFocus ? 2 : 0; border.color: UiTheme.navigationFocus }
             }
             UiButton {
                 objectName: "moduleButton4"; text: "群发中心"; Layout.fillWidth: true; implicitHeight: root.height < 620 ? 38 : 44; hoverEnabled: true
                 onClicked: root.switchModule(4)
                 Accessible.role: Accessible.PageTab
                 Accessible.selected: root.moduleIndex === 4
-                contentItem: Text { text: parent.text; color: "#f2f6fc"; font.pixelSize: 14; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
-                background: Rectangle { radius: 5; color: root.moduleIndex === 4 ? UiTheme.accent : parent.hovered ? "#304660" : "transparent"; border.width: parent.visualFocus ? 2 : 0; border.color: "#bcd3fa" }
+                contentItem: Text { text: parent.text; color: UiTheme.navigationText; font.pixelSize: 14; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                background: Rectangle { radius: 5; color: root.moduleIndex === 4 ? UiTheme.accentFill : parent.hovered ? UiTheme.navigationHover : "transparent"; border.width: parent.visualFocus ? 2 : 0; border.color: UiTheme.navigationFocus }
             }
         }
     }
@@ -153,7 +154,7 @@ ApplicationWindow {
         UiPanel {
             visible: root.width < 1000 || (wf.batchIndex >= 0 && !wf.canEdit)
             Layout.fillWidth: true; padding: 10
-            background: Rectangle { color: "white"; radius: 8; border.color: UiTheme.line }
+            background: Rectangle { color: UiTheme.surface; radius: 8; border.color: UiTheme.line }
             ColumnLayout {
                 anchors.fill: parent
                 RowLayout {
@@ -170,7 +171,7 @@ ApplicationWindow {
             UiPanel {
                 visible: root.width >= 1000 || !root.campaignDetailOpen
                 Layout.fillWidth: true; Layout.fillHeight: true; padding: 10
-                background: Rectangle { color: "white"; radius: 10; border.color: UiTheme.line }
+                background: Rectangle { color: UiTheme.surface; radius: 10; border.color: UiTheme.line }
                 ColumnLayout {
                     anchors.fill: parent; spacing: root.height < 620 ? 4 : 8
                     RowLayout {
@@ -205,7 +206,7 @@ ApplicationWindow {
                                 required property var display
                                 implicitHeight: UiTheme.headerHeight; implicitWidth: 90
                                 property bool filtered: wf.filteredColumns.indexOf(column) >= 0
-                                color: filtered ? "#e4ecff" : UiTheme.stripe
+                                color: filtered ? UiTheme.selection : UiTheme.stripe
                                 Text {
                                     anchors.fill: parent; anchors.margins: 6; anchors.rightMargin: 20; verticalAlignment: Text.AlignVCenter
                                     text: display + (parent.filtered ? " •" : "")
@@ -236,19 +237,19 @@ ApplicationWindow {
                                 required property bool expiredCell
                                 required property bool staleRow
                                 implicitHeight: UiTheme.rowHeight; implicitWidth: 90
-                                color: studentId === wf.selected.student_id ? UiTheme.selection : staleRow ? "#fff4e5" : row % 2 ? UiTheme.stripe : "white"
-                                Text { anchors.fill: parent; anchors.leftMargin: 6; anchors.rightMargin: 6; text: display; elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter; font.pixelSize: 13; color: expiredCell ? "#98a2b3" : staleRow ? UiTheme.warning : UiTheme.ink }
+                                color: studentId === wf.selected.student_id ? UiTheme.selection : staleRow ? UiTheme.warningSurface : row % 2 ? UiTheme.stripe : UiTheme.surface
+                                Text { anchors.fill: parent; anchors.leftMargin: 6; anchors.rightMargin: 6; text: display; elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter; font.pixelSize: 13; color: expiredCell ? UiTheme.subtle : staleRow ? UiTheme.warning : UiTheme.ink }
                                 TapHandler { onTapped: wf.selectRow(row) }
                             }
                         }
-                        Label { anchors.centerIn: parent; visible: wf.visibleCount === 0; text: search.text.length > 0 || wf.hasColumnQuery ? "没有匹配的学员，请调整搜索或列筛选" : wf.batchIndex < 0 ? "暂无符合条件的学员；班期名单获取后自动同步" : "当前筛选下没有学员"; horizontalAlignment: Text.AlignHCenter; color: "#98a2b3"; lineHeight: 1.6 }
+                        Label { anchors.centerIn: parent; visible: wf.visibleCount === 0; text: search.text.length > 0 || wf.hasColumnQuery ? "没有匹配的学员，请调整搜索或列筛选" : wf.batchIndex < 0 ? "暂无符合条件的学员；班期名单获取后自动同步" : "当前筛选下没有学员"; horizontalAlignment: Text.AlignHCenter; color: UiTheme.subtle; lineHeight: 1.6 }
                     }
                 }
             }
             UiPanel {
                 visible: root.width >= 1000 || root.campaignDetailOpen
                 Layout.preferredWidth: 340; Layout.minimumWidth: 260; Layout.fillWidth: root.width < 1000; Layout.fillHeight: true; padding: 16
-                background: Rectangle { color: "white"; radius: 10; border.color: UiTheme.line }
+                background: Rectangle { color: UiTheme.surface; radius: 10; border.color: UiTheme.line }
                 CampaignDetail { objectName: "mainCampaignDetail"; anchors.fill: parent; service: wf; workflow: wf }
             }
         }

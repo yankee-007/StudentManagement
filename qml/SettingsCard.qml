@@ -10,8 +10,8 @@ Item {
     property string description: ""
     // 状态标签（是否已保存 / 是否已绑定），由卡片自行渲染在 headerRight。
     property string tag: ""
-    property color tagColor: "#027a48"
-    property color tagBackground: "#ecfdf3"
+    property color tagColor: UiTheme.success
+    property color tagBackground: UiTheme.successSurface
     // 并排卡片用它把底部操作压到同一基线。
     property bool stretch: false
     // 由设置页注入：鼠标停在下拉框上时滚轮仍然滚动整页。
@@ -28,8 +28,8 @@ Item {
     Rectangle {
         anchors.fill: parent
         radius: 10
-        color: "#ffffff"
-        border.color: "#e1e6ef"
+        color: UiTheme.surface
+        border.color: UiTheme.line
     }
 
     ColumnLayout {

@@ -10,6 +10,7 @@ Window {
     minimumWidth: 220; minimumHeight: 280
     title: "学员画像 · 跟随聊天"
     color: UiTheme.canvas
+    palette: UiTheme.controlPalette
     transientParent: null
     property bool pinned: true
     flags: Qt.Window | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | Qt.WindowCloseButtonHint | (pinned ? Qt.WindowStaysOnTopHint : 0)
@@ -58,7 +59,7 @@ Window {
             Layout.fillWidth: true; Layout.fillHeight: true
             verticalAlignment: Text.AlignVCenter; horizontalAlignment: Text.AlignHCenter
             text: "激活学员的企业微信独立聊天窗口\n按备注前缀或姓名跨班识别\n重名时请选择班级"
-            color: "#98a2b3"; wrapMode: Text.Wrap
+            color: UiTheme.subtle; wrapMode: Text.Wrap
         }
     }
 }

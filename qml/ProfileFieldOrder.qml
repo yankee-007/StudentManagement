@@ -20,8 +20,8 @@ ListView {
         required property int index
         width: list.width; height: 42
         radius: 5
-        color: list.dropIndex === index ? "#e9efff" : index % 2 ? "#f9fafb" : "white"
-        border.color: list.dropIndex === index ? "#809aff" : "transparent"
+        color: list.dropIndex === index ? UiTheme.selection : index % 2 ? UiTheme.input : UiTheme.surface
+        border.color: list.dropIndex === index ? UiTheme.focus : "transparent"
         RowLayout {
             anchors.fill: parent; anchors.margins: 3; spacing: 6
             Label {

@@ -14,17 +14,17 @@ Button {
     contentItem: Text {
         text: control.text
         font: control.font
-        color: !control.enabled ? "#8795a6" : control.highlighted || control.checked ? "white" : UiTheme.ink
+        color: !control.enabled ? UiTheme.disabledText : control.highlighted || control.checked ? UiTheme.accentText : UiTheme.ink
         horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
         elide: Text.ElideRight
     }
     background: Rectangle {
         radius: 5
-        color: !control.enabled ? "#f0f3f6" : control.highlighted || control.checked
-            ? (control.down ? "#1c458b" : control.hovered ? "#214f9b" : UiTheme.accent)
-            : control.down ? "#e5ebf3" : control.hovered ? "#edf3fc" : UiTheme.surface
+        color: !control.enabled ? UiTheme.disabledSurface : control.highlighted || control.checked
+            ? (control.down ? UiTheme.accentPressed : control.hovered ? UiTheme.accentHover : UiTheme.accentFill)
+            : control.down ? UiTheme.pressed : control.hovered ? UiTheme.hover : UiTheme.surface
         border.width: control.visualFocus ? 2 : 1
-        border.color: control.visualFocus ? UiTheme.accent : control.highlighted || control.checked ? UiTheme.accent : UiTheme.line
+        border.color: control.visualFocus ? UiTheme.focus : control.highlighted || control.checked ? UiTheme.accentFill : UiTheme.line
     }
 }

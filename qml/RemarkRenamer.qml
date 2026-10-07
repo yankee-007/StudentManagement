@@ -81,7 +81,7 @@ Item {
         }
         UiPanel {
             Layout.fillWidth: true; padding: 10
-            background: Rectangle { color: "white"; radius: 8; border.color: UiTheme.line }
+            background: Rectangle { color: UiTheme.surface; radius: 8; border.color: UiTheme.line }
             ColumnLayout {
                 anchors.fill: parent; spacing: 6
                 Flow {
@@ -165,7 +165,7 @@ Item {
                         return false
                     }
                     implicitHeight: UiTheme.rowHeight; implicitWidth: 110
-                    color: isPicked ? UiTheme.selection : row % 2 ? UiTheme.stripe : "white"
+                    color: isPicked ? UiTheme.selection : row % 2 ? UiTheme.stripe : UiTheme.surface
                     Text {
                         anchors.fill: parent; anchors.leftMargin: 6; anchors.rightMargin: 6
                         text: display; elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter
@@ -177,7 +177,7 @@ Item {
             Label {
                 anchors.centerIn: parent; visible: renamer.visibleCount === 0
                 text: "当前班期没有画像「微信=是」的学员；请先在学员画像中确认微信字段"
-                horizontalAlignment: Text.AlignHCenter; color: "#98a2b3"; lineHeight: 1.6
+                horizontalAlignment: Text.AlignHCenter; color: UiTheme.subtle; lineHeight: 1.6
             }
         }
         RowLayout {
