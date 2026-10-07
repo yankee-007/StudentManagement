@@ -334,7 +334,7 @@ class LearningOverview(QObject):
         headers = ['累计节次', '完课率', '作业率', '差值', '考核']
         if base:
             headers = ['累计节次']+[f'{name} · {label}' for name in ('完课率', '作业率', '差值') for label in (f'第{b["id"]}次', f'第{base["id"]}次', '变化')]+['考核']
-        for n in labels:
+        for n in reversed(labels):
             point, previous = self._point(b, n), self._point(base, n)
             cells = [f'第1～{n}节']
             for key in ('course', 'homework', 'gap'):
@@ -347,7 +347,7 @@ class LearningOverview(QObject):
             rows.append(dict(key=n, cells=cells))
         completion_rows = [dict(key=p['count'], cells=[str(p['count']), str(p['people']), fmt(p['ratio'], '%'),
                           str(p['followable']) if p['followable'] is not None else '—', '', '',
-                          fmt(p['cumulativeRate'], '%'), str(p['cumulative'])]) for p in b['completion']]
+                          fmt(p['cumulativeRate'], '%'), str(p['cumulative'])]) for p in reversed(b['completion'])]
         distribution_rows = []
         if base:
             current = {p['count']:p for p in b['completion']}
