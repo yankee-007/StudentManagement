@@ -24,7 +24,7 @@ main{flex:1;min-width:0;padding:20px;max-width:1700px}.heading{display:flex;alig
 <div class="heading"><div><h1>学习概览</h1><p class="sub">查看学习情况、批次变化与目标差距</p></div><span id="grade" class="badge"></span></div>
 <div class="page-tabs" role="tablist" aria-label="学习概览用途"><button id="tab-latest" role="tab" aria-selected="false" aria-controls="latest-page" tabindex="-1">最新数据</button><button id="tab-compare" class="active" role="tab" aria-selected="true" aria-controls="comparison-page">批次对比</button><button id="tab-goals" role="tab" aria-selected="false" aria-controls="goals-page">目标追踪</button></div>
 <section id="latest-page" role="tabpanel" aria-labelledby="tab-latest" hidden>
-<div class="panel"><div class="heading" style="margin-bottom:4px"><h2>最新学习数据看板</h2><span id="latest-grade" class="badge"></span></div><p id="latest-scope" class="sub"></p><p class="sub">只显示最新批次的学习情况；累计口径为第1～N节全部完成 ÷ 在读人数（含免催，不含补位）。</p></div>
+<div class="panel"><div class="heading" style="margin-bottom:4px"><h2 id="latest-title">最新学习数据看板</h2><span id="latest-grade" class="badge"></span></div><p id="latest-scope" class="sub"></p><p class="sub">只显示本页注明批次的学习情况；累计口径为第1～N节全部完成 ÷ 在读人数（含免催，不含补位）。</p></div>
 <div class="cards" id="latest-cards"></div>
 <div class="grid"><div class="panel"><h2>最新逐节累计完课率与作业率</h2><div id="latest-rate-chart" class="chart" style="height:320px"></div></div><div class="panel"><h2>最新逐节差值与考核线</h2><div id="latest-gap-chart" class="chart" style="height:320px"></div></div></div>
 <div class="panel"><h2>最新累计学习数据</h2><div class="table-wrap"><table><thead><tr><th>累计范围</th><th>累计完课人数</th><th>累计完课率</th><th>累计作业人数</th><th>累计作业率</th><th>差值</th><th>考核</th></tr></thead><tbody id="latest-rows"></tbody></table></div></div>
@@ -43,7 +43,7 @@ main{flex:1;min-width:0;padding:20px;max-width:1700px}.heading{display:flex;alig
 </div>
 <div id="detail" class="detail" style="margin-bottom:14px">点击逐节图表查看两批明细</div>
 <div class="panel"><h2 id="table-title">两批逐节数据对比</h2><p class="sub">变化＝查看批次－对比批次；率升高、差值降低为改善。pp 表示百分点。对比批次未开到该节时显示 —。</p><div class="table-wrap"><table><thead id="table-head"></thead><tbody id="rows"></tbody></table></div></div>
-<div class="panel"><h2 id="completion-title">完课次数</h2><p class="sub">按恰好完成 k 节的人数分桶；完成任意 k 节即可，与上方「第1～N节全部完成」的累计率不同。</p><p class="sub" id="completion-scope"></p><div class="table-wrap"><table><thead><tr><th>完课次数</th><th>人数</th><th>所占比例</th><th>可跟进人数</th><th>完成人数</th><th>本周是否有退课</th><th>完课率</th><th>完课人数</th></tr></thead><tbody id="completion-rows"></tbody></table></div><p class="sub">人数＝恰好完成 k 节；完课人数＝完成不少于 k 节的人数；完课率＝完课人数 ÷ 在读人数。可跟进人数＝完成0～N节且在本批次已有回复反馈的人数，包含当前档；只统计最新批次，历史显示 —。各行重叠，不可相加。完成人数、退课暂留空。</p><h2 style="margin-top:18px" id="distribution-title">两批完课次数分布对比</h2><p class="sub">逐个完成次数比较两批人数和比例；开课进度不同时，仅对比共有桶，最高桶范围变化需结合已开课节数判断。</p><div class="table-wrap"><table><thead id="distribution-head"></thead><tbody id="distribution-rows"></tbody></table></div></div>
+<div class="panel"><h2 id="completion-title">完课次数</h2><p class="sub">按恰好完成 k 节的人数分桶；完成任意 k 节即可，与上方「第1～N节全部完成」的累计率不同。</p><p class="sub" id="completion-scope"></p><div class="table-wrap"><table><thead><tr><th>完课次数</th><th>人数</th><th>所占比例</th><th>可跟进人数</th><th>完成人数</th><th>本周是否有退课</th><th>完课率</th><th>完课人数</th></tr></thead><tbody id="completion-rows"></tbody></table></div><p class="sub">人数＝恰好完成 k 节；完课人数＝完成不少于 k 节的人数；完课率＝完课人数 ÷ 在读人数。可跟进人数＝完成0～N节且在本批次已有回复反馈的人数，包含当前档；统计最新批次及指定反馈验证批次；其他历史显示 —。各行重叠，不可相加。完成人数、退课暂留空。</p><h2 style="margin-top:18px" id="distribution-title">两批完课次数分布对比</h2><p class="sub">逐个完成次数比较两批人数和比例；开课进度不同时，仅对比共有桶，最高桶范围变化需结合已开课节数判断。</p><div class="table-wrap"><table><thead id="distribution-head"></thead><tbody id="distribution-rows"></tbody></table></div></div>
 </section>
 <section id="goals-page" role="tabpanel" aria-labelledby="tab-goals" hidden>
 <p class="sub" style="margin-bottom:14px">独立选择评估批次和节次，观察目标差距与最近几次催办的进展；不受「批次对比」的选择影响。</p>
@@ -70,7 +70,8 @@ const grade=n=>grades.find(g=>n<=g.max), current=$('current'), baseline=$('basel
 function option(select,value,label){const o=document.createElement('option');o.value=value;o.textContent=label;select.appendChild(o)}
 option($('class-selector'),DATA.className,DATA.className+'（本次预览数据）');
 DATA.batches.slice().reverse().forEach(b=>{[current,baseline,goalBatch].forEach(s=>option(s,b.id,'第'+b.id+'次 · '+b.time))});
-if(DATA.batches.length){current.value=goalBatch.value=DATA.batches.at(-1).id;baseline.value=DATA.batches.at(-2)?.id||current.value}
+function dashboardBatch(){return DATA.batches.find(b=>b.id===DATA.previewBatch)||DATA.batches.at(-1)}
+if(DATA.batches.length){const chosen=dashboardBatch();current.value=goalBatch.value=chosen.id;baseline.value=DATA.batches.filter(b=>b.id<chosen.id).at(-1)?.id||chosen.id}
 const charts=[echarts.init($('rate-chart')),echarts.init($('gap-chart')),null];
 let trendConfig=null, activeTab='compare';
 function selected(select){return DATA.batches.find(b=>String(b.id)===select.value)}
@@ -123,10 +124,12 @@ const available=same.map((row,i)=>({row,batch:history[i]})).filter(x=>x.row),fir
 $('trend-detail').textContent=r&&last?'第'+r.lesson+'节 '+metricLabel+'：第'+first.batch.id+'次 '+rate(first.row[metric],metric==='gap'?'pp':'%')+' → 第'+last.batch.id+'次 '+rate(last.row[metric],metric==='gap'?'pp':'%')+'；'+(available.length>1?'变化 '+signed(change)+'。':'仅一批有数据，尚不能判断趋势。')+'各批人数可能不同，人数见横轴。':'暂无该节走势数据。';
 }
 function renderLatest(){
-const c=DATA.batches.at(-1),rows=c?.lessons||[],last=rows.at(-1),buckets=(c?.completion||[]).slice().sort((a,b)=>b.count-a.count);
-$('latest-scope').textContent=c?'第'+c.id+'次 · 学习数据时间 '+c.time+' · 预览导出 '+DATA.exportedAt+'。该页展示导出时的最新快照，不自动联网刷新。':'暂无学习批次数据';
+const c=dashboardBatch(),rows=c?.lessons||[],last=rows.at(-1),buckets=(c?.completion||[]).slice().sort((a,b)=>b.count-a.count);
+$('tab-latest').textContent=DATA.previewBatch?'最新数据（第'+DATA.previewBatch+'次预览）':'最新数据';$('latest-title').textContent=DATA.previewBatch?'第'+DATA.previewBatch+'次学习数据看板 · 反馈验证':'最新学习数据看板';
+if(DATA.previewBatch)document.querySelectorAll('#latest-page h2').forEach(h=>{if(h.textContent.startsWith('最新'))h.textContent=h.textContent.replace('最新','第'+DATA.previewBatch+'次')});
+$('latest-scope').textContent=c?'第'+c.id+'次 · 学习数据时间 '+c.time+' · 预览导出 '+DATA.exportedAt+(DATA.previewBatch?'。本页按用户指定使用第'+DATA.previewBatch+'次学习与反馈快照验证，实际最新批次为第'+DATA.batches.at(-1).id+'次；不自动联网刷新。':'。该页展示导出时的最新快照，不自动联网刷新。'):'暂无学习批次数据';
 $('latest-grade').textContent=last?'第1～'+last.lesson+'节累计 · '+grade(last.gap).label:'暂无有效数据';$('latest-grade').style.background=last?grade(last.gap).color:'#667085';
-const metrics=[['在读人数',c?c.total+'人':'—','该最新批次在读非补位学员'],['累计完课',last?(last.courseDone??'—')+'人':'—',last?fmt(last.course)+'% · 第1～'+last.lesson+'节全部完成':'暂无有效快照'],['累计作业',last?(last.homeworkDone??'—')+'人':'—',last?fmt(last.homework)+'% · 第1～'+last.lesson+'节全部完成':'暂无有效快照'],['累计差值',last?fmt(last.gap)+'pp':'—','累计完课率－累计作业率']];
+const metrics=[['在读人数',c?c.total+'人':'—','本页批次在读非补位学员'],['累计完课',last?(last.courseDone??'—')+'人':'—',last?fmt(last.course)+'% · 第1～'+last.lesson+'节全部完成':'暂无有效快照'],['累计作业',last?(last.homeworkDone??'—')+'人':'—',last?fmt(last.homework)+'% · 第1～'+last.lesson+'节全部完成':'暂无有效快照'],['累计差值',last?fmt(last.gap)+'pp':'—','累计完课率－累计作业率']];
 $('latest-cards').innerHTML=metrics.map(x=>'<div class="card"><span>'+x[0]+'</span><div class="value">'+x[1]+'</div><small>'+x[2]+'</small></div>').join('');
 $('latest-rows').innerHTML=rows.length?rows.map(r=>'<tr><td>第1～'+r.lesson+'节累计</td><td>'+(r.courseDone??'—')+'</td><td>'+fmt(r.course)+'%</td><td>'+(r.homeworkDone??'—')+'</td><td>'+fmt(r.homework)+'%</td><td>'+fmt(r.gap)+'pp</td><td style="color:'+grade(r.gap).color+'">'+grade(r.gap).label+'</td></tr>').join(''):'<tr><td colspan="7">暂无累计学习快照</td></tr>';
 $('latest-completion-note').textContent=buckets.length?'分桶人数合计 '+buckets.reduce((n,r)=>n+r.people,0)+' 人。'+(c.completionNotice||''):'最新批次未保存完课次数分布，不从累计率反推。';

@@ -21,6 +21,8 @@ class ExportCompletionTests(unittest.TestCase):
             self.assertTrue(all('followable' not in b for b in rows[1]['completion']))
             self.assertEqual([b['followable'] for b in rows[2]['completion']],[5,4,3])
             self.assertEqual([b['people'] for b in rows[2]['completion']],[1,2,4])
+            requested=load_batches(conn,feedback_batch=2)[1]
+            self.assertEqual([b['followable'] for b in requested['completion']],[0,0,0])
             conn.execute('UPDATE campaign_dashboards SET data=? WHERE batch_id=3',(json.dumps(dict(version=3,total=0,opened=2,completion=dict(courses=[dict(count=0,people=0,cumulative=0)]))),))
             latest=load_batches(conn)[-1]
             self.assertNotIn('followable',latest['completion'][0])

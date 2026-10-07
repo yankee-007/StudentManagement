@@ -7,7 +7,7 @@ from datetime import datetime
 from pathlib import Path
 
 
-def load_batches(connection):
+def load_batches(connection, feedback_batch=None):
     batches = []
     latest = connection.execute("SELECT MAX(id) FROM campaigns").fetchone()[0]
     for row in connection.execute(
@@ -33,7 +33,7 @@ def load_batches(connection):
         completion_notice = ''
         for bucket in completion:
             bucket.pop('followable', None)
-        if completion and row[0] == latest:
+        if completion and row[0] in (latest, feedback_batch):
             opened = data.get('opened', max(bucket['count'] for bucket in completion))
             # Count each student once; export no identifiers or feedback text.
             reply_counts = dict(connection.execute(
@@ -61,12 +61,15 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--db', type=Path, default=Path(os.environ.get('FOLLOWUP_DB', default_dir / 'followup.db')))
     parser.add_argument('--class-name', default='py169')
+    parser.add_argument('--preview-batch', type=int, help='Use a specified historical batch for the dashboard review')
     args = parser.parse_args()
     if not args.db.is_file():
         raise SystemExit('Database missing; specify --db. No application or migration was started.')
     with sqlite3.connect(args.db.resolve().as_uri() + '?mode=ro', uri=True) as connection:
-        batches = load_batches(connection)
-    payload = dict(className=args.class_name, batches=batches,
+        batches = load_batches(connection, args.preview_batch)
+    if args.preview_batch is not None and not any(b['id'] == args.preview_batch for b in batches):
+        raise SystemExit('Specified preview batch has no dashboard snapshot.')
+    payload = dict(className=args.class_name, batches=batches, previewBatch=args.preview_batch,
                    exportedAt=datetime.now().astimezone().isoformat(timespec='seconds'))
     folder = Path(__file__).resolve().parent
     template = (folder / 'overview_template.html').read_text(encoding='utf-8')
