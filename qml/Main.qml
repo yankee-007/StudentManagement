@@ -180,6 +180,12 @@ ApplicationWindow {
                     }
                     Flow {
                         Layout.fillWidth: true; spacing: 6
+                        UiComboBox {
+                            id: viewBox; objectName: "campaignViewSelector"; textRole: "label"; valueRole: "key"; width: 105
+                            displayText: currentText
+                            model: [{label:"全班快照",key:"all"},{label:"本次催办",key:"targets"}]
+                            onActivated: root.applyFilter()
+                        }
                         UiButton { objectName: "createCampaignList"; text: "生成群发名单"; highlighted: true; enabled: wf.canEdit && !sender.active && !backend.busy && wf.recipientKeys.length > 0; onClicked: templateDialog.open() }
                         UiButton { text: "管理字段"; onClicked: fieldDialog.open() }
                         UiButton { text: "聊天跟随浮窗"; enabled: wf.canEdit; onClicked: campaignFloat.show() }
@@ -187,12 +193,6 @@ ApplicationWindow {
                     }
                     Flow {
                         Layout.fillWidth: true; spacing: 6
-                        UiComboBox {
-                            id: viewBox; objectName: "campaignViewSelector"; textRole: "label"; valueRole: "key"; width: 125
-                            displayText: currentText
-                            model: [{label:"全班快照",key:"all"},{label:"本次催办",key:"targets"}]
-                            onActivated: root.applyFilter()
-                        }
                         UiButton { objectName: "campaignReapplyFilter"; text: "重新应用筛选"; visible: wf.hasStale; onClicked: wf.reapplyFilters() }
                         UiButton { text: "清除列筛选／排序"; visible: wf.hasColumnQuery; onClicked: wf.clearColumnQuery() }
                     }
