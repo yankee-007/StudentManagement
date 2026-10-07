@@ -31,7 +31,7 @@
 - 写本任务记录时核对：分支 `main`，HEAD `9fbbc76`（fix: preserve previous snapshot when creating campaign），`git status --porcelain` **为空**。
 - 注意：本轮中途工作区被外部整理过（AGENTS.md 改为新协议、新增 docs/agent、docs/tasks、ADR-008..011、根 HANDOFF.md 移除、.gitignore 增加预览与真实数据排除规则）。这些均非本任务所为；本任务据此重新核对了基线。
 - 目标分支：main（未创建分支）。依赖任务：无强制依赖；后续实现需参考 ADR-004、ADR-006、ADR-007、ADR-010。
-- 本任务本地提交：`ded2ff8`（任务记录 + 索引 + 预览脚本路径通用化），未推送。
+- 本任务本地提交：`f9a4031`（任务记录 + 索引 + 预览脚本路径通用化），未推送。
 
 ## Snapshot（当前磁盘真实状态）
 
@@ -91,7 +91,7 @@
 ## Handoff / Closure
 
 恢复方式：
-- 取得代码：分支 `main`，本任务提交 `ded2ff8`（起点 `9fbbc76`）；提交前工作区干净，提交后已核对范围只含上述 5 个文件。
+- 取得代码：分支 `main`，本任务提交 `f9a4031`（起点 `9fbbc76`）；提交前工作区干净，提交后已核对范围只含上述 5 个文件。
 - 重新生成预览：`python preview/gen_169_data.py` → `python preview/build_preview.py` → `node preview/check_preview.js` → `python preview/shoot_preview.py`。
 - 打开评审：`preview/dashboard-169.html`（双击即可，图表库内嵌、离线可用）；该文件与 `dashboard-data-169.json` 被 .gitignore 排除，属本机评审产物，不入库。
 - 依赖：仅 Python 标准库（`sqlite3`、`json`）与 Node（无头自检）；ECharts 5.5.1 已内嵌进 HTML，无需联网。截图需要本机 Chrome。
