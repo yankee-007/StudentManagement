@@ -3,8 +3,54 @@ import argparse
 import json
 import os
 import sqlite3
+import re
+from collections import Counter
 from datetime import datetime
 from pathlib import Path
+
+
+def completion_snapshot(connection, batch, data, has_followup):
+    records = connection.execute('SELECT student_id,name,snapshot,eligible FROM campaign_students WHERE batch_id=?', (batch,)).fetchall()
+    flags = dict(connection.execute('SELECT student_id,status FROM campaign_followup_status WHERE batch_id=?', (batch,))) if has_followup else {}
+    targets, reading = [], 0
+    for sid, name, raw, eligible in records:
+        snap = json.loads(raw)
+        if snap.get('roster_status') == '在读' and not snap.get('is_placeholder'):reading += 1
+        if eligible and (name or '').strip() and snap.get('wechat') == '是' and snap.get('roster_status') in ('', '在读') and not snap.get('is_placeholder'):
+            targets.append((sid, snap))
+    counts, followup = Counter(), Counter()
+    unknown = 0
+    for sid, snap in targets:
+        if 'completed_courses' in snap:
+            value = snap['completed_courses']
+        else:
+            legacy = re.fullmatch(r'(\d+)/\d+', str(snap.get('completed_total', '')))
+            value = legacy.group(1) if legacy else None
+        if not re.fullmatch(r'\d+', str(value)) or int(value) > 32:
+            unknown += 1
+            continue
+        count = int(value)
+        counts[count] += 1
+        if flags.get(sid) == '是':followup[count] += 1
+    total = len(targets)
+    marked = sum(sid in flags for sid, snap in targets)
+    summary = dict(total=total, marked=marked, yes=sum(flags.get(sid) == '是' for sid, snap in targets),
+                   no=sum(flags.get(sid) == '否' for sid, snap in targets), unmarked=total-marked)
+    opened = max([int(data.get('opened') or 0)] + [int(r['lesson']) for r in data.get('courses', [])])
+    buckets = []
+    if counts:
+        for count in range(max([opened] + list(counts)), -1, -1):
+            people = counts[count]
+            cumulative = sum(n for k, n in counts.items() if k >= count)
+            bucket = dict(count=count, people=people, cumulative=cumulative,
+                          ratio=f'{100*people/total:.2f}%', cumulativeRate=f'{100*cumulative/total:.2f}%')
+            if marked:bucket['followable'] = followup[count]
+            buckets.append(bucket)
+    notes = ['完课次数来自该批次学员保存的完成计数，不反推累计学习率。']
+    if unknown:notes.append(f'{unknown}名催办学员未保存可用完成计数，不归入0次；比例仍以本次催办人数为分母。')
+    if not marked:notes.append('本批次尚未填写可跟进标记，可跟进人数显示 —。')
+    elif marked < total:notes.append(f'尚有{total-marked}人未填写，可跟进人数仅统计已确认是的学员。')
+    return buckets, total, ' '.join(notes), summary, len(records), reading
 
 
 def load_batches(connection, feedback_batch=None):
@@ -12,62 +58,27 @@ def load_batches(connection, feedback_batch=None):
     has_followup = connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='campaign_followup_status'").fetchone() is not None
     for row in connection.execute(
         "SELECT c.id,c.created_at,d.data FROM campaigns c "
-        "JOIN campaign_dashboards d ON d.batch_id=c.id ORDER BY c.id"
+        "LEFT JOIN campaign_dashboards d ON d.batch_id=c.id ORDER BY c.id"
     ):
-        data = json.loads(row[2])
+        data = json.loads(row[2]) if row[2] else {}
         homework = {item['lesson']: item for item in data.get('homework', [])}
         lessons = []
-        for course in sorted(data.get('courses', []), key=lambda item: item['lesson']):
+        for course in sorted(data.get('courses', []) if data.get('version', 1) >= 2 else [], key=lambda item: item['lesson']):
             hw = homework.get(course['lesson'])
-            if hw is None:
-                continue
+            if hw is None:continue
             try:
                 cr = float(course['completedRate'].rstrip('%'))
                 hr = float(hw['completedRate'].rstrip('%'))
-            except (KeyError, ValueError, TypeError, AttributeError):
-                continue
+            except (KeyError, ValueError, TypeError, AttributeError):continue
             lessons.append(dict(lesson=course['lesson'], course=cr, homework=hr,
                                 gap=round(cr-hr, 2), courseDone=course.get('completed'),
                                 homeworkDone=hw.get('completed')))
-        completion = [dict(bucket) for bucket in data.get('completion', {}).get('courses', [])] if data.get('version', 0) >= 3 else []
-        completion_notice = ''
-        completion_total = 0
-        for bucket in completion:
-            bucket.pop('followable', None)
-        if completion:
-            opened = data.get('opened', max(bucket['count'] for bucket in completion))
-            # Match the historical workbench's targets view, independently of its column filters.
-            target_counts = dict(connection.execute(
-                "SELECT MIN(CAST(json_extract(s.snapshot,'$.completed_courses') AS INTEGER),?),COUNT(*) "
-                "FROM campaign_students s WHERE s.batch_id=? "
-                "AND s.eligible=1 AND TRIM(s.name)!='' "
-                "AND json_extract(s.snapshot,'$.wechat')='是' "
-                "AND json_extract(s.snapshot,'$.roster_status') IN ('','在读') "
-                "AND COALESCE(json_extract(s.snapshot,'$.is_placeholder'),0)=0 "
-                "AND json_extract(s.snapshot,'$.completed_courses') NOT IN ('','未获取') GROUP BY 1", (opened, row[0])))
-            completion_total = sum(target_counts.values())
-            followup_counts = {}
-            if has_followup:
-                followup_counts = dict(connection.execute(
-                    "SELECT MIN(CAST(json_extract(s.snapshot,'$.completed_courses') AS INTEGER),?),COUNT(*) "
-                    "FROM campaign_students s JOIN campaign_followup_status f "
-                    "ON f.batch_id=s.batch_id AND f.student_id=s.student_id "
-                    "WHERE s.batch_id=? AND s.eligible=1 AND TRIM(s.name)!='' AND f.status='是' "
-                    "AND json_extract(s.snapshot,'$.wechat')='是' "
-                    "AND json_extract(s.snapshot,'$.roster_status') IN ('','在读') "
-                    "AND COALESCE(json_extract(s.snapshot,'$.is_placeholder'),0)=0 "
-                    "AND json_extract(s.snapshot,'$.completed_courses') NOT IN ('','未获取') GROUP BY 1", (opened, row[0])))
-            for bucket in completion:
-                count = bucket['count']
-                people = target_counts.get(count, 0)
-                cumulative = sum(n for k, n in target_counts.items() if k >= count)
-                bucket.update(people=people, cumulative=cumulative,
-                              ratio=f'{100*people/completion_total:.2f}%' if completion_total else '—',
-                              cumulativeRate=f'{100*cumulative/completion_total:.2f}%' if completion_total else '—')
-                if has_followup:bucket['followable'] = followup_counts.get(count, 0)
-        batches.append(dict(id=row[0], time=row[1], total=data.get('total', 0),
-                            lessons=lessons, completion=completion,
-                            completionTotal=completion_total,
+        completion, total, completion_notice, summary, members, reading = completion_snapshot(connection, row[0], data, has_followup)
+        learning_notice = '' if lessons else ('本批次仅保存单节学习快照，无法还原第1～N节累计率。' if row[2] else '本批次未保存累计学习快照；学员成员与完成计数仍可查看。')
+        batches.append(dict(id=row[0], time=row[1], total=data.get('total', reading),
+                            lessons=lessons, completion=completion, members=members,
+                            completionTotal=total, followupSummary=summary,
+                            learningNotice=learning_notice,
                             completionNotice=completion_notice, notice=data.get('notice', '')))
     return batches
 
@@ -84,7 +95,7 @@ def main():
     with sqlite3.connect(args.db.resolve().as_uri() + '?mode=ro', uri=True) as connection:
         batches = load_batches(connection, args.preview_batch)
     if args.preview_batch is not None and not any(b['id'] == args.preview_batch for b in batches):
-        raise SystemExit('Specified preview batch has no dashboard snapshot.')
+        raise SystemExit('Specified preview batch was not found.')
     payload = dict(className=args.class_name, batches=batches, previewBatch=args.preview_batch,
                    exportedAt=datetime.now().astimezone().isoformat(timespec='seconds'))
     folder = Path(__file__).resolve().parent
