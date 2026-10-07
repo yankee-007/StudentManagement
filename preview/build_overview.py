@@ -9,7 +9,6 @@ from pathlib import Path
 
 def load_batches(connection):
     batches = []
-    latest = connection.execute('SELECT MAX(id) FROM campaigns').fetchone()[0]
     for row in connection.execute(
         "SELECT c.id,c.created_at,d.data FROM campaigns c "
         "JOIN campaign_dashboards d ON d.batch_id=c.id ORDER BY c.id"
@@ -33,22 +32,12 @@ def load_batches(connection):
         completion_notice = ''
         for bucket in completion:
             bucket.pop('followable', None)
-        if completion and row[0] == latest:
-            # Read aggregate counts only; do not export names or feedback content.
-            opened = data.get('opened', max(bucket['count'] for bucket in completion))
-            counts = dict(connection.execute(
-                "SELECT MIN(COALESCE(CAST(json_extract(s.snapshot,'$.completed_courses') AS INTEGER),0),?), COUNT(*) "
-                "FROM campaign_students s WHERE s.batch_id=? "
-                "AND json_extract(s.snapshot,'$.roster_status')='在读' "
-                "AND COALESCE(json_extract(s.snapshot,'$.is_placeholder'),0)=0 "
-                "AND EXISTS(SELECT 1 FROM campaign_feedback f WHERE f.batch_id=s.batch_id "
-                "AND f.student_id=s.student_id AND f.kind='reply') GROUP BY 1", (opened, row[0])))
-            for bucket in completion:
-                value = counts.get(bucket['count'], 0)
-                if value <= bucket['people']:
-                    bucket['followable'] = value
-                else:
-                    completion_notice = '反馈分桶与学习快照人数不一致，受影响的可跟进人数暂不展示。'
+            total = data.get('total', 0)
+            cumulative = bucket.get('cumulative')
+            if isinstance(cumulative, int) and 0 <= cumulative <= total:
+                bucket['followable'] = total - cumulative
+            else:
+                completion_notice = '分布累计人数无效，受影响的可跟进人数暂不展示。'
         batches.append(dict(id=row[0], time=row[1], total=data.get('total', 0),
                             lessons=lessons, completion=completion,
                             completionNotice=completion_notice, notice=data.get('notice', '')))
