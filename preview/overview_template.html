@@ -36,6 +36,7 @@ main{flex:1;min-width:0;padding:20px;max-width:1700px}.heading{display:flex;alig
 </div>
 <div id="detail" class="detail" style="margin-bottom:14px">点击逐节图表查看两批明细</div>
 <div class="panel"><h2 id="table-title">两批逐节数据对比</h2><p class="sub">变化＝查看批次－对比批次；率升高、差值降低为改善。pp 表示百分点。对比批次未开到该节时显示 —。</p><div class="table-wrap"><table><thead id="table-head"></thead><tbody id="rows"></tbody></table></div></div>
+<div class="panel"><h2 id="completion-title">完课次数</h2><p class="sub">按恰好完成 k 节的人数分桶；完成任意 k 节即可，与上方「第1～N节全部完成」的累计率不同。</p><p class="sub" id="completion-scope"></p><div class="table-wrap"><table><thead><tr><th>完课次数</th><th>人数</th><th>所占比例</th><th>可跟进人数</th><th>完成人数</th><th>本周是否有退课</th><th>完课率</th><th>完课人数</th></tr></thead><tbody id="completion-rows"></tbody></table></div><p class="sub">人数＝恰好完成 k 节；完课人数＝完成不少于 k 节的人数；完课率＝完课人数 ÷ 在读人数。可跟进人数仅展示最新批次中已有回复反馈的在读学员；历史批次显示 —。完成人数、退课暂留空。</p><h2 style="margin-top:18px" id="distribution-title">两批完课次数分布对比</h2><p class="sub">逐个完成次数比较两批人数和比例；开课进度不同时，仅对比共有桶，最高桶范围变化需结合已开课节数判断。</p><div class="table-wrap"><table><thead id="distribution-head"></thead><tbody id="distribution-rows"></tbody></table></div></div>
 </section>
 <section id="goals-page" role="tabpanel" aria-labelledby="tab-goals" hidden>
 <p class="sub" style="margin-bottom:14px">独立选择评估批次和节次，观察目标差距与最近几次催办的进展；不受「批次对比」的选择影响。</p>
@@ -88,8 +89,18 @@ const gap=line('第'+c.id+'次 差值',rows.map(r=>r.gap),'#d4820d');gap.markLin
 const gapOption=chartOption(names,[gap,line('第'+b.id+'次 差值（虚线）',br.map(r=>r?.gap??null),'#98a2b3',true)],low,high,'pp');gapOption.tooltip.formatter=rateOption.tooltip.formatter;charts[1].setOption(gapOption,true);
 $('table-title').textContent='第'+c.id+'次 与 第'+b.id+'次 · 逐节数据对比';
 $('table-head').innerHTML='<tr><th rowspan="2">节次</th>'+['累计完课率','累计作业率','累计差值'].map(key=>'<th colspan="3" style="text-align:center">'+key+'</th>').join('')+'<th rowspan="2">考核</th></tr><tr>'+[0,1,2].map(()=>'<th>第'+c.id+'次</th><th>第'+b.id+'次</th><th>变化</th>').join('')+'</tr>';
-$('rows').innerHTML=rows.map(r=>{const x=baseRow(r.lesson),g=grade(r.gap);return '<tr><td>第'+r.lesson+'节</td>'+['course','homework','gap'].map((key,i)=>'<td>'+rate(r[key],i===2?'pp':'%')+'</td><td>'+rate(x?.[key],i===2?'pp':'%')+'</td><td title="'+(x?'变化＝查看批次－对比批次':'对比批次无该节快照')+'">'+(x?delta(r[key],x,key):'—')+'</td>').join('')+'<td style="color:'+g.color+'">'+g.label+'</td></tr>'}).join('');
-showDetail(rows.findIndex(r=>String(r.lesson)===$('compare-lesson').value));
+$('rows').innerHTML=rows.map(r=>{const x=baseRow(r.lesson),g=grade(r.gap);return '<tr><td>第1～'+r.lesson+'节累计</td>'+['course','homework','gap'].map((key,i)=>'<td>'+rate(r[key],i===2?'pp':'%')+'</td><td>'+rate(x?.[key],i===2?'pp':'%')+'</td><td title="'+(x?'变化＝查看批次－对比批次':'对比批次无该节快照')+'">'+(x?delta(r[key],x,key):'—')+'</td>').join('')+'<td style="color:'+g.color+'">'+g.label+'</td></tr>'}).join('');
+showDetail(rows.findIndex(r=>String(r.lesson)===$('compare-lesson').value));renderCompletion();
+}
+function renderCompletion(){
+const c=selected(current),b=selected(baseline),rows=(c.completion||[]).slice().sort((a,b)=>b.count-a.count),before=b.completion||[];
+$('completion-title').textContent='第'+c.id+'次 · 完课次数';
+$('completion-scope').textContent='查看批次在读 '+c.total+' 人，分桶人数合计 '+rows.reduce((sum,r)=>sum+r.people,0)+' 人。'+(!rows.length?'该批次未保存完课次数分布，不从累计率反推。':'')+(c.completionNotice||'');
+$('completion-rows').innerHTML=rows.length?rows.map(r=>'<tr><td>'+r.count+'</td><td>'+r.people+'</td><td>'+r.ratio+'</td><td>'+(r.followable??'—')+'</td><td></td><td></td><td>'+r.cumulativeRate+'</td><td>'+r.cumulative+'</td></tr>').join(''):'<tr><td colspan="8">暂无完课次数分布快照</td></tr>';
+$('distribution-title').textContent='第'+c.id+'次 与 第'+b.id+'次 · 完课次数分布对比';
+$('distribution-head').innerHTML='<tr><th>完课次数</th><th>第'+c.id+'次人数</th><th>第'+b.id+'次人数</th><th>人数变化</th><th>第'+c.id+'次比例</th><th>第'+b.id+'次比例</th><th>比例变化</th></tr>';
+const counts=[...new Set(rows.concat(before).map(r=>r.count))].sort((a,b)=>b-a);
+$('distribution-rows').innerHTML=counts.length?counts.map(k=>{const r=rows.find(r=>r.count===k),x=before.find(r=>r.count===k);return '<tr><td>'+k+'</td><td>'+(r?.people??'—')+'</td><td>'+(x?.people??'—')+'</td><td>'+(r&&x?(r.people-x.people>0?'+':'')+(r.people-x.people)+'人':'—')+'</td><td>'+(r?.ratio??'—')+'</td><td>'+(x?.ratio??'—')+'</td><td>'+(r&&x&&c.total&&b.total?signed(100*r.people/c.total-100*x.people/b.total):'—')+'</td></tr>'}).join(''):'<tr><td colspan="7">双方暂无分布快照，不估算历史人数</td></tr>';
 }
 function showDetail(index){const c=selected(current),b=selected(baseline),r=c?.lessons[index],x=r?baseRow(r.lesson):null;$('detail').textContent=r?'第'+r.lesson+'节 · 第'+c.id+'次 / 第'+b.id+'次：累计完课率 '+rate(r.course,'%')+' / '+rate(x?.course,'%')+'（'+delta(r.course,x,'course')+'），累计作业率 '+rate(r.homework,'%')+' / '+rate(x?.homework,'%')+'（'+delta(r.homework,x,'homework')+'），差值 '+rate(r.gap,'pp')+' / '+rate(x?.gap,'pp')+'（'+delta(r.gap,x,'gap')+'）。':'暂无共同节次可比较；图表与表格中的缺失数据留空。';}
 function renderGoals(reset=false){const c=selected(goalBatch);lessonOptions($('goal-lesson'),c?.lessons||[],reset);updateGoals()}
