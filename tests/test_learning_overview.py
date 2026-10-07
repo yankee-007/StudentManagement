@@ -172,11 +172,11 @@ class OverviewIntegrationTests(unittest.TestCase):
         self.o.selectBatch('goal', 0)
         self.assertEqual(self.o.view['trends'][0]['labels'], [3, 4, 5, 6, 7])
 
-    def test_homework_candidates_use_batch_marks_and_selected_cumulative_lessons(self):
+    def test_homework_candidates_require_completed_courses_in_selected_cumulative_lessons(self):
         members = records()
-        members[0][1].update(homework='1,3', completed_homework='1')
-        members[1][1].update(homework='2', completed_homework='1')
-        members[2][1].update(homework='1,2', completed_homework='0')
+        members[0][1].update(courses='3', completed_courses='2', homework='1,3', completed_homework='1')
+        members[1][1].update(courses='2', completed_courses='2', homework='2', completed_homework='1')
+        members[2][1].update(homework='2', completed_homework='1')
         members[3][1].update(homework='未获取', completed_homework='')
         members[4][1].update(homework='1', completed_homework='0')
         members[5][1].update(homework='1', completed_homework='0')
@@ -190,12 +190,12 @@ class OverviewIntegrationTests(unittest.TestCase):
         candidates = self.o.view['homeworkCandidates']
         self.assertTrue(candidates['available'])
         self.assertEqual([row['cells'][1:] for row in candidates['rows']],
-                         [['虚构学员A', 'A', '1'], ['虚构学员B', 'B', '2']])
-        self.assertIn('1名可跟进学员作业数据未知', candidates['notice'])
+                         [['虚构学员A', 'A', '1'], ['虚构学员C', 'C', '2']])
+        self.assertIn('1名学员学习数据未知', candidates['notice'])
         self.o.selectLesson(1)
         self.assertEqual([row['cells'][2] for row in self.o.view['homeworkCandidates']['rows']], ['A'])
         self.assertIn('候选人数比所需人数少 1人', self.o.view['homeworkCandidates']['notice'])
-        self.o.selectBatch('goal', 1)  # 第3次全否，不继承第4次标记
+        self.o.selectBatch('goal', 1)  # 第3次无欠交作业，不继承第4次学习结果
         self.assertEqual(self.o.view['homeworkCandidates']['rows'], [])
         self.assertEqual((self.w._batch, self.w.editorKey), original_cursor)
         self.o.selectBatch('goal', 3)  # 第1次没有累计快照
@@ -213,7 +213,26 @@ class OverviewIntegrationTests(unittest.TestCase):
             seed(conn, 4, dashboard(), members, dict.fromkeys('ABCDEP', '是'))
         self.o.reload(); self.o.selectTab(3); self.o.selectBatch('goal', 0)
         self.assertEqual(self.o.view['homeworkCandidates']['rows'], [])
-        self.assertIn('3名可跟进学员作业数据未知', self.o.view['homeworkCandidates']['notice'])
+        self.assertIn('3名学员学习数据未知', self.o.view['homeworkCandidates']['notice'])
+
+    def test_homework_candidates_match_zero_course_missing_and_ignore_followup_marks(self):
+        from app.campaigns import learning_snapshot
+        members = records()[:4]
+        for sid, snap in members:
+            flags = {f'{kind}{n}':'T' for kind in ('c','z') for n in range(1,6)}
+            if sid == 'A': flags.update(c1='F', z1='F')
+            if sid == 'B': flags['z2'] = 'F'
+            if sid == 'C': flags['z5'] = 'F'
+            snap.update(learning_snapshot(flags))
+        with self.backend.db.connect() as conn:
+            seed(conn, 4, dashboard(lessons=(1,2,3,4,5), homework=1), members,
+                 {'A':'是', 'B':'否', 'D':'是'})
+        self.o.reload(); self.o.selectTab(3); self.o.selectBatch('goal', 0)
+        self.o.selectLesson(5)
+        self.assertEqual([row['cells'][1:] for row in self.o.view['homeworkCandidates']['rows']],
+                         [['虚构学员B','B','2'], ['虚构学员C','C','5']])
+        self.o.selectLesson(1)
+        self.assertEqual(self.o.view['homeworkCandidates']['rows'], [])
 
     def test_hidden_class_roundtrip_resets_choices_and_inspection_does_not_change_evaluation(self):
         self.o.selectTab(2)

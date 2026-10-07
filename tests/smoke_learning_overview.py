@@ -52,6 +52,7 @@ def run():
             members = records()
             for sid, snap in members:
                 snap.update(homework='1,2,3,4,5' if sid in ('A','B') else '',
+                            completed_courses='5',
                             completed_homework='0' if sid in ('A','B') else '5')
             seed(conn, 3, dashboard(lessons=(1, 2, 3, 4, 5)), members,
                  marks={'A':'是', 'B':'否', 'C':'否', 'D':'否'})
@@ -154,6 +155,7 @@ def run():
                     table_rows = table.property('rows')
                     if hasattr(table_rows, 'toVariant'): table_rows = table_rows.toVariant()
                     assert table_rows[0]['cells'] == ['1','虚构学员A','A','1、2、3、4、5']
+                    assert table_rows[1]['cells'] == ['2','虚构学员B','B','1、2、3、4、5']
                     assert window.grabWindow().save(str(output/f'homework-candidates-{width}.png'))
                     QTest.keyClick(window, Qt.Key_Escape); QTest.qWait(30)
                     assert not dialog.property('visible')

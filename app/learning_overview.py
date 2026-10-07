@@ -110,7 +110,7 @@ def aggregate_batch(batch_id, stamp, data, records, marks):
                 total=total, members=len(records), lessons=lessons, completion=completion,
                 followupSummary=summary, unknown=unknown, learningNotice=notice,
                 completionNotice=completion_notice,
-                population=[dict(snap, student_id=sid, followup_status=marks.get(sid, ''))
+                population=[dict(snap, student_id=sid)
                             for sid, snap in population])
 
 
@@ -406,18 +406,24 @@ class LearningOverview(QObject):
         candidates, unknown = [], 0
         if r and cards[2]['need'] is not None:
             for snap in b['population']:
-                if snap['followup_status'] != '是':
-                    continue
-                raw = snap.get('homework')
-                if (snap.get('matched') is False or integer(snap.get('completed_homework'), 32) is None
-                        or not isinstance(raw, str) or not re.fullmatch(r'(?:\d+(?:,\d+)*)?', raw)):
+                missing_by_kind = {}
+                for key in ('courses', 'homework'):
+                    raw = snap.get(key)
+                    if not isinstance(raw, str) or not re.fullmatch(r'(?:\d+(?:,\d+)*)?', raw):
+                        break
+                    missing = [integer(n, 32) for n in raw.split(',')] if raw else []
+                    if any(n is None or n == 0 for n in missing):
+                        break
+                    missing_by_kind[key] = sorted({n for n in missing if n <= lesson})
+                completed_courses = integer(snap.get('completed_courses'), 32)
+                if (snap.get('matched') is False or completed_courses is None
+                        or integer(snap.get('completed_homework'), 32) is None
+                        or len(missing_by_kind) != 2):
                     unknown += 1
                     continue
-                missing = [integer(n, 32) for n in raw.split(',')] if raw else []
-                if any(n is None or n == 0 for n in missing):
-                    unknown += 1
+                if completed_courses < lesson or missing_by_kind['courses']:
                     continue
-                missing = sorted({n for n in missing if n <= lesson})
+                missing = missing_by_kind['homework']
                 if missing:
                     candidates.append(dict(student_id=snap['student_id'], name=snap.get('name', ''),
                                            missing=missing))
@@ -429,7 +435,7 @@ class LearningOverview(QObject):
             note += f' 候选人数比所需人数少 {need-len(candidates)}人。'
         note += ' 每人须补齐第1～'+str(lesson)+'节全部欠交作业才计入累计作业完成人数；名单不代表已完成。'
         if unknown:
-            note += f' {unknown}名可跟进学员作业数据未知，未列入。'
+            note += f' {unknown}名学员学习数据未知，未列入。'
         return dict(goalCards=cards, trends=trends, trendRows=trend_rows,
                     homeworkCandidates=dict(available=r is not None and need is not None,
                                             title=b['label']+f' · 第1～{lesson}节', notice=note,
