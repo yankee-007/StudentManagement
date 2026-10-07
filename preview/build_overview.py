@@ -31,27 +31,43 @@ def load_batches(connection, feedback_batch=None):
                                 homeworkDone=hw.get('completed')))
         completion = [dict(bucket) for bucket in data.get('completion', {}).get('courses', [])] if data.get('version', 0) >= 3 else []
         completion_notice = ''
+        completion_total = 0
         for bucket in completion:
             bucket.pop('followable', None)
-        if completion and has_followup:
+        if completion:
             opened = data.get('opened', max(bucket['count'] for bucket in completion))
-            # Count each student once; export no identifiers or feedback text.
-            followup_counts = dict(connection.execute(
-                "SELECT MIN(COALESCE(CAST(json_extract(s.snapshot,'$.completed_courses') AS INTEGER),0),?),COUNT(*) "
+            # Match the historical workbench's targets view, independently of its column filters.
+            target_counts = dict(connection.execute(
+                "SELECT MIN(CAST(json_extract(s.snapshot,'$.completed_courses') AS INTEGER),?),COUNT(*) "
                 "FROM campaign_students s WHERE s.batch_id=? "
-                "AND json_extract(s.snapshot,'$.roster_status')='在读' "
+                "AND s.eligible=1 AND TRIM(s.name)!='' "
+                "AND json_extract(s.snapshot,'$.wechat')='是' "
+                "AND json_extract(s.snapshot,'$.roster_status') IN ('','在读') "
                 "AND COALESCE(json_extract(s.snapshot,'$.is_placeholder'),0)=0 "
-                "AND EXISTS(SELECT 1 FROM campaign_followup_status f WHERE f.batch_id=s.batch_id "
-                "AND f.student_id=s.student_id AND f.status='是') GROUP BY 1", (opened, row[0])))
+                "AND json_extract(s.snapshot,'$.completed_courses') NOT IN ('','未获取') GROUP BY 1", (opened, row[0])))
+            completion_total = sum(target_counts.values())
+            followup_counts = {}
+            if has_followup:
+                followup_counts = dict(connection.execute(
+                    "SELECT MIN(CAST(json_extract(s.snapshot,'$.completed_courses') AS INTEGER),?),COUNT(*) "
+                    "FROM campaign_students s JOIN campaign_followup_status f "
+                    "ON f.batch_id=s.batch_id AND f.student_id=s.student_id "
+                    "WHERE s.batch_id=? AND s.eligible=1 AND TRIM(s.name)!='' AND f.status='是' "
+                    "AND json_extract(s.snapshot,'$.wechat')='是' "
+                    "AND json_extract(s.snapshot,'$.roster_status') IN ('','在读') "
+                    "AND COALESCE(json_extract(s.snapshot,'$.is_placeholder'),0)=0 "
+                    "AND json_extract(s.snapshot,'$.completed_courses') NOT IN ('','未获取') GROUP BY 1", (opened, row[0])))
             for bucket in completion:
-                value = sum(number for count, number in followup_counts.items() if count <= bucket['count'])
-                capacity = sum(item['people'] for item in completion if item['count'] <= bucket['count'])
-                if 0 <= value <= capacity:
-                    bucket['followable'] = value
-                else:
-                    completion_notice = '可跟进标记人数与分布快照不一致，受影响的可跟进人数暂不展示。'
+                count = bucket['count']
+                people = target_counts.get(count, 0)
+                cumulative = sum(n for k, n in target_counts.items() if k >= count)
+                bucket.update(people=people, cumulative=cumulative,
+                              ratio=f'{100*people/completion_total:.2f}%' if completion_total else '—',
+                              cumulativeRate=f'{100*cumulative/completion_total:.2f}%' if completion_total else '—')
+                if has_followup:bucket['followable'] = followup_counts.get(count, 0)
         batches.append(dict(id=row[0], time=row[1], total=data.get('total', 0),
                             lessons=lessons, completion=completion,
+                            completionTotal=completion_total,
                             completionNotice=completion_notice, notice=data.get('notice', '')))
     return batches
 
