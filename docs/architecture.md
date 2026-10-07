@@ -54,7 +54,7 @@ Backend / TermModule / SettingsModule / LiveAbsence → AcquisitionTask（QThrea
 
 ### 反馈、免催与浮窗
 
-- 可跟进状态：CampaignDetail显式是/否 → Workflow.setFollowupStatus（捕获班级/批次/学员身份） → CampaignStore.set_followup_status → campaign_followup_status。独立于反馈状态，默认否，历史允许补充此人工标记但不修改原反馈/学习；更新后保留冻结筛选并重算看板。新批次不继承，刷新学习不覆写；表格、字段管理、筛选和导出支持。见ADR-012。
+- 可跟进状态：CampaignDetail显式未填写/是/否 → Workflow.setFollowupStatus（捕获班级/批次/学员身份） → CampaignStore.set_followup_status → campaign_followup_status。独立于反馈状态，缺少标记为空；未填写操作删除标记记录，保持旧是/否存储约束。历史允许补充此人工标记但不修改原反馈/学习；更新后保留冻结筛选并重算看板。新批次不继承，刷新学习不覆写；表格、字段管理、筛选和导出支持。见ADR-012。
 
 - CampaignDetail → queueFeedbackForSelection → Workflow.queueFeedback/flushFeedback → CampaignStore.save_feedback：校验班级、批次、真实学员，按捕获身份替换本批次反馈并清空旧草稿；非空计已回复，清空恢复待反馈，不推进选择。保存时读取该学员并 reconcile_rows，保留编辑委托和冻结筛选；失焦、切班/批/学员、切模块、关闭时提交待保存内容，失败保留内存内容并阻止班级/批次切换及主窗口关闭。旧 draft/submit 接口保留兼容调用，旧记录与草稿仅在实际编辑后合并持久化。
 - markUnreplied → mark_unreplied(batch, visible_ids)：事务中跳过补位、空姓名、已有任何反馈或非空草稿，不检查发送成功。

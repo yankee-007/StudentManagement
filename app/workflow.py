@@ -461,7 +461,7 @@ class Workflow(QObject):
                 missing_total=f'{len(courses.split(",")) if courses else 0}/{len(homework.split(",")) if homework else 0}' if flags is not None else '',
                 completed_total=f'{ctotal}/{ztotal}' if flags is not None else '',
                 completed_courses='' if ctotal is None else str(ctotal),completed_homework='' if ztotal is None else str(ztotal),
-                feedback='',draft='',message='',eligible=0,send_state='未建立批次',reply_state='—',followup_status='否',
+                feedback='',draft='',message='',eligible=0,send_state='未建立批次',reply_state='—',followup_status='',
                 reason='缺号补位' if student.get('is_placeholder') else student.get('sync_state',''),position=position,
                 is_placeholder=student.get('is_placeholder',False),
                 exemption_date=student.get('exemption_date',''),exemption_text=student.get('exemption_text',''),exemption_expired=student.get('exemption_expired',False),

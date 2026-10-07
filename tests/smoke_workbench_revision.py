@@ -74,14 +74,23 @@ def run():
         draft = visual(detail, "feedbackDraft")
         assert draft is not None
         followup = visual(detail, 'followupStatusSelector')
-        assert followup is not None and followup.property('currentText') == '否'
-        followup.setProperty('currentIndex',1)
-        followup.activated.emit(1)
+        assert followup is not None and followup.property('currentText') == '未填写'
+        assert followup.property('count') == 3
+        followup.setProperty('currentIndex',2)
+        followup.activated.emit(2)
         app.processEvents()
         assert backend.workflow.selected['followup_status'] == '是'
         assert visual(detail, 'feedbackDraft') == draft
         assert visual(detail, 'followupStatusSelector').property('currentText') == '是'
         if os.environ.get('FOLLOWUP_SCREENSHOT'):
+            assert window.grabWindow().save(os.environ['FOLLOWUP_SCREENSHOT'])
+        followup.setProperty('currentIndex',0)
+        followup.activated.emit(0)
+        app.processEvents()
+        assert backend.workflow.selected['followup_status'] == ''
+        assert visual(detail, 'followupStatusSelector').property('currentText') == '未填写'
+        if os.environ.get('FOLLOWUP_SCREENSHOT'):
+            QTest.qWait(50)
             assert window.grabWindow().save(os.environ['FOLLOWUP_SCREENSHOT'])
         assert draft.height() < 40
         menu = draft.property('menu')

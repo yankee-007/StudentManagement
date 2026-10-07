@@ -41,6 +41,7 @@ fs.mkdirSync(output,{recursive:true});
  const latest=await page.locator('#current').inputValue();
  const trueLatest=await page.evaluate(()=>String(dashboardBatch().id));
  assert.strictEqual(trueLatest,'17');assert(await page.evaluate(()=>DATA.batches.every(b=>b.total===b.completionTotal))); assert.strictEqual(await page.locator('#baseline').inputValue(),'9');
+ assert(await page.evaluate(()=>DATA.batches.every(b=>[9,16].includes(b.id)?b.followupSummary.marked===b.total:b.followupSummary.marked===0)));
  const followComparison=await page.evaluate(()=>{const c=selected(current),b=selected(baseline);return c.completion.map(r=>{const x=b.completion.find(x=>x.count===r.count);return [String(r.followable??'—'),String(x?.followable??'—'),x&&r.followable!=null&&x.followable!=null?(r.followable-x.followable>0?'+':'')+(r.followable-x.followable)+'人':'—']})});
  for(let i=0;i<followComparison.length;i++)assert.deepStrictEqual(await page.locator('#distribution-rows tr').nth(i).locator('td:nth-child(n+8)').allTextContents(),followComparison[i]);
  const distribution=await page.evaluate(()=>{const c=selected(current);return {total:c.completionTotal,people:c.completion.reduce((n,r)=>n+r.people,0),highest:c.completion[0].count,buckets:c.completion.length,followable:c.completion.every(r=>r.followable==null||r.followable<=r.people)}});

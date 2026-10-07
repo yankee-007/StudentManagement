@@ -20,7 +20,7 @@ UiPanel {
         return Object.keys(result).sort(function(a,b) { return Number(a)-Number(b) }).map(function(key) { return result[key] })
     }
     // 完课次数分栏：stats.completion 由 app/dashboard.py 计算（快照口径），
-    // 「可跟进人数」由 Workflow 按各批次独立人工是/否标记补算。
+    // 「可跟进人数」由 Workflow 按各批次独立人工标记补算（未填写、是、否，仅是计入）。
     property var completionRows: {
         if (tab !== 1) return []
         var buckets = (stats.completion && stats.completion.courses) || []

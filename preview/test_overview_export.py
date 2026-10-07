@@ -21,6 +21,7 @@ class ExportCompletionTests(unittest.TestCase):
             before=load_batches(conn)
             self.assertTrue(all('followable' not in b for b in before[-1]['completion']))
             conn.execute('CREATE TABLE campaign_followup_status(batch_id INTEGER,student_id TEXT,status TEXT,PRIMARY KEY(batch_id,student_id))')
+            conn.execute("INSERT INTO campaign_followup_status VALUES(2,'a','')")
             for sid in ('a','b','c','e','g','h','i','outside'):
                 conn.execute("INSERT INTO campaign_followup_status VALUES(3,?,'是')",(sid,))
             conn.execute("INSERT INTO campaign_followup_status VALUES(3,'d','否')")

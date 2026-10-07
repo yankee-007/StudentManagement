@@ -32,7 +32,7 @@ def completion_snapshot(connection, batch, data, has_followup):
         counts[count] += 1
         if flags.get(sid) == '是':followup[count] += 1
     total = len(population)
-    marked = sum(sid in flags for sid, snap in population)
+    marked = sum(flags.get(sid) in ('是', '否') for sid, snap in population)
     summary = dict(total=total, marked=marked, yes=sum(flags.get(sid) == '是' for sid, snap in population),
                    no=sum(flags.get(sid) == '否' for sid, snap in population), unmarked=total-marked)
     opened = max([int(data.get('opened') or 0)] + [int(r['lesson']) for r in data.get('courses', [])])

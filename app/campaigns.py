@@ -265,7 +265,7 @@ class CampaignStore:
                 item['feedback'] = '\n'.join(r['content'] for r in entries)
                 item['reply_state'] = '—' if item.get('is_placeholder') or not item['name'].strip() else '已回复' if any(r['kind']=='reply' for r in entries) else '未回复' if entries else '待反馈'
                 item['draft'] = drafts.get(item['student_id'],'')
-                item['followup_status'] = followup.get(item['student_id'], '否')
+                item['followup_status'] = followup.get(item['student_id'], '')
                 replies = '\n'.join(r['content'] for r in entries if r['kind'] == 'reply')
                 item['feedback_edit'] = '\n'.join(v for v in (replies, item['draft']) if v)
                 if batch == latest:
@@ -316,13 +316,17 @@ class CampaignStore:
             raise ValueError('仅最新批次的真实学员可以登记反馈')
 
     def set_followup_status(self, batch, sid, status):
-        if status not in ('是', '否'):
-            raise ValueError('可跟进状态只能是是或否')
+        if status not in ('', '是', '否'):
+            raise ValueError('可跟进状态只能是未填写、是或否')
         with self.db.connect() as conn:
             row = conn.execute('SELECT name,snapshot FROM campaign_students WHERE batch_id=? AND student_id=?', (batch, sid)).fetchone()
             if not row or not row['name'].strip() or json.loads(row['snapshot']).get('is_placeholder'):
                 raise ValueError('请选择批次中的真实学员')
-            conn.execute('INSERT INTO campaign_followup_status(batch_id,student_id,status) VALUES(?,?,?) ON CONFLICT(batch_id,student_id) DO UPDATE SET status=excluded.status', (batch, sid, status))
+            if status == '':
+                # 缺行表示未填写；兼容原有仅允许是/否的存储约束。
+                conn.execute('DELETE FROM campaign_followup_status WHERE batch_id=? AND student_id=?', (batch, sid))
+            else:
+                conn.execute('INSERT INTO campaign_followup_status(batch_id,student_id,status) VALUES(?,?,?) ON CONFLICT(batch_id,student_id) DO UPDATE SET status=excluded.status', (batch, sid, status))
 
     def submit(self,batch,sid,content):
         if not content.strip():

@@ -176,13 +176,13 @@ ColumnLayout {
                         Label { text: "可跟进状态："; color: UiTheme.ink }
                         UiComboBox {
                             objectName: modelData.key === "followup_status" ? (card.service === card.workflow ? "followupStatusSelector" : "floatingFollowupStatusSelector") : ""
-                            model: ["否", "是"]
-                            currentIndex: card.service.selected.followup_status === "是" ? 1 : 0
+                            model: ["未填写", "否", "是"]
+                            currentIndex: card.service.selected.followup_status === "是" ? 2 : card.service.selected.followup_status === "否" ? 1 : 0
                             enabled: card.hasStudent && !!card.service.selected.name && !card.service.selected.is_placeholder && card.workflow.batchIndex >= 0
                             Accessible.name: "可跟进状态"
                             Layout.preferredWidth: 90
                             Layout.minimumWidth: 72
-                            onActivated: card.service.setFollowupStatusForSelection(card.loadedKey, currentText)
+                            onActivated: card.service.setFollowupStatusForSelection(card.loadedKey, currentIndex === 0 ? "" : currentText)
                         }
                     }
                     ColumnLayout {
