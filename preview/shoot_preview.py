@@ -17,6 +17,6 @@ def shoot(page, out, width, height):
     return True
 
 
+# 只截主视图：该班当前只有 4 节，滑块收窄没有额外信息量。
 ok = shoot("preview/dashboard-169.html", "docs/preview-dashboard-history/html-169-all.png", 1600, 1060)
-ok &= shoot("preview/dashboard-169-focus.html", "docs/preview-dashboard-history/html-169-focus.png", 1600, 1060)
-print("both ok" if ok else "one failed")
+print("ok" if ok else "failed")

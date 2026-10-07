@@ -8,17 +8,24 @@ import os
 import sqlite3
 from pathlib import Path
 
-BASE = Path(os.path.expandvars(r"%LOCALAPPDATA%\LocalTools\学员催办维护名单"))
-DB = BASE / "followup.db"
-SOURCE_BATCHES = [9, 10, 11, 12, 13]
+# 正式库默认在 Qt AppLocalDataLocation 下；用环境变量可覆盖，不把机器专属路径写死入库。
+DEFAULT_DIR = Path(os.environ.get("LOCALAPPDATA", "")) / "LocalTools" / "学员催办维护名单"
+DB = Path(os.environ.get("FOLLOWUP_DB", DEFAULT_DIR / "followup.db"))
+SOURCE_BATCHES = [9, 10, 11, 12, 13]   # 走势对比用的最近若干次催办；缺失会在下面报错
 TARGET_LESSONS = 32          # 课程总节数：考核线按满课时设定，图表只画已开课节次
 
+if not DB.exists():
+    raise SystemExit(f"找不到正式库：{DB}\n用 FOLLOWUP_DB=<路径> 指定，或先在本机启动一次应用生成 followup.db。")
+
+# 只读打开：mode=ro 从根上排除写入，也避免触发任何迁移。
 conn = sqlite3.connect(f"file:{DB}?mode=ro", uri=True)
 conn.row_factory = sqlite3.Row
 
 batches = []
 for bid in SOURCE_BATCHES:
     campaign = conn.execute("SELECT * FROM campaigns WHERE id=?", (bid,)).fetchone()
+    if campaign is None:
+        raise SystemExit(f"批次 {bid} 不存在；该班被清理过或批次号变了，请调整 SOURCE_BATCHES。")
     data = json.loads(conn.execute("SELECT data FROM campaign_dashboards WHERE batch_id=?", (bid,)).fetchone()["data"])
     snapshots = {r["student_id"]: json.loads(r["snapshot"])
                  for r in conn.execute("SELECT student_id,snapshot FROM campaign_students WHERE batch_id=?", (bid,))}
