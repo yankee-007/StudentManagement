@@ -38,7 +38,7 @@ fs.mkdirSync(output,{recursive:true});
  await page.selectOption('#baseline','12');
  assert((await page.locator('#comparison-notice').textContent()).includes('变化为0'));
  assert((await page.locator('#completion-rows td:nth-child(4)').allTextContents()).every(x=>x==='—'));
- 
+
  assert((await page.locator('#distribution-rows td:nth-child(4)').allTextContents()).every(x=>x==='0人'));
  for(const nth of [4,7,10])assert((await page.locator('#rows tr td:nth-child('+nth+')').allTextContents()).every(x=>x==='0.00pp'));
  await page.selectOption('#current',latest);await page.selectOption('#baseline','14');
