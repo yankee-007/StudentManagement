@@ -150,11 +150,6 @@ ApplicationWindow {
             UiButton { objectName: "createCampaignButton"; text: backend.busy ? "正在获取最新数据…" : "新建催办"; highlighted: true; enabled: !backend.busy && !backend.termsModule.busy && !sender.active; onClicked: createDialog.open() }
             UiButton { text: "导出全班 XLSX"; enabled: wf.batchIndex >= 0; onClicked: batchExportDialog.open() }
         }
-        RowLayout {
-            Layout.fillWidth: true
-            Label { text: "学习图表、历史对比与目标试算已移至学习概览"; color: UiTheme.muted; Layout.fillWidth: true; elide: Text.ElideRight }
-            UiButton { objectName: "openLearningOverview"; text: "学习概览"; onClicked: root.switchModule(7) }
-        }
         UiPanel {
             visible: root.width < 1000 || (wf.batchIndex >= 0 && !wf.canEdit)
             Layout.fillWidth: true; padding: 10
