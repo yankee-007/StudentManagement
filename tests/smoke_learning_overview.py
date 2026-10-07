@@ -92,6 +92,9 @@ def run():
         # All tabs are keyboard operable; selectors are native controls.
         tab = visual(window.contentItem(), 'overviewTab0')
         tab.forceActiveFocus(); QTest.keyClick(window, Qt.Key_Right)
+        assert b.learningOverview.tabIndex == 3
+        assert visual(window.contentItem(), 'overviewTarget0').isVisible()
+        QTest.keyClick(window, Qt.Key_Right)
         assert b.learningOverview.tabIndex == 1
         history = visual(window.contentItem(), 'overviewHistoryBatch')
         history.setProperty('currentIndex', 2); history.activated.emit(2); QTest.qWait(30)
@@ -103,6 +106,10 @@ def run():
         assert len(b.learningOverview.view['rateChart']['series']) == 4
         assert charts[1].property('chart').toVariant()['thresholds'] == [5,10,15]
         QTest.keyClick(window, Qt.Key_End)
+        assert b.learningOverview.tabIndex == 2
+        QTest.keyClick(window, Qt.Key_Home)
+        assert b.learningOverview.tabIndex == 0
+        QTest.keyClick(window, Qt.Key_Right)
         assert b.learningOverview.tabIndex == 3
         target = visual(window.contentItem(), 'overviewTarget0')
         target.forceActiveFocus(); target.selectAll()

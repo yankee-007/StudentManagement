@@ -7,6 +7,13 @@ Item {
     property var service: backend.learningOverview
     readonly property var overview: service.view
     readonly property int tab: service.tabIndex
+    readonly property var tabOrder: [0, 3, 1, 2]
+    function inspectLessonLater(key) {
+        var inspectedTab = service.tabIndex
+        Qt.callLater(function() {
+            if (service.tabIndex === inspectedTab) service.inspectLesson(key)
+        })
+    }
     onVisibleChanged: service.setActive(visible)
     Component.onCompleted: service.setActive(visible)
     ColumnLayout {
@@ -18,17 +25,17 @@ Item {
             UiButton { objectName: "overviewReload"; text: "重读快照"; onClicked: service.reload(); ToolTip.visible: hovered; ToolTip.text: "读取本地保存的批次与标记，不联网采集" }
         }
         TabBar {
-            id: tabs; objectName: "overviewTabs"; Layout.fillWidth: true; currentIndex: root.tab
+            id: tabs; objectName: "overviewTabs"; Layout.fillWidth: true; currentIndex: root.tabOrder.indexOf(service.tabIndex)
             Repeater {
-                model: ["最新数据", "历史批次", "批次对比", "目标追踪"]
+                model: ["最新数据", "目标追踪", "历史批次", "批次对比"]
                 TabButton {
                     required property string modelData; required property int index
-                    objectName: "overviewTab" + index; text: modelData; implicitHeight: 36; onClicked: service.selectTab(index)
-                    Keys.onLeftPressed: { service.selectTab(Math.max(0,index-1)); tabs.itemAt(service.tabIndex).forceActiveFocus() }
-                    Keys.onRightPressed: { service.selectTab(Math.min(3,index+1)); tabs.itemAt(service.tabIndex).forceActiveFocus() }
+                    objectName: "overviewTab" + root.tabOrder[index]; text: modelData; implicitHeight: 36; onClicked: service.selectTab(root.tabOrder[index])
+                    Keys.onLeftPressed: { service.selectTab(root.tabOrder[Math.max(0,index-1)]); tabs.itemAt(tabs.currentIndex).forceActiveFocus() }
+                    Keys.onRightPressed: { service.selectTab(root.tabOrder[Math.min(3,index+1)]); tabs.itemAt(tabs.currentIndex).forceActiveFocus() }
                     Keys.onPressed: function(event) {
                         if (event.key === Qt.Key_Home) { service.selectTab(0); tabs.itemAt(0).forceActiveFocus(); event.accepted=true }
-                        else if (event.key === Qt.Key_End) { service.selectTab(3); tabs.itemAt(3).forceActiveFocus(); event.accepted=true }
+                        else if (event.key === Qt.Key_End) { service.selectTab(root.tabOrder[3]); tabs.itemAt(3).forceActiveFocus(); event.accepted=true }
                     }
                 }
             }
@@ -122,8 +129,8 @@ Item {
                     }
                     GridLayout {
                         visible: root.tab!==3; columns: root.width>=900 ? 2 : 1; Layout.fillWidth: true; columnSpacing: 12; rowSpacing: 12
-                        OverviewChart { objectName: "overviewRateChart"; Layout.fillWidth: true; Layout.preferredWidth: 1; title: "累计完课率与作业率"; chart: root.overview.rateChart || ({labels:[],series:[],details:[],thresholds:[],suffix:"%"}); selectedKey: root.overview.detailLesson || -1; onPointSelected: function(key) { service.selectLesson(key) }; onPointInspected: function(key) { service.inspectLesson(key) } }
-                        OverviewChart { objectName: "overviewGapChart"; Layout.fillWidth: true; Layout.preferredWidth: 1; title: "累计差值与考核线"; chart: root.overview.gapChart || ({labels:[],series:[],details:[],thresholds:[],suffix:"pp"}); selectedKey: root.overview.detailLesson || -1; onPointSelected: function(key) { service.selectLesson(key) }; onPointInspected: function(key) { service.inspectLesson(key) } }
+                        OverviewChart { objectName: "overviewRateChart"; Layout.fillWidth: true; Layout.preferredWidth: 1; title: "累计完课率与作业率"; chart: root.overview.rateChart || ({labels:[],series:[],details:[],thresholds:[],suffix:"%"}); selectedKey: root.overview.detailLesson || -1; onPointSelected: function(key) { service.selectLesson(key) }; onPointInspected: function(key) { root.inspectLessonLater(key) } }
+                        OverviewChart { objectName: "overviewGapChart"; Layout.fillWidth: true; Layout.preferredWidth: 1; title: "累计差值与考核线"; chart: root.overview.gapChart || ({labels:[],series:[],details:[],thresholds:[],suffix:"pp"}); selectedKey: root.overview.detailLesson || -1; onPointSelected: function(key) { service.selectLesson(key) }; onPointInspected: function(key) { root.inspectLessonLater(key) } }
                     }
                     OverviewTable { objectName: "overviewLessonTable"; visible: root.tab!==3; Layout.fillWidth: true; title: "逐节累计明细 · 变化＝查看批次－对比批次"; headers: root.overview.lessonHeaders || []; rows: root.overview.lessonRows || []; selectedKey: root.overview.detailLesson || -1; onRowSelected: function(key) { service.selectLesson(key) } }
                     Label { visible: root.tab!==3; text: root.overview.followup || ""; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.ink }
