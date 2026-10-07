@@ -150,16 +150,17 @@ ApplicationWindow {
         }
         LearningDashboard { stats: wf.dashboard; compact: root.height < 620 }
         UiPanel {
+            visible: root.width < 1000 || (wf.batchIndex >= 0 && !wf.canEdit)
             Layout.fillWidth: true; padding: 10
             background: Rectangle { color: "white"; radius: 8; border.color: UiTheme.line }
             ColumnLayout {
                 anchors.fill: parent
                 RowLayout {
+                    visible: root.width < 1000
                     Layout.fillWidth: true
                     Item { Layout.fillWidth: true }
                     UiButton { objectName: "campaignDetailToggle"; text: root.campaignDetailOpen ? "学员列表" : "学员详情"; visible: root.width < 1000; onClicked: root.campaignDetailOpen = !root.campaignDetailOpen }
                 }
-                Label { text: wf.summary; color: UiTheme.ink; font.pixelSize: 12; wrapMode: Text.Wrap; Layout.fillWidth: true }
                 Label { visible: wf.batchIndex >= 0 && !wf.canEdit; text: "历史批次只读：学习数据保持当时快照，不受后续获取影响。"; color: UiTheme.warning; font.pixelSize: 12 }
             }
         }
