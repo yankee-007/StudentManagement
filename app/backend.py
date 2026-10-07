@@ -446,7 +446,9 @@ class Backend(QObject):
                 raise ValueError('获取完成，但没有学员与班期名单匹配；未创建催办，请检查学号和姓名')
             self.repo.set_setting('class_name', self._class_name)
             self.refresh()
-            followed = self.workflow.refresh_live()
+            # A new campaign consumes the fetched data itself. Refreshing first would
+            # overwrite the previous latest batch just before it becomes history.
+            followed = self.workflow.refresh_live() if not self._create_after_fetch else 0
             self.toast.emit(f"获取完成：匹配 {result['matched']} 人，姓名不符 {result['mismatched']} 人，名单外 {result['unknown']} 人，未获取 {result['missing']} 人；两平台在读匹配 {source_stats['双方在读并导出']} 人"
                             + ('；最新催办批次欠交数据已同步' if followed else ''))
             create_campaign = self._create_after_fetch

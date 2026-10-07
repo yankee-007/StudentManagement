@@ -91,6 +91,25 @@ class LatestBatchRefreshTests(unittest.TestCase):
         self.assertEqual(self.learning(first,sid(1))['missing_total'],'0/0')
         self.assertEqual(self.learning(first,sid(1))['completed_total'],'2/2')
 
+    def test_create_after_fetch_preserves_previous_batch(self):
+        self.fetch([row(1,'学员1',{'C1':'T','Z1':'F'}), row(2,'学员2',{'C1':'T','Z1':'F'})], create=True)
+        first = self.w._batch
+        yesterday = '2026-10-06T18:56:00'
+        self.set_batch_time(first, yesterday)
+        with self.b.db.connect() as conn:
+            before = list(conn.execute('SELECT snapshot FROM campaign_students WHERE batch_id=? ORDER BY student_id', (first,)))
+            before = [r['snapshot'] for r in before]
+            dashboard = conn.execute('SELECT data FROM campaign_dashboards WHERE batch_id=?', (first,)).fetchone()['data']
+        self.fetch([row(1,'学员1',{'C1':'F','Z1':'T'}), row(2,'学员2',{'C1':'F','Z1':'T'})], create=True)
+        newest = self.w._batch
+        self.assertNotEqual(first, newest)
+        self.assertEqual(self.batch_time(first), yesterday)
+        with self.b.db.connect() as conn:
+            self.assertEqual([r['snapshot'] for r in conn.execute('SELECT snapshot FROM campaign_students WHERE batch_id=? ORDER BY student_id', (first,))], before)
+            self.assertEqual(conn.execute('SELECT data FROM campaign_dashboards WHERE batch_id=?', (first,)).fetchone()['data'], dashboard)
+        self.assertEqual(self.learning(newest, sid(1))['missing_total'], '1/0')
+        self.assertEqual(self.learning(first, sid(1))['missing_total'], '0/1')
+
     def test_student_missing_from_fetch_keeps_known_data(self):
         self.fetch([row(1,'学员1',{'C1':'T','Z1':'F'}), row(2,'学员2',{'C1':'T','Z1':'F'})], create=True)
         first = self.w._batch

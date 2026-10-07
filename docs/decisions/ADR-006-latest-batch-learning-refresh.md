@@ -17,6 +17,7 @@ Accepted。2026-09-29 由用户明确要求（“让最新批次学习列跟随�
 ## Decision
 
 - 获取成功、名单同步、进入工作台都经过 Workflow.refresh_live()；它先调用 CampaignStore.refresh_latest_learning()，按当前学习数据重算**最新批次**的学习列与看板快照。
+- 新建催办的获取成功路径例外：获取的数据直接用于创建新批次，不先刷新上一批次，避免上一批次在成为历史前被改写时间、学习数据和看板。单独刷新数据仍更新最新批次。
 - 只更新 campaign_students.snapshot 中的 courses、homework、missing_total、completed_total、completed_courses、completed_homework、source_sync。批次成员、反馈、草稿、免催、eligible、reason、message、send_state、sent_at 一律不动。
 - 学习列与建批共用同一套推导 campaigns.learning_snapshot(flags)；U 仍显示“未获取”/“—”，不得把 U 当作完成或未开课。
 - 本次获取未返回的学员（不在 learning_source() 中）**保留已取得的数据**，不因一次缺失获取被清空。
