@@ -41,6 +41,7 @@ Desktop.ini
 # Local generated previews and design drafts (may contain real class data)
 /preview/dashboard-data-*.json
 /preview/dashboard-169.html
+/preview/learning-overview-local.html
 /docs/preview-dashboard-history/
 /docs/ui/
 /output/
