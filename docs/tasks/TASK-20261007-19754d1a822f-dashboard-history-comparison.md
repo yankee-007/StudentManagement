@@ -31,7 +31,7 @@
 - 写本任务记录时核对：分支 `main`，HEAD `9fbbc76`（fix: preserve previous snapshot when creating campaign），`git status --porcelain` **为空**。
 - 注意：本轮中途工作区被外部整理过（AGENTS.md 改为新协议、新增 docs/agent、docs/tasks、ADR-008..011、根 HANDOFF.md 移除、.gitignore 增加预览与真实数据排除规则）。这些均非本任务所为；本任务据此重新核对了基线。
 - 目标分支：main（未创建分支）。依赖任务：无强制依赖；后续实现需参考 ADR-004、ADR-006、ADR-007、ADR-010。
-- 本任务本地提交：`f9a4031`（任务记录 + 索引 + 预览脚本路径通用化），未推送。
+- 本任务本地提交：`f9a4031`（任务记录 + 索引 + 预览脚本路径通用化）+ `6216fcd`（更正记录中的提交号），均未推送；两者合计即本任务全部改动。
 
 ## Snapshot（当前磁盘真实状态）
 
