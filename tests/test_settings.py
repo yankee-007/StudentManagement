@@ -56,7 +56,9 @@ class SettingsTests(unittest.TestCase):
                 self.assertFalse(b.fetchData())  # No term/binding means no network request.
 
     def test_homework_classes_survive_restart_for_the_same_account(self):
-        with tempfile.TemporaryDirectory() as folder:
+        with tempfile.TemporaryDirectory() as folder, \
+                patch('app.settings_module.get_password', return_value=None), \
+                patch('app.settings_module.set_password'):
             path = Path(folder) / 'test.db'
             b = Backend(path)
             b.workflow.registry.set_setting('homework_admin_id', 'hw-admin')

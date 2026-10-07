@@ -8,6 +8,8 @@ SettingsCard {
     required property string platform
     property var service: backend.settingsModule
     property var record: service.accounts[platform] || ({})
+    // 通用状态通知会重新求值 record；只有已保存账号真的变化才更新输入框。
+    readonly property string savedUsername: record.username || ""
     property var verification: service.verification[platform] || ({})
 
     subtitle: platform === "completion" ? "追光鲸鱼后台账号" : "作业平台后台账号"
@@ -33,7 +35,7 @@ SettingsCard {
             id: usernameField
             objectName: card.platform + "Username"
             Layout.fillWidth: true
-            text: card.record.username || ""
+            text: card.savedUsername
             placeholderText: "账号"; selectByMouse: true
             enabled: !card.service.busy
             onTextEdited: card.service.clearVerification(card.platform)
