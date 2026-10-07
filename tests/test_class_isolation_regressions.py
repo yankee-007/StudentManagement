@@ -96,6 +96,8 @@ class ClassIsolationRegressions(unittest.TestCase):
             add_student(other,name='李四')
             b.workflow._classes.append(dict(name='第二班',path=str(other.path)))
             b.workflow.selectClass(1)
+            self.assertEqual(c.student['_record_key'], previous)
+            c.selectClass(2)
             self.assertFalse(c.student)
             self.assertFalse(c.saveEditorField(previous,'所在地区','误写'))
             c._active_wecom_title=lambda:'李四'

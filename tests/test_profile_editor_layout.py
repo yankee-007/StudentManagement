@@ -81,7 +81,7 @@ class ProfileEditorLayoutTests(unittest.TestCase):
             b.workflow._classes.append({'name': '第二班', 'path': str(other.path)})
             b.workflow.selectClass(1)
             self.assertEqual(StudentRepository(Database(Path(folder) / 'test.db')).get('001')['profile_fields']['所在地区'], '深圳')
-            self.assertFalse(c.student)
+            self.assertEqual(c.student['_record_key'], first_key)
 
 
 if __name__ == '__main__':

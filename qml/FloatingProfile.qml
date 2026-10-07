@@ -24,12 +24,23 @@ Window {
         RowLayout {
             Layout.fillWidth: true
             Label {
-                text: companion.student.name || "等待识别"; font.pixelSize: 16; font.bold: true; color: UiTheme.ink
+                text: companion.displayName; font.pixelSize: 16; font.bold: true; color: UiTheme.ink
                 Layout.fillWidth: true; elide: Text.ElideRight
-                MouseArea { anchors.fill: parent; cursorShape: Qt.SizeAllCursor; onPressed: floating.startSystemMove() }
             }
             ToolButton { text: "置顶"; font.pixelSize: 12; checkable: true; checked: floating.pinned; onClicked: floating.pinned=checked }
-            ToolButton { text: "重试"; font.pixelSize: 12; onClicked: companion.retryContact(); ToolTip.visible: hovered; ToolTip.text: "重新识别最近激活的企微联系人" }
+        }
+        RowLayout {
+            Layout.fillWidth: true
+            Label { text: "班级"; color: UiTheme.muted; font.pixelSize: 13 }
+            ComboBox {
+                objectName: "profileCompanionClassSelector"
+                Layout.fillWidth: true
+                wheelEnabled: false
+                model: companion.classOptions
+                currentIndex: companion.classIndex
+                Accessible.name: "画像浮窗班级"
+                onActivated: companion.selectClass(index)
+            }
         }
         Label { text: companion.notice; font.pixelSize: 13; color: UiTheme.muted; wrapMode: Text.Wrap; Layout.fillWidth: true }
         Rectangle { Layout.fillWidth: true; height: 1; color: UiTheme.line }
@@ -46,7 +57,7 @@ Window {
             visible: !companion.student.student_id
             Layout.fillWidth: true; Layout.fillHeight: true
             verticalAlignment: Text.AlignVCenter; horizontalAlignment: Text.AlignHCenter
-            text: "激活学员的企业微信独立聊天窗口\n按当前班期和姓名自动匹配"
+            text: "激活学员的企业微信独立聊天窗口\n按备注前缀或姓名跨班识别\n重名时请选择班级"
             color: "#98a2b3"; wrapMode: Text.Wrap
         }
     }

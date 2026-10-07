@@ -182,6 +182,8 @@ python -B -m tests.smoke_live_absence
 python -B -m tests.smoke_ui_refresh
 python -B -m tests.smoke_ui_refinements
 python -B -m tests.smoke_class_switch
+python -B -m unittest tests.test_profile_companion_classes
+python -B -m tests.smoke_profile_companion_classes
 Remove-Item Env:QT_QPA_PLATFORM
 ```
 
