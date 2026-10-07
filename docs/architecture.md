@@ -54,7 +54,7 @@ Backend / TermModule / SettingsModule / LiveAbsence → AcquisitionTask（QThrea
 
 ### 反馈、免催与浮窗
 
-- CampaignDetail → queueFeedbackForSelection → Workflow.queueFeedback/flushFeedback → CampaignStore.save_feedback：校验班级、批次、真实学员，按捕获身份替换本批次反馈并清空旧草稿；由 feedback_status 判定：仅含明确「未接听电话」「未回复」项计未回复，其余非空反馈沿用已回复；清空恢复待反馈，不推进选择。保存时读取该学员并 reconcile_rows，保留编辑委托和冻结筛选；失焦、切班/批/学员、切模块、关闭时提交待保存内容，失败保留内存内容并阻止班级/批次切换及主窗口关闭。旧 draft/submit 接口保留兼容调用，旧记录与草稿仅在实际编辑后合并持久化。已有误标 reply 的未接听记录读取时按同一规则显示未回复，不批量改写正式库；编辑框保留包括未回复标记在内的反馈原文。保存成功后同步重算最新看板，可跟进仅计已回复者，排除待反馈。
+- CampaignDetail → queueFeedbackForSelection → Workflow.queueFeedback/flushFeedback → CampaignStore.save_feedback：校验班级、批次、真实学员，按捕获身份替换本批次反馈并清空旧草稿；非空计已回复，清空恢复待反馈，不推进选择。保存时读取该学员并 reconcile_rows，保留编辑委托和冻结筛选；失焦、切班/批/学员、切模块、关闭时提交待保存内容，失败保留内存内容并阻止班级/批次切换及主窗口关闭。旧 draft/submit 接口保留兼容调用，旧记录与草稿仅在实际编辑后合并持久化。
 - markUnreplied → mark_unreplied(batch, visible_ids)：事务中跳过补位、空姓名、已有任何反馈或非空草稿，不检查发送成功。
 - setLeave/clearLeave → profile_storage.set_exemption：画像/催办共享免催表；日历返回后复查身份，刷新当前资料但不修改历史快照。
 - 两个浮窗是无主窗口从属关系的独立窗口，主窗口最小化时仍可见；主窗口关闭时显式关闭浮窗。浮窗定时读取经进程验证的前台企微独立聊天标题。画像浮窗默认跨已登记班级识别，已保存备注或本班前缀＋姓名优先，唯一姓名兜底；重名时要求下拉指定班级。手动班级按数据库路径固定，只影响浮窗，不调用主界面 selectClass；主界面全部班级视图也不禁用画像浮窗。匹配成功每 2 秒重读，失败每 500ms 重查；按路径缓存仓库，兼容尚无 student_contacts 的班级库。切换/重读前提交待保存编辑，失败保留编辑并阻止切换。催办浮窗仍按当前班级唯一姓名匹配。CampaignCompanion 限最新批次，独立于主表选择；切班/批次清身份。ProfileCompanion 的画像身份格式不同，不能混用 key。

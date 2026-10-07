@@ -46,56 +46,6 @@ class FeedbackAutosaveTests(unittest.TestCase):
         self.w.flushFeedback()
         self.assertEqual(self.w.selected['reply_state'], '待反馈')
 
-    def test_unanswered_autosave_keeps_editor_and_excludes_dashboard(self):
-        with self.backend.db.connect() as conn:
-            conn.execute("UPDATE class_roster SET status='在读'")
-        self.w.createBatch()
-        self.key = self.w.editorKey
-        self.w.queueFeedbackForSelection(self.key, '未接听电话')
-        self.assertTrue(self.w.flushFeedback())
-        self.assertEqual(self.w.selected['reply_state'], '未回复')
-        self.assertEqual(self.w.feedbackValue(self.key), '未接听电话')
-        self.assertEqual(sum(r['followable'] for r in self.w.dashboard['completion']['courses']), 0)
-        with self.backend.db.connect() as conn:
-            self.assertEqual(conn.execute('SELECT kind FROM campaign_feedback WHERE student_id=?', ('1',)).fetchone()[0], 'unreplied')
-        self.w.queueFeedbackForSelection(self.key, '未接听电话；答应补课')
-        self.w.flushFeedback()
-        self.assertEqual(self.w.selected['reply_state'], '已回复')
-        self.assertEqual(sum(r['followable'] for r in self.w.dashboard['completion']['courses']), 1)
-        self.w.queueFeedbackForSelection(self.key, '')
-        self.w.flushFeedback()
-        self.assertEqual(self.w.selected['reply_state'], '待反馈')
-
-    def test_legacy_unanswered_is_corrected_without_rewriting_history(self):
-        batch = self.w._batch
-        with self.backend.db.connect() as conn:
-            conn.execute("INSERT INTO campaign_feedback(batch_id,student_id,content,kind) VALUES(?,?,?,'reply')", (batch, '1', '未接听电话'))
-        self.w.reload_rows()
-        self.assertEqual(self.w.selected['reply_state'], '未回复')
-        self.assertEqual(self.w.feedbackValue(self.key), '未接听电话')
-        self.w.createBatch()
-        old = self.w.store.rows(batch, '1')[0]
-        self.assertEqual(old['reply_state'], '未回复')
-        self.assertEqual(old['feedback_edit'], '未接听电话')
-        with self.backend.db.connect() as conn:
-            self.assertEqual(conn.execute('SELECT content,kind FROM campaign_feedback WHERE batch_id=? AND student_id=?', (batch, '1')).fetchone()[:], ('未接听电话', 'reply'))
-        with self.assertRaises(ValueError):
-            self.w.store.save_feedback(batch, '1', '不能编辑历史')
-
-    def test_negative_shortcut_combinations_preserve_editable_content(self):
-        for content in ('未回复', '未接听电话；未回复', '\u2003未接听电话。\u2003', '未接听电话；未接听电话'):
-            with self.subTest(content=content):
-                self.w.store.save_feedback(self.w._batch, '1', content)
-                row = self.w.store.rows(self.w._batch, '1')[0]
-                self.assertEqual(row['reply_state'], '未回复')
-                self.assertEqual(row['feedback_edit'], content)
-
-    def test_legacy_submit_does_not_treat_unanswered_as_reply(self):
-        self.w.store.submit(self.w._batch, '1', '未接听电话')
-        self.assertEqual(self.w.store.rows(self.w._batch, '1')[0]['reply_state'], '未回复')
-        self.w.store.submit(self.w._batch, '1', '答应补课')
-        self.assertEqual(self.w.store.rows(self.w._batch, '1')[0]['reply_state'], '已回复')
-
     def test_switch_flushes_and_rejects_stale_keys(self):
         self.w.queueFeedbackForSelection(self.key, '甲的内容')
         self.w.selectRow(1)

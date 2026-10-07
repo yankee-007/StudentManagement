@@ -182,7 +182,7 @@ class CampaignTests(unittest.TestCase):
             self.assertEqual(sum(r['people'] for r in buckets),data['total'])
             self.assertEqual([r['cumulative'] for r in buckets],[1,2,2])
             # 历史批次冻结，因此由 Workflow 补算的「可跟进人数」只在最新批次出现。
-            self.assertEqual([r.get('followable') for r in buckets],[0,0,0])
+            self.assertEqual([r.get('followable') for r in buckets],[1,1,0])
             self.assertNotIn('followable',b.workflow.store.dashboard(b.workflow._batch)['completion']['courses'][0])
 
     def test_old_snapshot_versions_hide_completion_buckets(self):

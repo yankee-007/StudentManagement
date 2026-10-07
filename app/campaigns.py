@@ -6,7 +6,6 @@ import json
 import re
 from datetime import date, datetime
 from .dashboard import learning_dashboard
-from .feedback_status import feedback_kind, is_reply
 from .profile_storage import format_exemption
 from .remark_scan import SCHEMA as REMARK_SCHEMA
 
@@ -257,9 +256,9 @@ class CampaignStore:
                     item.setdefault('completed_homework',totals[1] if len(totals)==2 else '')
                 entries = feedback.get(item['student_id'],[])
                 item['feedback'] = '\n'.join(r['content'] for r in entries)
-                item['reply_state'] = '—' if item.get('is_placeholder') or not item['name'].strip() else '已回复' if any(is_reply(r['content'], r['kind']) for r in entries) else '未回复' if entries else '待反馈'
+                item['reply_state'] = '—' if item.get('is_placeholder') or not item['name'].strip() else '已回复' if any(r['kind']=='reply' for r in entries) else '未回复' if entries else '待反馈'
                 item['draft'] = drafts.get(item['student_id'],'')
-                replies = '\n'.join(r['content'] for r in entries)
+                replies = '\n'.join(r['content'] for r in entries if r['kind'] == 'reply')
                 item['feedback_edit'] = '\n'.join(v for v in (replies, item['draft']) if v)
                 if batch == latest:
                     student = current_students.get(item['student_id'])
@@ -313,7 +312,7 @@ class CampaignStore:
             raise ValueError('请先粘贴反馈文字')
         with self.db.connect() as conn:
             self._feedback_member(conn,batch,sid)
-            conn.execute('INSERT INTO campaign_feedback(batch_id,student_id,content,kind) VALUES(?,?,?,?)',(batch,sid,content.strip(),feedback_kind(content)))
+            conn.execute('INSERT INTO campaign_feedback(batch_id,student_id,content,kind) VALUES(?,?,?,?)',(batch,sid,content.strip(),'reply'))
             conn.execute('DELETE FROM campaign_drafts WHERE batch_id=? AND student_id=?',(batch,sid))
 
     def save_feedback(self, batch, sid, content):
@@ -323,7 +322,7 @@ class CampaignStore:
             conn.execute('DELETE FROM campaign_feedback WHERE batch_id=? AND student_id=?', (batch, sid))
             if content.strip():
                 conn.execute('INSERT INTO campaign_feedback(batch_id,student_id,content,kind) VALUES(?,?,?,?)',
-                             (batch, sid, content, feedback_kind(content)))
+                             (batch, sid, content, 'reply'))
             conn.execute('DELETE FROM campaign_drafts WHERE batch_id=? AND student_id=?', (batch, sid))
 
     def mark_unreplied(self,batch,student_ids=None):
