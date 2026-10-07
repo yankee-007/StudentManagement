@@ -145,7 +145,7 @@ ApplicationWindow {
             Layout.fillWidth: true
             Label { text: wf.dataNote; color: UiTheme.muted; Layout.fillWidth: true; elide: Text.ElideRight }
             UiButton { text: "采集异常明细"; visible: backend.fetchIssues.length > 0; onClicked: fetchIssuesDialog.open() }
-            UiComboBox { objectName: "campaignBatchSelector"; model: wf.batches; textRole: "label"; currentIndex: wf.batchIndex; displayText: wf.batchIndex < 0 ? "当前全班名单（尚未建立批次）" : currentText; Layout.preferredWidth: 180; popupMinimumWidth: 280; enabled: !backend.busy && wf.batchIndex >= 0 && !sender.active; onActivated: wf.selectBatch(currentIndex) }
+            UiComboBox { objectName: "campaignBatchSelector"; model: wf.batches; textRole: "label"; currentIndex: wf.batchIndex; displayText: wf.batchIndex < 0 ? "当前全班名单（尚未建立批次）" : currentText; Layout.preferredWidth: 280; enabled: !backend.busy && wf.batchIndex >= 0 && !sender.active; onActivated: wf.selectBatch(currentIndex) }
             UiButton { objectName: "fetchLearningButton"; visible: root.moduleIndex === 0 && (wf.batchIndex < 0 || wf.canEdit); text: backend.busy ? "刷新中…" : "刷新数据"; enabled: !backend.busy && !backend.termsModule.busy && !sender.active; onClicked: backend.fetchData() }
             UiButton { objectName: "createCampaignButton"; text: backend.busy ? "正在获取最新数据…" : "新建催办"; highlighted: true; enabled: !backend.busy && !backend.termsModule.busy && !sender.active; onClicked: createDialog.open() }
             UiButton { text: "导出全班 XLSX"; enabled: wf.batchIndex >= 0; onClicked: batchExportDialog.open() }
