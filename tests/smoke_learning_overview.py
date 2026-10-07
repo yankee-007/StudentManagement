@@ -12,7 +12,7 @@ from PySide6.QtWidgets import QApplication
 
 from app.backend import Backend
 from app.fonts import configure_font
-from tests.test_learning_overview import dashboard, seed
+from tests.test_learning_overview import dashboard, records, seed
 
 
 def visual(item, name):
@@ -27,6 +27,13 @@ def visual(item, name):
 
 def click(window, item):
     point = item.mapToScene(QPointF(item.width()/2, item.height()/2))
+    if item.objectName() == 'overviewHomeworkCandidatesButton':
+        scroll = visual(window.contentItem(), 'overviewScroll')
+        top = scroll.mapToScene(QPointF(0, 0)).y()
+        viewport = scroll.property('contentItem')
+        viewport.setProperty('contentY', max(0, viewport.property('contentY') + point.y() - top - scroll.height()/2))
+        QTest.qWait(40)
+        point = item.mapToScene(QPointF(item.width()/2, item.height()/2))
     QTest.mouseClick(window, Qt.LeftButton, Qt.NoModifier, QPoint(round(point.x()), round(point.y())))
     QTest.qWait(60)
 
@@ -42,7 +49,12 @@ def run():
         with b.db.connect() as conn:
             seed(conn, 1)
             seed(conn, 2, dashboard(lessons=(1, 2, 3, 4, 5), homework=1), marks={'A':'是', 'B':'否'})
-            seed(conn, 3, dashboard(lessons=(1, 2, 3, 4, 5)), marks=dict.fromkeys('ABCD','否'))
+            members = records()
+            for sid, snap in members:
+                snap.update(homework='1,2,3,4,5' if sid in ('A','B') else '',
+                            completed_homework='0' if sid in ('A','B') else '5')
+            seed(conn, 3, dashboard(lessons=(1, 2, 3, 4, 5)), members,
+                 marks={'A':'是', 'B':'否', 'C':'否', 'D':'否'})
         b.workflow.reload_batches()
         b.workflow.filterRows('all', '虚构学员A')
         cursor = b.workflow.editorKey
@@ -123,7 +135,7 @@ def run():
         assert b.learningOverview.historyIndex == 2
         output = Path(os.environ.get('OVERVIEW_SCREENSHOT_DIR', 'output/learning-overview'))
         output.mkdir(parents=True, exist_ok=True)
-        for width, height in ((1280,820),(1000,700)):
+        for width, height in ((1280,820),(1000,700),(720,480)):
             window.resize(width,height); QTest.qWait(80)
             for index, name in ((0,'latest'),(1,'history'),(2,'compare'),(3,'goals')):
                 click(window, visual(window.contentItem(), 'overviewTab'+str(index)))
@@ -132,6 +144,19 @@ def run():
                 QTest.qWait(70)
                 assert window.grabWindow().save(str(output/f'{name}-{width}.png'))
                 assert page.width() <= width
+                if index==3:
+                    button = visual(window.contentItem(), 'overviewHomeworkCandidatesButton')
+                    assert button.isVisible() and button.isEnabled()
+                    click(window, button)
+                    dialog = window.findChild(QObject, 'overviewHomeworkDialog')
+                    assert dialog.property('visible')
+                    table = visual(window.contentItem(), 'overviewHomeworkTable')
+                    table_rows = table.property('rows')
+                    if hasattr(table_rows, 'toVariant'): table_rows = table_rows.toVariant()
+                    assert table_rows[0]['cells'] == ['1','虚构学员A','A','1、2、3、4、5']
+                    assert window.grabWindow().save(str(output/f'homework-candidates-{width}.png'))
+                    QTest.keyClick(window, Qt.Key_Escape); QTest.qWait(30)
+                    assert not dialog.property('visible')
                 if index==2:
                     # Hover and select the same point used in cumulative table.
                     chart = visual(window.contentItem(), 'overviewRateChart')
@@ -144,13 +169,24 @@ def run():
                     viewport.setProperty('contentY', max(0,viewport.property('contentHeight')-viewport.property('height')))
                     QTest.qWait(70)
                     assert window.grabWindow().save(str(output/f'{name}-bottom-{width}.png'))
+        b.learningOverview.selectBatch('goal', 1); QTest.qWait(40)
+        scroll.property('contentItem').setProperty('contentY', 0); QTest.qWait(40)
+        assert b.learningOverview.view['homeworkCandidates']['rows'] == []
+        click(window, visual(window.contentItem(), 'overviewHomeworkCandidatesButton'))
+        assert dialog.property('visible')
+        b.learningOverview.selectBatch('goal', 2); QTest.qWait(40)
+        assert not dialog.property('visible')
+        assert not visual(window.contentItem(), 'overviewHomeworkCandidatesButton').isEnabled()
+        b.learningOverview.selectBatch('goal', 0); QTest.qWait(40)
+        click(window, visual(window.contentItem(), 'overviewHomeworkCandidatesButton'))
         b.workflow._classes.append(dict(name='空测试班', path=str(Path(folder)/'other.db')))
         b.workflow.selectClass(1); QTest.qWait(80)
         assert not b.learningOverview.view['available']
+        assert not dialog.property('visible')
         assert not [m for m in warnings if ('Error' in m or 'Binding loop' in m or 'Unable to assign' in m)], warnings
         click(window, visual(window.contentItem(),'moduleButton0'))
         window.close(); engine.deleteLater(); app.processEvents()
-        print('Learning overview QML passed: navigation, flush/cursor, tabs, selectors, keyboard/zoom, targets/focus, class isolation and two sizes.')
+        print('Learning overview QML passed: navigation, flush/cursor, tabs, selectors, keyboard/zoom, targets/focus, homework candidates, class isolation and three sizes.')
 
 
 if __name__ == '__main__': run()

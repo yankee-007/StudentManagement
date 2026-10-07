@@ -14,8 +14,35 @@ Item {
             if (service.tabIndex === inspectedTab) service.inspectLesson(key)
         })
     }
-    onVisibleChanged: service.setActive(visible)
+    onVisibleChanged: { service.setActive(visible); if (!visible) homeworkDialog.close() }
     Component.onCompleted: service.setActive(visible)
+    Dialog {
+        id: homeworkDialog; objectName: "overviewHomeworkDialog"
+        parent: Overlay.overlay; anchors.centerIn: parent; modal: true
+        title: "可跟进学员 · 补作业名单"; standardButtons: Dialog.Close
+        width: Math.min(root.width - 24, 820); height: Math.min(root.height - 24, 560)
+        readonly property var candidates: root.overview.homeworkCandidates || ({rows: [], notice: "", title: ""})
+        contentItem: ScrollView {
+            id: candidateScroll; clip: true; contentWidth: availableWidth
+            ColumnLayout {
+                width: candidateScroll.availableWidth; spacing: 12
+                Label { text: homeworkDialog.candidates.title || ""; Layout.fillWidth: true; wrapMode: Text.Wrap; font.bold: true; color: UiTheme.ink }
+                Label { text: "范围：本批可跟进状态为是、所选累计节次有欠交作业的在读非补位学员。"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted }
+                Label { objectName: "overviewHomeworkNotice"; text: homeworkDialog.candidates.notice || ""; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.ink }
+                OverviewTable {
+                    objectName: "overviewHomeworkTable"; Layout.fillWidth: true; title: "补齐以下欠交节次"
+                    headers: ["序号", "姓名", "学号", "欠交作业节次"]; rows: homeworkDialog.candidates.rows || []
+                    emptyMessage: "本批暂无可跟进状态为是、且所选节次有欠交作业的学员。"
+                }
+            }
+        }
+    }
+    Connections {
+        target: service
+        function onChanged() {
+            if (service.tabIndex !== 3 || !(root.overview.homeworkCandidates || {}).available) homeworkDialog.close()
+        }
+    }
     ColumnLayout {
         anchors.fill: parent; spacing: 12
         RowLayout {
@@ -118,6 +145,11 @@ Item {
                                 }
                                 Label { text: index<2 ? "%" : ""; visible: index<2; color: UiTheme.muted }
                                 Label { text: goalCard.message; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.ink }
+                                UiButton {
+                                    objectName: index===2 ? "overviewHomeworkCandidatesButton" : ""; visible: index===2; text: "查看补作业名单"
+                                    enabled: (root.overview.homeworkCandidates || {}).available === true
+                                    onClicked: homeworkDialog.open()
+                                }
                             }
                         }
                         Label { text: "固定所选累计节次，观察截至评估批次最近至多5批；缺失快照留空。"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted }

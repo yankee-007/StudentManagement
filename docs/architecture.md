@@ -93,6 +93,8 @@ Backend / TermModule / SettingsModule / LiveAbsence → AcquisitionTask（QThrea
 
 LearningOverview接收Workflow.overviewSourceChanged，在激活时或可见期间读取当前owner.db.path；独立SQLite只读连接开启读取事务，不构造Database/CampaignStore，不迁移、不联网、不写历史。不可读取Workflow._model.rows或store.rows的当前身份联动结果替代冻结成员。失活时仅置脏；切班即标记重置，重新激活清除旧选择。四页签各存批次/节次状态，最新固定max(id)，目标及范围均不落库。Main切模块仍先flushFeedback，概览选择不调用工作台selectBatch/selectRow。
 
+目标追踪的差值目标提供只读补作业名单弹窗。名单用campaign_students保存的姓名/学号、欠交作业节次、完成计数和本批campaign_followup_status筛选在读非补位、可跟进为是且第1～N节有欠交作业的学员。缺失/未匹配/非法作业数据不推断，候选人数与试算所需人数分别展示，人数不足提示缺口；切班、离开目标页或累计数据失效时关闭弹窗。
+
 campaign_students.snapshot推导全班范围和精确完成次数，campaign_followup_status仅补人工统计；campaign_dashboards累计版本/人数/比率校验失败时保留批次及成员，累计指标留空。LearningOverview.qml用OverviewChart的QtQuick Canvas与RangeSlider绘制实线/虚线、考核线、悬浮/键盘明细，用OverviewTable显示同源明细和固定节次走势；目标输入委托固定，统计更新不销毁输入焦点。没有新依赖或存储格式。见ADR-013。
 
 | 范围 | 内容 |

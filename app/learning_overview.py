@@ -109,7 +109,9 @@ def aggregate_batch(batch_id, stamp, data, records, marks):
     return dict(id=batch_id, time=stamp, label=f'第{batch_id}次 · {stamp.replace("T", " ")}',
                 total=total, members=len(records), lessons=lessons, completion=completion,
                 followupSummary=summary, unknown=unknown, learningNotice=notice,
-                completionNotice=completion_notice)
+                completionNotice=completion_notice,
+                population=[dict(snap, student_id=sid, followup_status=marks.get(sid, ''))
+                            for sid, snap in population])
 
 
 def load_batches(connection):
@@ -119,8 +121,8 @@ def load_batches(connection):
         return []
     dashboards = dict(connection.execute('SELECT batch_id,data FROM campaign_dashboards')) if 'campaign_dashboards' in tables else {}
     snapshots, marks = {}, {}
-    for batch, sid, raw in connection.execute('SELECT batch_id,student_id,snapshot FROM campaign_students'):
-        snapshots.setdefault(batch, []).append((sid, object_json(raw)))
+    for batch, sid, name, raw in connection.execute('SELECT batch_id,student_id,name,snapshot FROM campaign_students'):
+        snapshots.setdefault(batch, []).append((sid, dict(object_json(raw), name=name)))
     if 'campaign_followup_status' in tables:
         for batch, sid, status in connection.execute('SELECT batch_id,student_id,status FROM campaign_followup_status'):
             marks.setdefault(batch, {})[sid] = status
@@ -401,4 +403,36 @@ class LearningOverview(QObject):
             trend_rows.append(dict(key=batch['id'], cells=[f'第{batch["id"]}次', f'第1～{lesson}节', str(batch['total'])]+
                               [fmt(point[key] if point else None, 'pp' if key=='gap' else '%') for key in ('course','homework','gap')]+
                               [grade(point['gap']) if point else '—']))
-        return dict(goalCards=cards, trends=trends, trendRows=trend_rows)
+        candidates, unknown = [], 0
+        if r and cards[2]['need'] is not None:
+            for snap in b['population']:
+                if snap['followup_status'] != '是':
+                    continue
+                raw = snap.get('homework')
+                if (snap.get('matched') is False or integer(snap.get('completed_homework'), 32) is None
+                        or not isinstance(raw, str) or not re.fullmatch(r'(?:\d+(?:,\d+)*)?', raw)):
+                    unknown += 1
+                    continue
+                missing = [integer(n, 32) for n in raw.split(',')] if raw else []
+                if any(n is None or n == 0 for n in missing):
+                    unknown += 1
+                    continue
+                missing = sorted({n for n in missing if n <= lesson})
+                if missing:
+                    candidates.append(dict(student_id=snap['student_id'], name=snap.get('name', ''),
+                                           missing=missing))
+        candidates.sort(key=lambda row: row['student_id'])
+        need = cards[2]['need']
+        note = (f'差值目标还需 {need}人补齐作业；符合条件的候选 {len(candidates)}人。'
+                if need is not None else '暂无有效累计节次或差值目标。')
+        if need is not None and need > len(candidates):
+            note += f' 候选人数比所需人数少 {need-len(candidates)}人。'
+        note += ' 每人须补齐第1～'+str(lesson)+'节全部欠交作业才计入累计作业完成人数；名单不代表已完成。'
+        if unknown:
+            note += f' {unknown}名可跟进学员作业数据未知，未列入。'
+        return dict(goalCards=cards, trends=trends, trendRows=trend_rows,
+                    homeworkCandidates=dict(available=r is not None and need is not None,
+                                            title=b['label']+f' · 第1～{lesson}节', notice=note,
+                                            rows=[dict(key=i, cells=[str(i+1), row['name'], row['student_id'],
+                                                  '、'.join(map(str, row['missing']))])
+                                                  for i, row in enumerate(candidates)]))

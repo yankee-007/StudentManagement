@@ -31,8 +31,9 @@ def seed(conn, batch, data=None, members=None, marks=None):
     conn.execute('INSERT INTO campaigns(id,class_name,created_at,template) VALUES(?,?,?,?)',
                  (batch, '虚构测试班', f'2026-10-{batch:02d}T12:00:00', ''))
     for position, (sid, snap) in enumerate(members if members is not None else records()):
-        snap = dict(priority=0, position=position, courses='', homework='', missing_total='0/0',
-                    completed_total='0/0', completed_homework='0', **snap)
+        defaults = dict(priority=0, position=position, courses='', homework='', missing_total='0/0',
+                        completed_total='0/0', completed_homework='0')
+        snap = dict(defaults, **snap)
         conn.execute('INSERT INTO campaign_students(batch_id,student_id,name,remark,snapshot,eligible,reason,message,send_state) VALUES(?,?,?,?,?,?,?,?,?)',
                      (batch, sid, '虚构学员'+sid, '虚构学员'+sid, json.dumps(snap), 0, '', '', '不发送'))
     if data is not None:
@@ -170,6 +171,49 @@ class OverviewIntegrationTests(unittest.TestCase):
         self.o.reload()
         self.o.selectBatch('goal', 0)
         self.assertEqual(self.o.view['trends'][0]['labels'], [3, 4, 5, 6, 7])
+
+    def test_homework_candidates_use_batch_marks_and_selected_cumulative_lessons(self):
+        members = records()
+        members[0][1].update(homework='1,3', completed_homework='1')
+        members[1][1].update(homework='2', completed_homework='1')
+        members[2][1].update(homework='1,2', completed_homework='0')
+        members[3][1].update(homework='未获取', completed_homework='')
+        members[4][1].update(homework='1', completed_homework='0')
+        members[5][1].update(homework='1', completed_homework='0')
+        with self.backend.db.connect() as conn:
+            seed(conn, 4, dashboard(homework=1), members,
+                 {'A':'是', 'B':'是', 'C':'否', 'D':'是', 'E':'是', 'P':'是'})
+        self.o.reload()
+        self.o.selectTab(3)
+        self.o.selectBatch('goal', 0)
+        original_cursor = (self.w._batch, self.w.editorKey)
+        candidates = self.o.view['homeworkCandidates']
+        self.assertTrue(candidates['available'])
+        self.assertEqual([row['cells'][1:] for row in candidates['rows']],
+                         [['虚构学员A', 'A', '1'], ['虚构学员B', 'B', '2']])
+        self.assertIn('1名可跟进学员作业数据未知', candidates['notice'])
+        self.o.selectLesson(1)
+        self.assertEqual([row['cells'][2] for row in self.o.view['homeworkCandidates']['rows']], ['A'])
+        self.assertIn('候选人数比所需人数少 1人', self.o.view['homeworkCandidates']['notice'])
+        self.o.selectBatch('goal', 1)  # 第3次全否，不继承第4次标记
+        self.assertEqual(self.o.view['homeworkCandidates']['rows'], [])
+        self.assertEqual((self.w._batch, self.w.editorKey), original_cursor)
+        self.o.selectBatch('goal', 3)  # 第1次没有累计快照
+        self.assertFalse(self.o.view['homeworkCandidates']['available'])
+
+    def test_homework_candidates_reject_unmatched_and_malformed_snapshots(self):
+        members = records()
+        for _, snap in members:
+            snap.update(homework='1', completed_homework='0')
+        members[0][1]['matched'] = False
+        members[1][1]['homework'] = '1,x'
+        members[2][1]['homework'] = '0,33'
+        members[3][1]['homework'] = '3'  # 所选第1～2节以外
+        with self.backend.db.connect() as conn:
+            seed(conn, 4, dashboard(), members, dict.fromkeys('ABCDEP', '是'))
+        self.o.reload(); self.o.selectTab(3); self.o.selectBatch('goal', 0)
+        self.assertEqual(self.o.view['homeworkCandidates']['rows'], [])
+        self.assertIn('3名可跟进学员作业数据未知', self.o.view['homeworkCandidates']['notice'])
 
     def test_hidden_class_roundtrip_resets_choices_and_inspection_does_not_change_evaluation(self):
         self.o.selectTab(2)

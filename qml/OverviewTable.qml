@@ -7,6 +7,7 @@ Rectangle {
     property string title: ""
     property var headers: []
     property var rows: []
+    property string emptyMessage: "暂无有效快照，缺失数据不估算"
     property int selectedKey: -1
     property int minimumColumnWidth: headers.length > 8 ? 110 : 100
     signal rowSelected(int key)
@@ -50,7 +51,7 @@ Rectangle {
                         onClicked: root.rowSelected(modelData.key)
                     }
                 }
-                Label { width: body.width; height: 40; visible: root.rows.length === 0; text: "暂无有效快照，缺失数据不估算"; color: UiTheme.muted; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter }
+                Label { width: body.width; height: 40; visible: root.rows.length === 0; text: root.emptyMessage; color: UiTheme.muted; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; wrapMode: Text.Wrap }
             }
         }
     }
