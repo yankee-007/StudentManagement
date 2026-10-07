@@ -1,4 +1,4 @@
-"""Offscreen GUI smoke check for the workbench 完课次数 分栏.
+"""Offscreen GUI smoke check for learning overview completion counts.
 
 No platform login and no WeCom window: a disposable database is filled through the same
 settings path the app uses, then the real Main.qml is loaded and the tab is switched with a
@@ -139,50 +139,32 @@ def run():
         window.show()
         app.processEvents()
 
-        panel = window.findChild(QObject, "learningDashboard")
-        assert panel is not None
-        panel_buttons = buttons(panel)
-        expand = next(b for b in panel_buttons if b.property("text") == "展开")
-        click(window, expand)
-        app.processEvents()
-        assert panel.property("expanded")
-
-        lessons = window.findChild(QObject, "learningDashboardList")
-        completion = window.findChild(QObject, "learningDashboardCompletionList")
-        assert lessons.property("visible") and not completion.property("visible")
-        tabs = [b for b in panel_buttons if b.property("text") in ("现有表格 · 累计率", "完课次数")]
-        assert [b.property("text") for b in tabs] == ["现有表格 · 累计率", "完课次数"]
-        head = texts(panel)
-        # Compact metrics share the title row, preserving the cumulative numerators.
-        metrics = {node.objectName(): node.property("text") for node in descendants(panel)
-                   if node.objectName().startswith("learningMetric-")}
-        assert metrics == {"learningMetric-total": "在读 5 人", "learningMetric-courses": "累计完课 1 人", "learningMetric-homework": "累计作业 0 人"}, metrics
-        screenshot = os.environ.get("DASHBOARD_SCREENSHOT")
-        if screenshot:
-            assert window.grabWindow().save(screenshot + "-lessons.png")
-
-        click(window, tabs[1])
-        app.processEvents()
-        assert panel.property("tab") == 1
-        assert not lessons.property("visible") and completion.property("visible")
-        assert completion.property("count") == 5, completion.property("count")
-        rows = rows_of(completion)
+        from tests.smoke_learning_overview import visual, click as overview_click
+        overview_click(window, visual(window.contentItem(), 'moduleButton7'))
+        panel = window.findChild(QObject, 'learningOverviewPage')
+        assert panel is not None and panel.property('visible')
+        service = backend.learningOverview
+        data = service.view
+        assert not data['lessonRows']  # 此fixture只保存课程侧，双方累计指标不估算
+        assert data['metrics'][1]['value'] == '—'  # 作业侧无有效快照，不估算
+        completion = window.findChild(QObject, 'overviewCompletionTable')
+        rows = completion.property('rows')
         assert len(rows) == 5, rows
-        assert rows[0] == ["4", "1", "20.00%", "1", "", "", "20.00%", "1"], rows[0]
-        assert rows[4] == ["0", "1", "20.00%", "0", "", "", "100.00%", "5"], rows[4]
-        header = texts(panel)
+        assert rows[0]['cells'] == ['4', '1', '20.00%', '1', '', '', '20.00%', '1'], rows[0]
+        assert rows[4]['cells'] == ['0', '1', '20.00%', '0', '', '', '100.00%', '5'], rows[4]
         for label in HEADERS:
-            assert label in header, (label, header)
-        if screenshot:
-            assert window.grabWindow().save(screenshot + "-completion.png")
-
-        # 分栏选择在其它界面操作后保持，不回落；数据重算后仍显示完课次数。
+            assert label in texts(panel), (label, texts(panel))
         backend.workflow.reapplyFilters()
-        backend.workflow.setFieldVisible("courses", True)
+        backend.workflow.setFieldVisible('courses', True)
         app.processEvents()
-        assert panel.property("tab") == 1
-        assert window.findChild(QObject, "learningDashboardCompletionList").property("visible")
-        assert [message for message in warnings if "Error" in message or "ReferenceError" in message] == [], warnings
+        assert service.tabIndex == 0 and completion.property('visible')
+        screenshot = os.environ.get('DASHBOARD_SCREENSHOT')
+        if screenshot:
+            scroll = visual(window.contentItem(), 'overviewScroll').property('contentItem')
+            scroll.setProperty('contentY', max(0,scroll.property('contentHeight')-scroll.property('height')))
+            QTest.qWait(60)
+            assert window.grabWindow().save(screenshot + '-completion.png')
+        assert not [message for message in warnings if 'Error' in message or 'Binding loop' in message], warnings
         window.close()
         app.processEvents()
     print("dashboard completion smoke OK")

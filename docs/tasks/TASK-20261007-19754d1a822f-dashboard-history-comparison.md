@@ -3,11 +3,37 @@
 ## Identity
 - ID：TASK-20261007-19754d1a822f
 - 标题：独立学习概览模块、历史批次对比与差值考核线（5/10/15pp）
-- 工作状态：planned（用户明确由新Session实施正式模块；本Session仅完成交接）
-- 更新时间：2026-10-07T19:53:42+08:00
+- 工作状态：awaiting_acceptance（正式实现及自动验证完成，待用户体验验收）
+- 更新时间：2026-10-07T20:26:00+08:00
 - 归属：本 Session 独立任务；与 TASK-20261006-9dd5d6536487（看板既有任务的人工验收与待定口径）相关，但需求不同，不合并。
 
-## 当前恢复快照（2026-10-07T19:53:42+08:00）
+## 当前恢复快照（正式实施）
+
+- 用户本Session明确接手并正式实施，直接落地已确认四页签，无需再确认预览。
+- 实际基线：main / e50b903，接手时工作区及暂存区干净；没有其他写入者。本Session单Agent实施，不操作真实平台、企微或正式库写入，不推送。
+- 已完成app/learning_overview.py只读聚合与独立页签/选择/试算状态，Backend接入；Workflow新增overviewSourceChanged通知，失活置脏、激活重读。QML新增LearningOverview、OverviewChart和OverviewTable；侧栏追加第8模块，工作台移除主要看板并给出入口。
+- 正式统计使用批次成员冻结范围；未知计数、旧版累计、分母不一致降级；历史人工标记按本批读取，无启动清理。
+- 图表采用QtQuick Canvas，不安装新依赖；双批实线/虚线、考核线/批次图例、悬浮/点击/键盘同节次明细、鼠标拖动/键盘范围缩放均通过正式QML验证。两尺寸图表纵向/并排布局，宽表内部横向滚动。目标输入采用固定委托，重算不丢焦点；最近至多5批走势及明细同源。
+- 兼容：无看板/旧单节批次仍保留入口与成员分布；累计分母不一致暂停累计而不改历史；未知计数保留在分母；字段缺失才兼容旧计数。全部人工标记原样读取，无再次清理。最新刷新继续跟随既有正式获取，独立概览只重读本地。
+- Review与文档：核对入口→通知→读取→QML、失败/空状态、目标边界、身份与冻结范围；README、PROJECT_CONTEXT、架构和ADR-010/012影响已更新，新增ADR-013记录独立范围/历史降级决策。只提交本Task归属文件与合成测试；不包含真实库、备份、真实聚合导出、截图或日志。
+
+### 本轮验证（未提交正式实现，2026-10-07，Windows/PySide6）
+
+- Python定向回归37项通过：test_learning_overview（11项）、test_latest_batch_refresh、test_class_isolation_regressions、test_feedback_autosave。覆盖冻结全班范围、未知/旧字段、标记覆盖、旧累计/分母异常、四页签选择/最新固定、隐藏切班往返重置、目标/5批走势、刷新/历史/反馈/游标隔离。
+- 正式QML：smoke_learning_overview、smoke_dashboard_completion（迁移到新入口）、smoke_workbench_revision、smoke_class_switch、smoke_filter_freeze通过。新概览最后复测无Error/Binding loop/Unable to assign；反馈切模块先flush、目标输入委托/焦点保留、图表鼠标/键盘/滑块均实测。
+- 1280×820与1000×700四页签及底部截图保存于忽略目录output/learning-overview，已查看代表性最新/对比/目标及分布表截图，中文可读。Canvas空历史点曾让差值轴NaN，视觉检查发现后处理null/undefined并复测修正；考核线密集时保留独立文字图例。QML初始化的Flow只读高度/布局循环、Keys信号、Item.data与Canvas.x/y命名冲突已修正。
+- 全库unittest discover运行220项：218通过、1跳过（本机画像样例缺失）、1失败。失败为test_editor_identity的smoke_editor_identity.py:56画像微信断言；将e50b903的app/qml/tests隔离导出到忽略目录后复跑同点失败，确认基线亦存在，未顺手修。全库之后的目标走势图/缺失点呈现与新增隐藏切班测试，另经37项定向和概览QML最终复测覆盖，未重复宣称全库全绿。
+- 一次定向命令误指定不存在的test_campaign_followup_status产生导入错误，已改为实际test_feedback_autosave并得到上述37项通过；未把命令错误当业务失败。
+- 真实评审库仅sqlite3 mode=ro + query_only读取事务；17个批次的入口、分母、标记覆盖、精确分桶/累计人数与评审预览一致，累计率按原分子复算与预览四舍五入差≤0.011pp。total_changes=0，无Database/Backend初始化、无真实库写入。
+- git diff --check通过。验证均不登录平台、不操作企微、不发送。真实平台端到端与主观体验未替代人工验收。
+
+### 交付与下一步
+
+- 本轮正式实现已形成可评审文件，按verified-owned-units策略保存本地逻辑提交；实际版本以Git中本Task关联提交查询为准，无本Task远端上传授权，不推送。
+- 用户重启程序后进入侧栏「学习概览」，人工验收四页签/两批差值、窄窗口与目标试算。任务保持awaiting_acceptance，不把自动验证视为人工接受。
+- 下一Session从本Task及Git恢复，不再停在HTML预览；用户反馈范围内修正后重跑对应测试。旧图片/日志位于本机忽略目录，跨电脑不随Git取得；正式代码、合成测试和文档可通过本地提交恢复。
+
+## 前次交接快照（2026-10-07T19:53:42+08:00，历史）
 
 - 用户最新指示：更新Task，接下来由新Session实施学习概览模块。正式实现阶段已明确，沿用本Task ID；不要再次停在预览方案确认。本Session只整理交接，不开始实现、不新建或发送消息给其他Session。
 - 实现起点：main / 60bdb8e，交接前工作区干净。5aca606完善四页签与历史读取；f27ba95统一全班在读范围；60bdb8e正式字段支持未填写/是/否。本次文档交接提交可通过本Task ID查Git日志；本地提交均未推送，无新增远端上传授权。

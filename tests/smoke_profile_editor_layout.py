@@ -29,7 +29,7 @@ def run():
         assert engine.rootObjects(),warnings
         window=engine.rootObjects()[0]
         window.resize(1100,750); window.show()
-        assert not window.findChild(QObject,'learningDashboard').property('expanded')
+        assert not window.findChild(QObject,'learningOverviewPage').property('visible')
         b.workflow.createBatch()
         export_dialog=window.findChild(QObject,'campaignExportDialog')
         QMetaObject.invokeMethod(export_dialog,'open'); QTest.qWait(100)

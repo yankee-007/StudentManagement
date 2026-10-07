@@ -4,13 +4,14 @@
 
 ## 入口与边界
 
-main.py 创建 QApplication（原生文件对话框需要 QWidget 支持），设置 Fusion/字体/应用名称，将 Backend 和 studentModel 注入 QQmlApplicationEngine，加载 qml/Main.qml。Main 切换工作台、画像、班期学员、设置、群发中心、备注批改、未进直播间，并管理独立浮窗。
+main.py 创建 QApplication（原生文件对话框需要 QWidget 支持），设置 Fusion/字体/应用名称，将 Backend 和 studentModel 注入 QQmlApplicationEngine，加载 qml/Main.qml。Main 切换工作台、学习概览、画像、班期学员、设置、群发中心、备注批改、未进直播间，并管理独立浮窗。学习概览接入于2026-10-07。
 
 ```text
 Main.qml / 模块 QML / 浮窗
        ↕ Property、Signal、Slot；表格角色
 Backend（组合入口，持有当前 db/repo）
  ├─ Workflow ─ CampaignStore ─ 每班 SQLite
+ ├─ LearningOverview ─ SQLite mode=ro ─ 每班批次快照/人工标记
  ├─ ProfileModule ─ StudentRepository / profile_storage
  ├─ TermModule ─ TermRosterStore ─ 原主库缓存
  ├─ SettingsModule ─ 原主库设置 / keyring
@@ -87,6 +88,12 @@ Backend / TermModule / SettingsModule / LiveAbsence → AcquisitionTask（QThrea
 - 切班由 Workflow.selectClass 末尾的 liveAbsence.reload() 触发，和备注批改同一模式；该页与群发/其它采集互斥（busy）。
 
 ## 持久化边界
+
+### 学习概览（只读）
+
+LearningOverview接收Workflow.overviewSourceChanged，在激活时或可见期间读取当前owner.db.path；独立SQLite只读连接开启读取事务，不构造Database/CampaignStore，不迁移、不联网、不写历史。不可读取Workflow._model.rows或store.rows的当前身份联动结果替代冻结成员。失活时仅置脏；切班即标记重置，重新激活清除旧选择。四页签各存批次/节次状态，最新固定max(id)，目标及范围均不落库。Main切模块仍先flushFeedback，概览选择不调用工作台selectBatch/selectRow。
+
+campaign_students.snapshot推导全班范围和精确完成次数，campaign_followup_status仅补人工统计；campaign_dashboards累计版本/人数/比率校验失败时保留批次及成员，累计指标留空。LearningOverview.qml用OverviewChart的QtQuick Canvas与RangeSlider绘制实线/虚线、考核线、悬浮/键盘明细，用OverviewTable显示同源明细和固定节次走势；目标输入委托固定，统计更新不销毁输入焦点。没有新依赖或存储格式。见ADR-013。
 
 | 范围 | 内容 |
 | --- | --- |

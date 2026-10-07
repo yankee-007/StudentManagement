@@ -19,6 +19,7 @@ TABLE_COLUMNS = EXPORT_COLUMNS + [('reply_state','反馈状态')]
 
 class Workflow(QObject):
     changed = Signal()
+    overviewSourceChanged = Signal()
     selectionChanged = Signal()
     queryChanged = Signal()
     feedbackSaved = Signal(str, bool)
@@ -364,6 +365,7 @@ class Workflow(QObject):
     def refresh_dashboard(self):
         self._dashboard=self.store.dashboard(self._batch)
         self._attach_followable()
+        self.overviewSourceChanged.emit()
 
     def _attach_followable(self):
         """「可跟进人数」＝该完课次数桶里在读且标记为「是」的真实学员。

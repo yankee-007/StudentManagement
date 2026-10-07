@@ -38,6 +38,8 @@ class Backend(QObject):
     @Property(QObject, constant=True)
     def liveAbsence(self):return self._live_absence
     @Property(QObject, constant=True)
+    def learningOverview(self):return self._learning_overview
+    @Property(QObject, constant=True)
     def workflow(self):
         return self._workflow
     @Property(QObject, constant=True)
@@ -246,6 +248,8 @@ class Backend(QObject):
         self.refresh()
         from .workflow import Workflow
         self._workflow = Workflow(self)
+        from .learning_overview import LearningOverview
+        self._learning_overview = LearningOverview(self)
         from .profile_module import ProfileModule
         self._profiles_module = ProfileModule(self)
         from .profile_companion import ProfileCompanion

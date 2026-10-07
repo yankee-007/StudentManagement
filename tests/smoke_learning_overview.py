@@ -1,0 +1,149 @@
+"""Real QML overview, synthetic batches, no platform/WeCom or production DB."""
+import os
+import tempfile
+from pathlib import Path
+
+from PySide6.QtCore import QObject, QPoint, QPointF, Qt, QUrl
+from PySide6.QtGui import QFontDatabase
+from PySide6.QtQml import QQmlApplicationEngine, QQmlProperty
+from PySide6.QtQuickControls2 import QQuickStyle
+from PySide6.QtTest import QTest
+from PySide6.QtWidgets import QApplication
+
+from app.backend import Backend
+from app.fonts import configure_font
+from tests.test_learning_overview import dashboard, seed
+
+
+def visual(item, name):
+    if item.objectName() == name:
+        return item
+    for child in item.childItems():
+        found = visual(child, name)
+        if found is not None:
+            return found
+    return None
+
+
+def click(window, item):
+    point = item.mapToScene(QPointF(item.width()/2, item.height()/2))
+    QTest.mouseClick(window, Qt.LeftButton, Qt.NoModifier, QPoint(round(point.x()), round(point.y())))
+    QTest.qWait(60)
+
+
+def run():
+    QQuickStyle.setStyle('Fusion')
+    app = QApplication([])
+    font = Path('C:/Windows/Fonts/msyh.ttc')
+    if font.exists(): QFontDatabase.addApplicationFont(str(font))
+    configure_font(app)
+    with tempfile.TemporaryDirectory() as folder:
+        b = Backend(Path(folder)/'overview.db')
+        with b.db.connect() as conn:
+            seed(conn, 1)
+            seed(conn, 2, dashboard(lessons=(1, 2, 3, 4, 5), homework=1), marks={'A':'是', 'B':'否'})
+            seed(conn, 3, dashboard(lessons=(1, 2, 3, 4, 5)), marks=dict.fromkeys('ABCD','否'))
+        b.workflow.reload_batches()
+        b.workflow.filterRows('all', '虚构学员A')
+        cursor = b.workflow.editorKey
+        assert b.workflow.queueFeedbackForSelection(cursor, '合成反馈')
+        engine = QQmlApplicationEngine()
+        warnings = []
+        engine.warnings.connect(lambda entries: warnings.extend(x.toString() for x in entries))
+        engine.rootContext().setContextProperty('backend', b)
+        engine.rootContext().setContextProperty('studentModel', b.studentModel)
+        engine.load(QUrl.fromLocalFile(str(Path('qml/Main.qml').resolve())))
+        assert engine.rootObjects(), warnings
+        window = engine.rootObjects()[0]
+        window.resize(1280, 820); window.show(); QTest.qWait(100)
+        page = window.findChild(QObject, 'learningOverviewPage')
+        assert page
+        nav = visual(window.contentItem(), 'moduleButton7')
+        assert nav is not None
+        click(window, nav)
+        assert window.property('moduleIndex') == 7
+        assert b.workflow.editorKey == cursor
+        assert b.workflow.store.rows(3,'A')[0]['feedback'] == '合成反馈'
+        assert b.learningOverview.view['latest']
+        charts = [visual(window.contentItem(), name) for name in ('overviewRateChart','overviewGapChart')]
+        assert all(charts)
+        assert charts[0].property('width') > 350
+        chart = charts[0]
+        chart.forceActiveFocus()
+        QTest.keyClick(window, Qt.Key_Home)
+        assert chart.property('inspected') == 0
+        QTest.keyClick(window, Qt.Key_Right)
+        assert chart.property('inspected') == 1
+        slider = visual(window.contentItem(), 'overviewRateChartRange')
+        assert QQmlProperty.read(slider,'second.value') == chart.property('endIndex')
+        slider.forceActiveFocus()
+        QTest.keyClick(window, Qt.Key_Right)
+        QTest.qWait(40)
+        assert chart.property('startIndex') > 0, chart.property('startIndex')
+        handle = QQmlProperty.read(slider, 'first.handle')
+        start = handle.mapToScene(QPointF(handle.width()/2,handle.height()/2))
+        end = start + QPointF(slider.width()/4,0)
+        before_zoom = chart.property('startIndex')
+        QTest.mousePress(window,Qt.LeftButton,Qt.NoModifier,start.toPoint())
+        QTest.mouseMove(window,end.toPoint(),30)
+        QTest.mouseRelease(window,Qt.LeftButton,Qt.NoModifier,end.toPoint())
+        QTest.qWait(40)
+        assert chart.property('startIndex') > before_zoom
+        # All tabs are keyboard operable; selectors are native controls.
+        tab = visual(window.contentItem(), 'overviewTab0')
+        tab.forceActiveFocus(); QTest.keyClick(window, Qt.Key_Right)
+        assert b.learningOverview.tabIndex == 1
+        history = visual(window.contentItem(), 'overviewHistoryBatch')
+        history.setProperty('currentIndex', 2); history.activated.emit(2); QTest.qWait(30)
+        assert not b.learningOverview.view['lessonRows']
+        assert b.learningOverview.view['completionRows']
+        tab = visual(window.contentItem(), 'overviewTab1')
+        tab.forceActiveFocus(); QTest.keyClick(window, Qt.Key_Right)
+        assert b.learningOverview.tabIndex == 2
+        assert len(b.learningOverview.view['rateChart']['series']) == 4
+        assert charts[1].property('chart').toVariant()['thresholds'] == [5,10,15]
+        QTest.keyClick(window, Qt.Key_End)
+        assert b.learningOverview.tabIndex == 3
+        target = visual(window.contentItem(), 'overviewTarget0')
+        target.forceActiveFocus(); target.selectAll()
+        QTest.keyClick(window, Qt.Key_9); QTest.keyClick(window, Qt.Key_2)
+        assert visual(window.contentItem(), 'overviewTarget0') == target
+        assert target.property('activeFocus') and target.property('text') == '92'
+        assert b.learningOverview.targets[0] == '92'
+        gap_trend = visual(window.contentItem(), 'overviewTrend2')
+        assert gap_trend.property('minimum') == 0 and gap_trend.property('maximum') >= 50
+        assert b.workflow.editorKey == cursor
+        assert b.learningOverview.historyIndex == 2
+        output = Path(os.environ.get('OVERVIEW_SCREENSHOT_DIR', 'output/learning-overview'))
+        output.mkdir(parents=True, exist_ok=True)
+        for width, height in ((1280,820),(1000,700)):
+            window.resize(width,height); QTest.qWait(80)
+            for index, name in ((0,'latest'),(1,'history'),(2,'compare'),(3,'goals')):
+                click(window, visual(window.contentItem(), 'overviewTab'+str(index)))
+                scroll = visual(window.contentItem(), 'overviewScroll')
+                scroll.property('contentItem').setProperty('contentY', 0)
+                QTest.qWait(70)
+                assert window.grabWindow().save(str(output/f'{name}-{width}.png'))
+                assert page.width() <= width
+                if index==2:
+                    # Hover and select the same point used in cumulative table.
+                    chart = visual(window.contentItem(), 'overviewRateChart')
+                    chart.forceActiveFocus(); QTest.keyClick(window, Qt.Key_Home)
+                    QTest.keyClick(window, Qt.Key_Return)
+                    assert b.learningOverview.view['selectedLesson'] == 1
+                    assert b.workflow.editorKey == cursor
+                if index in (0,2,3):
+                    viewport = scroll.property('contentItem')
+                    viewport.setProperty('contentY', max(0,viewport.property('contentHeight')-viewport.property('height')))
+                    QTest.qWait(70)
+                    assert window.grabWindow().save(str(output/f'{name}-bottom-{width}.png'))
+        b.workflow._classes.append(dict(name='空测试班', path=str(Path(folder)/'other.db')))
+        b.workflow.selectClass(1); QTest.qWait(80)
+        assert not b.learningOverview.view['available']
+        assert not [m for m in warnings if ('Error' in m or 'Binding loop' in m or 'Unable to assign' in m)], warnings
+        click(window, visual(window.contentItem(),'moduleButton0'))
+        window.close(); engine.deleteLater(); app.processEvents()
+        print('Learning overview QML passed: navigation, flush/cursor, tabs, selectors, keyboard/zoom, targets/focus, class isolation and two sizes.')
+
+
+if __name__ == '__main__': run()

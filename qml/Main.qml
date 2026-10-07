@@ -12,7 +12,7 @@ ApplicationWindow {
     color: UiTheme.canvas
     font.pixelSize: 13
     property bool campaignDetailOpen: width >= 1000
-    readonly property var moduleNames: ["催办工作台", "学员画像", "班期学员", "设置", "群发中心", "备注批改", "未进直播间"]
+    readonly property var moduleNames: ["催办工作台", "学员画像", "班期学员", "设置", "群发中心", "备注批改", "未进直播间", "学习概览"]
     property var wf: backend.workflow
     property var sender: backend.groupCenter
     property var restartService: typeof restartController !== "undefined" ? restartController : null
@@ -53,7 +53,7 @@ ApplicationWindow {
                 id: classBox
                 objectName: "classSelector"
                 popup.objectName: "classSelectorPopup"
-                visible: root.moduleIndex === 0 || root.moduleIndex === 1 || root.moduleIndex === 2 || root.moduleIndex === 5 || root.moduleIndex === 6
+                visible: root.moduleIndex === 0 || root.moduleIndex === 1 || root.moduleIndex === 2 || root.moduleIndex === 5 || root.moduleIndex === 6 || root.moduleIndex === 7
                 model: wf.classes; currentIndex: wf.classIndex
                 enabled: !backend.busy && !backend.termsModule.busy && !sender.active && !wf.sender.active && !backend.contactOpener.active && !backend.remarkRenamer.active && !backend.liveAbsence.busy
                 Layout.preferredWidth: 100
@@ -102,7 +102,7 @@ ApplicationWindow {
         ColumnLayout {
             anchors.fill: parent; anchors.margins: 10; spacing: 6
             Repeater {
-                model: [0, 1, 2, 6, 5]
+                model: [0, 7, 1, 2, 6, 5]
                 UiButton {
                     required property int modelData
                     objectName: "moduleButton" + modelData
@@ -150,7 +150,11 @@ ApplicationWindow {
             UiButton { objectName: "createCampaignButton"; text: backend.busy ? "正在获取最新数据…" : "新建催办"; highlighted: true; enabled: !backend.busy && !backend.termsModule.busy && !sender.active; onClicked: createDialog.open() }
             UiButton { text: "导出全班 XLSX"; enabled: wf.batchIndex >= 0; onClicked: batchExportDialog.open() }
         }
-        LearningDashboard { stats: wf.dashboard; compact: root.height < 620 }
+        RowLayout {
+            Layout.fillWidth: true
+            Label { text: "学习图表、历史对比与目标试算已移至学习概览"; color: UiTheme.muted; Layout.fillWidth: true; elide: Text.ElideRight }
+            UiButton { objectName: "openLearningOverview"; text: "学习概览"; onClicked: root.switchModule(7) }
+        }
         UiPanel {
             visible: root.width < 1000 || (wf.batchIndex >= 0 && !wf.canEdit)
             Layout.fillWidth: true; padding: 10
@@ -260,6 +264,7 @@ ApplicationWindow {
     GroupCenter { id: groupCenterPage; visible: root.moduleIndex === 4; anchors.fill: parent; anchors.margins: 16; anchors.leftMargin: navigation.width + 16 }
     RemarkRenamer { id: remarkRenamerPage; visible: root.moduleIndex === 5; anchors.fill: parent; anchors.margins: 16; anchors.leftMargin: navigation.width + 16 }
     LiveAbsence { id: liveAbsencePage; visible: root.moduleIndex === 6; anchors.fill: parent; anchors.margins: 16; anchors.leftMargin: navigation.width + 16; onOpenGroupCenter: root.switchModule(4) }
+    LearningOverview { objectName: "learningOverviewPage"; visible: root.moduleIndex === 7; anchors.fill: parent; anchors.margins: 16; anchors.leftMargin: navigation.width + 16 }
     ProfileFilterDialog { id: columnDialog; filterObjectName: "campaignColumnFilter"; profiles: root.wf }
     Dialog {
         id: createDialog; anchors.centerIn: parent; modal: true; title: "建立新的催办批次"; standardButtons: Dialog.Ok | Dialog.Cancel
