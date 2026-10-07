@@ -49,7 +49,7 @@ Backend / TermModule / SettingsModule / LiveAbsence → AcquisitionTask（QThrea
 1. TermModule 通过 AcquisitionTask 获取班期、课程、名单；TermRosterStore 在原主库缓存，Workflow.sync_terms/roster_sync 同步到各班库。
 2. 名单采集固定识别首节课程，与当前查看课程独立；缺失缓存才补取，显式刷新更新已有缓存。取消后拒收结果，等待网络结束/超时，不强杀线程。
 3. 新建催办调用 Backend.createCampaign，按作业绑定获取两平台数据；_fetch_succeeded 校验数据库身份、姓名、完整性后导入，再调用 Workflow.createBatch。
-4. CampaignStore 保存全班快照和 campaign_dashboards；dashboard.learning_dashboard 在建批时计算（version 3 起同时写入累计完课／作业人数与按完成节数分桶的 completion 分布）。后续获取只刷新最新批次的学习列、看板与批次时间 created_at（refresh_latest_learning，与建批共用 learning_snapshot 推导），最新批次身份可同步；历史批次不重写快照，建下一批前冻结上一批。Workflow.refresh_dashboard 读快照后只在最新批次按当前反馈补算每个桶的「可跟进人数」，不写回快照。
+4. CampaignStore 保存全班快照和 campaign_dashboards；dashboard.learning_dashboard 在建批时计算（version 3 起同时写入累计完课／作业人数与按完成节数分桶的 completion 分布）。后续获取只刷新最新批次的学习列、看板与批次时间 created_at（refresh_latest_learning，与建批共用 learning_snapshot 推导），最新批次身份可同步；历史批次不重写快照，建下一批前冻结上一批。Workflow.refresh_dashboard 读快照后按所选批次独立人工是标记补算每个桶的「可跟进人数」（历史也可补充标记），不使用反馈状态、不写回学习快照。
 5. Workflow 组合反馈/草稿/免催，执行视图、搜索、列条件、排序，再通知模型和选择。
 
 ### 反馈、免催与浮窗
