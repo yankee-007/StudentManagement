@@ -471,13 +471,12 @@ class WeComRemarkChanger:
             )
             self._click(window, description.box.center)
 
-            field_info, _, _ = self._wait_for(
+            self._wait_for(
                 window,
                 "edit_dialog",
                 lambda items, _image: choose_remark_input_text(items, original_remark),
             )
-            label, original_text = field_info
-            self._click(window, original_text.box.center)
+            # 点击描述后，备注名输入框已获得焦点；识别原值后直接编辑。
             self._edit_remark(original_remark, new_remark)
 
             def edited_value_is_correct(items: list[OCRItem], _image: Image.Image):
