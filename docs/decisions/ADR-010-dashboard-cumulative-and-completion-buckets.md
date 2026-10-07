@@ -69,3 +69,6 @@ Accepted。2026-10-01 由用户逐项确认后实施：看板顶部增加累计�
 ## Related Areas
 
 app/dashboard.py、app/campaigns.py（`dashboard` 的版本降级与 notice）、app/workflow.py（`refresh_dashboard`/`_attach_followable`）、qml/LearningDashboard.qml；tests/test_dashboard.py、tests/smoke_dashboard_completion.py；ADR-004、ADR-006。
+
+
+2026-10-07：可跟进统计来源由ADR-012更新为独立人工是/否标记；正式分桶范围保持不变，历史也可按本批标记计算。此前反馈状态修复已回退。

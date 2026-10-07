@@ -4,6 +4,7 @@
 
 | Task ID | 标题 | 工作状态 | 分支或范围 | 文件 |
 | --- | --- | --- | --- | --- |
+| TASK-20261007-4bf9738271ad | 独立可跟进状态与第16次人工填写 | awaiting_acceptance | main／批次标记与可跟进统计 | [任务](TASK-20261007-4bf9738271ad-followup-status.md) |
 | TASK-20261007-b9167e34ac52 | 学员画像浮窗跨班识别 | awaiting_acceptance | main／画像浮窗 | [任务](TASK-20261007-b9167e34ac52-profile-companion-classes.md) |
 | TASK-20261006-76ec258f174b | 班期切换与学员操作界面细化 | awaiting_acceptance | main／QML、联系人默认配置 | [任务](TASK-20261006-76ec258f174b-ui-refinements.md) |
 | TASK-20261006-3d2ba861e904 | 学员管理桌面 UI 优化 | awaiting_acceptance | main／QML 界面 | [任务](TASK-20261006-3d2ba861e904-ui-refresh.md) |

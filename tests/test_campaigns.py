@@ -129,7 +129,8 @@ class CampaignTests(unittest.TestCase):
             self.assertEqual((rows[0]['completed_courses'],rows[0]['completed_homework']),('0','1'))
             self.assertEqual([label for _,label in EXPORT_COLUMNS][2:7],
                              ['未完课次','未完作业','欠交合计','合计完成课程','合计完成作业'])
-            self.assertEqual(len(EXPORT_COLUMNS),11)
+            self.assertEqual(len(EXPORT_COLUMNS),12)
+            self.assertIn(('followup_status','可跟进状态'),EXPORT_COLUMNS)
             with patch.object(b.settingsModule,'bindingFor',return_value={'class_id':23,'course_id':2}),patch('app.backend.get_password',return_value='secret'),patch('app.backend.AcquisitionTask',FakeTask):
                 b.createCampaign()
                 b._fetch_failed('模拟获取失败')
@@ -181,8 +182,8 @@ class CampaignTests(unittest.TestCase):
             self.assertEqual([(r['count'],r['people']) for r in buckets],[(2,1),(1,1),(0,0)])
             self.assertEqual(sum(r['people'] for r in buckets),data['total'])
             self.assertEqual([r['cumulative'] for r in buckets],[1,2,2])
-            # 历史批次冻结，因此由 Workflow 补算的「可跟进人数」只在最新批次出现。
-            self.assertEqual([r.get('followable') for r in buckets],[1,1,0])
+            # 无人工是标记时，不把待反馈或已有回复自动计入可跟进。
+            self.assertEqual([r.get('followable') for r in buckets],[0,0,0])
             self.assertNotIn('followable',b.workflow.store.dashboard(b.workflow._batch)['completion']['courses'][0])
 
     def test_old_snapshot_versions_hide_completion_buckets(self):

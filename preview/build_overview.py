@@ -9,7 +9,7 @@ from pathlib import Path
 
 def load_batches(connection, feedback_batch=None):
     batches = []
-    latest = connection.execute("SELECT MAX(id) FROM campaigns").fetchone()[0]
+    has_followup = connection.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='campaign_followup_status'").fetchone() is not None
     for row in connection.execute(
         "SELECT c.id,c.created_at,d.data FROM campaigns c "
         "JOIN campaign_dashboards d ON d.batch_id=c.id ORDER BY c.id"
@@ -33,23 +33,23 @@ def load_batches(connection, feedback_batch=None):
         completion_notice = ''
         for bucket in completion:
             bucket.pop('followable', None)
-        if completion and row[0] in (latest, feedback_batch):
+        if completion and has_followup:
             opened = data.get('opened', max(bucket['count'] for bucket in completion))
             # Count each student once; export no identifiers or feedback text.
-            reply_counts = dict(connection.execute(
+            followup_counts = dict(connection.execute(
                 "SELECT MIN(COALESCE(CAST(json_extract(s.snapshot,'$.completed_courses') AS INTEGER),0),?),COUNT(*) "
                 "FROM campaign_students s WHERE s.batch_id=? "
                 "AND json_extract(s.snapshot,'$.roster_status')='在读' "
                 "AND COALESCE(json_extract(s.snapshot,'$.is_placeholder'),0)=0 "
-                "AND EXISTS(SELECT 1 FROM campaign_feedback f WHERE f.batch_id=s.batch_id "
-                "AND f.student_id=s.student_id AND f.kind='reply') GROUP BY 1", (opened, row[0])))
+                "AND EXISTS(SELECT 1 FROM campaign_followup_status f WHERE f.batch_id=s.batch_id "
+                "AND f.student_id=s.student_id AND f.status='是') GROUP BY 1", (opened, row[0])))
             for bucket in completion:
-                value = sum(number for count, number in reply_counts.items() if count <= bucket['count'])
+                value = sum(number for count, number in followup_counts.items() if count <= bucket['count'])
                 capacity = sum(item['people'] for item in completion if item['count'] <= bucket['count'])
                 if 0 <= value <= capacity:
                     bucket['followable'] = value
                 else:
-                    completion_notice = '回复人数与分布快照不一致，受影响的可跟进人数暂不展示。'
+                    completion_notice = '可跟进标记人数与分布快照不一致，受影响的可跟进人数暂不展示。'
         batches.append(dict(id=row[0], time=row[1], total=data.get('total', 0),
                             lessons=lessons, completion=completion,
                             completionNotice=completion_notice, notice=data.get('notice', '')))

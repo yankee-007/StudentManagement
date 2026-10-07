@@ -68,7 +68,7 @@ ColumnLayout {
                     required property var modelData
                     Layout.fillWidth: true; spacing: card.compact ? 4 : 6
                     Label {
-                        visible: modelData.key !== "feedback" && modelData.key !== "exemption_text"
+                        visible: modelData.key !== "feedback" && modelData.key !== "exemption_text" && modelData.key !== "followup_status"
                         text: modelData.label + "：" + (card.service.selected[modelData.key] || "—")
                         Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.ink; font.pixelSize: card.compact ? 11 : 12
                     }
@@ -169,6 +169,20 @@ ColumnLayout {
                         TextArea {
                             visible: historyToggle.checked; text: historyToggle.checked ? card.service.previousFeedback : ""
                             readOnly: true; selectByMouse: true; wrapMode: TextEdit.Wrap; Layout.fillWidth: true; font.pixelSize: 12
+                        }
+                    }
+                    RowLayout {
+                        visible: modelData.key === "followup_status"
+                        Label { text: "可跟进状态："; color: UiTheme.ink }
+                        UiComboBox {
+                            objectName: modelData.key === "followup_status" ? (card.service === card.workflow ? "followupStatusSelector" : "floatingFollowupStatusSelector") : ""
+                            model: ["否", "是"]
+                            currentIndex: card.service.selected.followup_status === "是" ? 1 : 0
+                            enabled: card.hasStudent && !!card.service.selected.name && !card.service.selected.is_placeholder && card.workflow.batchIndex >= 0
+                            Accessible.name: "可跟进状态"
+                            Layout.preferredWidth: 90
+                            Layout.minimumWidth: 72
+                            onActivated: card.service.setFollowupStatusForSelection(card.loadedKey, currentText)
                         }
                     }
                     ColumnLayout {

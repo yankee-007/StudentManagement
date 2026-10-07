@@ -73,6 +73,16 @@ def run():
             return None
         draft = visual(detail, "feedbackDraft")
         assert draft is not None
+        followup = visual(detail, 'followupStatusSelector')
+        assert followup is not None and followup.property('currentText') == '否'
+        followup.setProperty('currentIndex',1)
+        followup.activated.emit(1)
+        app.processEvents()
+        assert backend.workflow.selected['followup_status'] == '是'
+        assert visual(detail, 'feedbackDraft') == draft
+        assert visual(detail, 'followupStatusSelector').property('currentText') == '是'
+        if os.environ.get('FOLLOWUP_SCREENSHOT'):
+            assert window.grabWindow().save(os.environ['FOLLOWUP_SCREENSHOT'])
         assert draft.height() < 40
         menu = draft.property('menu')
         assert visual(detail, 'feedbackShortcutButton') is None and menu.property('count') == 4

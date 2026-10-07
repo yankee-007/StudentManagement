@@ -78,8 +78,8 @@ fs.mkdirSync(output,{recursive:true});
  assert.strictEqual(String(latestData.id),latest);assert(latestData.match);assert.strictEqual(latestData.series,2);
  assert.strictEqual(await page.locator('#latest-rows tr').count(),latestData.lessons);
  assert.strictEqual(await page.locator('#latest-completion-rows tr').count(),distribution.buckets);
- const expectedReplies=await page.evaluate(()=>dashboardBatch().completion.map(r=>String(r.followable??'—')));
- assert.deepStrictEqual(await page.locator('#latest-completion-rows tr td:nth-child(4)').allTextContents(),expectedReplies);
+ const expectedFollowup=await page.evaluate(()=>dashboardBatch().completion.map(r=>String(r.followable??'—')));
+ assert.deepStrictEqual(await page.locator('#latest-completion-rows tr td:nth-child(4)').allTextContents(),expectedFollowup);
  const latestCards=await page.locator('#latest-cards').textContent();assert(latestCards.includes(String(latestData.last.courseDone)+'人'));assert(latestCards.includes('导出')===false);
  await page.screenshot({path:path.join(output,'latest-1280.png'),fullPage:true});
  await page.setViewportSize({width:1000,height:700});await page.waitForTimeout(200);
@@ -97,6 +97,6 @@ fs.mkdirSync(output,{recursive:true});
  await page.evaluate(()=>{option(current,999,'缺少数据样例');current.value='999';render(true)});
  assert((await page.locator('#completion-rows').textContent()).includes('暂无'));
  assert.deepStrictEqual(errors,[]);
- console.log(JSON.stringify({passed:true,checks:['independent tabs and selectors','latest shared lesson','actual series and tooltip comparisons','5/10/15 bands','missing historical lesson','same batch zero deltas','different denominators','target validation and line','consistent trend lesson','keyboard tabs','navigation and zoom','two viewport sizes','no shared lesson fallback','completion totals and >=k rates','latest replied <=N counts and historical unavailable','distribution comparison and missing buckets','old distribution fallback','latest-only charts and totals','latest unaffected by historical selection','latest responsive and keyboard navigation'],pageErrors:errors}));
+ console.log(JSON.stringify({passed:true,checks:['independent tabs and selectors','latest shared lesson','actual series and tooltip comparisons','5/10/15 bands','missing historical lesson','same batch zero deltas','different denominators','target validation and line','consistent trend lesson','keyboard tabs','navigation and zoom','two viewport sizes','no shared lesson fallback','completion totals and >=k rates','manual followup <=N counts','distribution comparison and missing buckets','old distribution fallback','latest-only charts and totals','latest unaffected by historical selection','latest responsive and keyboard navigation'],pageErrors:errors}));
  } finally {await browser.close()}
 })().catch(e=>{console.error(e);process.exit(1)});

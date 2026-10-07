@@ -46,6 +46,69 @@ class FeedbackAutosaveTests(unittest.TestCase):
         self.w.flushFeedback()
         self.assertEqual(self.w.selected['reply_state'], '待反馈')
 
+    def test_followup_is_explicit_and_feedback_does_not_overwrite_it(self):
+        self.w.store.save_feedback(self.w._batch, '1', '未接听电话')
+        self.w.reload_rows()
+        self.assertEqual(self.w.selected['reply_state'], '已回复')
+        self.assertEqual(self.w.selected['followup_status'], '否')
+        self.assertTrue(self.w.setFollowupStatusForSelection(self.key, '是'))
+        self.w.queueFeedbackForSelection(self.key, '新的反馈')
+        self.w.flushFeedback()
+        self.assertEqual(self.w.selected['followup_status'], '是')
+        self.assertFalse(self.w.setFollowupStatusForSelection(self.key, '其他'))
+        self.assertFalse(self.w.setFollowupStatusForSelection(json.dumps(['wrong',self.w._batch,'1']), '否'))
+        self.assertTrue(self.w.setFollowupStatusForSelection(self.key, '否'))
+        self.assertIn(('followup_status','可跟进状态'),self.w._model.columns)
+
+    def test_followup_history_annotation_preserves_feedback_and_batch_isolation(self):
+        old = self.w._batch
+        self.w.store.save_feedback(old, '1', '好的')
+        self.w.store.set_followup_status(old, '1', '是')
+        self.w.createBatch()
+        self.assertEqual(self.w.selected['followup_status'], '否')
+        self.w.selectBatch(1)
+        self.assertFalse(self.w.canEdit)
+        self.assertEqual(self.w.selected['followup_status'], '是')
+        self.assertTrue(self.w.setFollowupStatusForSelection(self.w.editorKey, '否'))
+        self.assertEqual(self.w.selected['feedback'], '好的')
+        self.assertFalse(self.w.queueFeedbackForSelection(self.w.editorKey, '禁止覆盖历史'))
+        self.assertEqual(len(self.w.batches),2)
+
+    def test_followup_filter_export_and_reopen(self):
+        self.assertTrue(self.w.setFollowupStatusForSelection(self.key,'是'))
+        self.w.setColumnFilter('followup_status','values',['是'],'')
+        self.assertEqual(self.w.visibleCount,1)
+        self.assertTrue(self.w.setFollowupStatusForSelection(self.key,'否'))
+        self.assertEqual(self.w.visibleCount,1)  # 冻结筛选，标记修改不跳走。
+        self.w.reapplyFilters()
+        self.assertEqual(self.w.visibleCount,0)
+        from openpyxl import load_workbook
+        output=Path(self.tmp.name)/'followup.xlsx'
+        self.w.export_to_path(['name','followup_status'],str(output))
+        book=load_workbook(output,read_only=True)
+        values=list(book.active.values)
+        self.assertEqual(values[0],('姓名','可跟进状态'))
+        self.assertTrue(all(row[1]=='否' for row in values[1:]))
+        book.close()
+        self.w.store.set_followup_status(self.w._batch,'1','是')
+        reopened=Backend(self.backend.db.path)
+        self.assertEqual(reopened.workflow.store.rows(self.w._batch,'1')[0]['followup_status'],'是')
+
+    def test_followup_counts_use_flags_not_reply_and_preserve_filtered_selection(self):
+        with self.backend.db.connect() as conn:conn.execute("UPDATE class_roster SET status='在读'")
+        self.w.createBatch()
+        key = self.w.editorKey
+        self.w.store.save_feedback(self.w._batch, '1', '好的')
+        self.w.reload_rows()
+        self.assertEqual(sum(r['followable'] for r in self.w.dashboard['completion']['courses']),0)
+        self.assertTrue(self.w.setFollowupStatusForSelection(key,'是'))
+        self.assertEqual(sum(r['followable'] for r in self.w.dashboard['completion']['courses']),1)
+        self.assertEqual(self.w.editorKey,key)
+        self.w.createBatch()
+        self.w.selectBatch(1)
+        self.assertEqual(sum(r['followable'] for r in self.w.dashboard['completion']['courses']),1)
+        with self.assertRaises(ValueError):self.w.store.set_followup_status(self.w._batch,'unknown','是')
+
     def test_switch_flushes_and_rejects_stale_keys(self):
         self.w.queueFeedbackForSelection(self.key, '甲的内容')
         self.w.selectRow(1)

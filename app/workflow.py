@@ -109,6 +109,27 @@ class Workflow(QObject):
     def queueFeedbackForSelection(self, key, value):
         return key == self.editorKey and self.queueFeedback(key, value)
 
+    @Slot(str,str,result=bool)
+    def setFollowupStatusForSelection(self, key, value):
+        return key == self.editorKey and self.setFollowupStatus(key, value)
+
+    def setFollowupStatus(self, key, value):
+        try:
+            path, batch, sid = json.loads(key)
+            if path != str(self.owner.db.path) or batch != self._batch or not batch:
+                return False
+            if not self.flushFeedback():return False
+            self.store.set_followup_status(batch, sid, value)
+            self.reload_rows(prefer=self._selected.get('student_id'), keep_query=True)
+            self.owner.toast.emit('可跟进状态已保存')
+            return True
+        except (ValueError, TypeError) as exc:
+            self.owner.toast.emit('可跟进状态未保存：'+str(exc))
+            return False
+        except Exception as exc:
+            self.owner.toast.emit('可跟进状态保存失败：'+str(exc))
+            return False
+
     @Property('QVariantList', notify=feedbackShortcutsChanged)
     def feedbackShortcuts(self):
         saved = self.owner.repo.get_setting('campaign_feedback_shortcuts')
@@ -345,15 +366,13 @@ class Workflow(QObject):
         self._attach_followable()
 
     def _attach_followable(self):
-        """「可跟进人数」＝该完课次数桶里已有反馈记录、且不是「未回复」标记的学员。
+        """「可跟进人数」＝该完课次数桶里在读且标记为「是」的真实学员。
 
-        分布本身是快照口径（历史批次冻结），但反馈会随登记变化，且只有最新批次的反馈可改，
-        因此只在最新批次上计算；历史批次这一列保持为空。
+        标记独立于反馈和学习快照，按批次保存；历史可补充人工标记。
         """
         data=self._dashboard
         completion=data.get('completion') if isinstance(data,dict) else None
         if not completion or not self._batch:return
-        if self._batches and self._batch!=self._batches[0]['id']:return
         try:
             opened=data.get('opened',0)
             states={}
@@ -361,7 +380,8 @@ class Workflow(QObject):
                 if row.get('is_placeholder'):continue
                 try:value=int(row.get('completed_courses') or 0)
                 except (TypeError,ValueError):continue
-                states[min(value,opened)]=states.get(min(value,opened),0)+(row['reply_state']not in ('未回复','—'))
+                if row.get('roster_status') != '在读':continue
+                states[min(value,opened)]=states.get(min(value,opened),0)+(row.get('followup_status')=='是')
             for bucket in completion.get('courses') or []:
                 bucket['followable']=states.get(bucket['count'],0)
         except Exception as exc:
@@ -441,7 +461,7 @@ class Workflow(QObject):
                 missing_total=f'{len(courses.split(",")) if courses else 0}/{len(homework.split(",")) if homework else 0}' if flags is not None else '',
                 completed_total=f'{ctotal}/{ztotal}' if flags is not None else '',
                 completed_courses='' if ctotal is None else str(ctotal),completed_homework='' if ztotal is None else str(ztotal),
-                feedback='',draft='',message='',eligible=0,send_state='未建立批次',reply_state='—',
+                feedback='',draft='',message='',eligible=0,send_state='未建立批次',reply_state='—',followup_status='否',
                 reason='缺号补位' if student.get('is_placeholder') else student.get('sync_state',''),position=position,
                 is_placeholder=student.get('is_placeholder',False),
                 exemption_date=student.get('exemption_date',''),exemption_text=student.get('exemption_text',''),exemption_expired=student.get('exemption_expired',False),

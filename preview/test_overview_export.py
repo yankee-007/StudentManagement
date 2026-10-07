@@ -16,9 +16,15 @@ class ExportCompletionTests(unittest.TestCase):
                 conn.execute('INSERT INTO campaign_students VALUES(?,?,?)',(3,sid,json.dumps(dict(completed_courses=count,roster_status=status,is_placeholder=placeholder))))
                 if kind:conn.execute('INSERT INTO campaign_feedback VALUES(?,?,?)',(3,sid,kind))
             conn.execute("INSERT INTO campaign_feedback VALUES(3,'a','reply')")
+            before=load_batches(conn)
+            self.assertTrue(all('followable' not in b for b in before[-1]['completion']))
+            conn.execute('CREATE TABLE campaign_followup_status(batch_id INTEGER,student_id TEXT,status TEXT,PRIMARY KEY(batch_id,student_id))')
+            for sid in ('a','b','c','e','g','h','i'):
+                conn.execute("INSERT INTO campaign_followup_status VALUES(3,?,'是')",(sid,))
+            conn.execute("INSERT INTO campaign_followup_status VALUES(3,'d','否')")
             rows=load_batches(conn)
             self.assertEqual(rows[0]['completion'],[])
-            self.assertTrue(all('followable' not in b for b in rows[1]['completion']))
+            self.assertEqual([b['followable'] for b in rows[1]['completion']],[0,0,0])
             self.assertEqual([b['followable'] for b in rows[2]['completion']],[5,4,3])
             self.assertEqual([b['people'] for b in rows[2]['completion']],[1,2,4])
             requested=load_batches(conn,feedback_batch=2)[1]

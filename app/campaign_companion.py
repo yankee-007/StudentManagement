@@ -189,6 +189,10 @@ class CampaignCompanion(QObject):
     def queueFeedbackForSelection(self, key, value):
         return self._valid_key(key) and self.owner.workflow.queueFeedback(key, value)
 
+    @Slot(str, str, result=bool)
+    def setFollowupStatusForSelection(self, key, value):
+        return self._valid_key(key) and self.owner.workflow.setFollowupStatus(key, value)
+
     @Slot(str, str, str, result=bool)
     def saveEditorValue(self, key, kind, value):
         if not self._valid_key(key):

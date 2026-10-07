@@ -12,7 +12,7 @@ from .remark_scan import SCHEMA as REMARK_SCHEMA
 EXPORT_COLUMNS = [('student_id','学号'), ('name','姓名'), ('courses','未完课次'),
                   ('homework','未完作业'), ('missing_total','欠交合计'),
                   ('completed_courses','合计完成课程'), ('completed_homework','合计完成作业'),
-                  ('feedback','本次反馈情况'),
+                  ('feedback','本次反馈情况'), ('followup_status','可跟进状态'),
                   ('roster_status','状态'), ('wechat','微信'), ('exemption_text','免催日期')]
 TEST_TEMPLATE = '{姓名}同学，你好：待补课程：{欠课}；待交作业：{欠作业}。请安排时间完成，有特殊情况请回复。'
 SCHEMA = '''
@@ -43,6 +43,12 @@ CREATE TABLE IF NOT EXISTS student_contacts (student_id TEXT PRIMARY KEY, remark
 ''' + REMARK_SCHEMA + '''
 CREATE TABLE IF NOT EXISTS campaign_dashboards (
  batch_id INTEGER PRIMARY KEY REFERENCES campaigns(id), data TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS campaign_followup_status (
+ batch_id INTEGER NOT NULL, student_id TEXT NOT NULL,
+ status TEXT NOT NULL CHECK(status IN ('是','否')),
+ PRIMARY KEY(batch_id,student_id),
+ FOREIGN KEY(batch_id,student_id) REFERENCES campaign_students(batch_id,student_id)
 );
 '''
 
@@ -246,6 +252,7 @@ class CampaignStore:
             for r in conn.execute('SELECT * FROM campaign_feedback WHERE batch_id=?'+clause+' ORDER BY id',args):
                 feedback.setdefault(r['student_id'],[]).append(dict(r))
             drafts = {r['student_id']:r['content'] for r in conn.execute('SELECT * FROM campaign_drafts WHERE batch_id=?'+clause,args)}
+            followup = {r['student_id']:r['status'] for r in conn.execute('SELECT * FROM campaign_followup_status WHERE batch_id=?'+clause,args)}
             rows = []
             for record in conn.execute('SELECT * FROM campaign_students WHERE batch_id=?'+clause,args):
                 item = dict(record)
@@ -258,6 +265,7 @@ class CampaignStore:
                 item['feedback'] = '\n'.join(r['content'] for r in entries)
                 item['reply_state'] = '—' if item.get('is_placeholder') or not item['name'].strip() else '已回复' if any(r['kind']=='reply' for r in entries) else '未回复' if entries else '待反馈'
                 item['draft'] = drafts.get(item['student_id'],'')
+                item['followup_status'] = followup.get(item['student_id'], '否')
                 replies = '\n'.join(r['content'] for r in entries if r['kind'] == 'reply')
                 item['feedback_edit'] = '\n'.join(v for v in (replies, item['draft']) if v)
                 if batch == latest:
@@ -306,6 +314,15 @@ class CampaignStore:
             WHERE s.batch_id=? AND s.student_id=?''',(batch,sid)).fetchone()
         if batch != latest or not row or not row['name'].strip() or json.loads(row['snapshot']).get('is_placeholder') or row['current_placeholder']:
             raise ValueError('仅最新批次的真实学员可以登记反馈')
+
+    def set_followup_status(self, batch, sid, status):
+        if status not in ('是', '否'):
+            raise ValueError('可跟进状态只能是是或否')
+        with self.db.connect() as conn:
+            row = conn.execute('SELECT name,snapshot FROM campaign_students WHERE batch_id=? AND student_id=?', (batch, sid)).fetchone()
+            if not row or not row['name'].strip() or json.loads(row['snapshot']).get('is_placeholder'):
+                raise ValueError('请选择批次中的真实学员')
+            conn.execute('INSERT INTO campaign_followup_status(batch_id,student_id,status) VALUES(?,?,?) ON CONFLICT(batch_id,student_id) DO UPDATE SET status=excluded.status', (batch, sid, status))
 
     def submit(self,batch,sid,content):
         if not content.strip():
