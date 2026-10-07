@@ -9,7 +9,7 @@
 header{height:60px;background:white;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:20px;padding:0 24px}header b{font-size:18px}header span{margin-left:auto;color:var(--sub)}select{max-width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:6px;background:white;color:var(--ink)}
 .shell{display:flex;min-height:calc(100vh - 60px)}nav{flex:0 0 156px;background:#203047;padding:16px 10px;display:flex;flex-direction:column;gap:6px}nav button{white-space:nowrap;border:0;background:transparent;color:#f2f6fc;border-radius:5px;padding:12px;text-align:left}nav button.active{background:var(--blue)}nav button:disabled{opacity:.65;cursor:default}nav small{color:#bcc7d7;margin:14px 10px}
 main{flex:1;min-width:0;padding:20px;max-width:1700px}.heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}h1{font-size:22px;margin:0}h2{font-size:15px;margin:0}.sub{color:var(--sub);margin:2px 0}.panel{background:white;border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}.filters{display:flex;flex-wrap:wrap;gap:18px;align-items:end}.filters label{display:grid;gap:5px;min-width:200px}.filters .sub{flex:1;min-width:240px}.badge{padding:5px 12px;border-radius:20px;color:white;white-space:nowrap}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}.card{padding:16px;background:white;border:1px solid var(--line);border-radius:10px}.card .value{font-size:26px;font-weight:600;margin:4px 0}.card small{color:var(--sub)}.positive{color:var(--green)}.negative{color:var(--red)}
-.grid{display:grid;grid-template-columns:1.15fr 1fr;gap:14px}.chart{height:280px}.legend{display:flex;flex-wrap:wrap;gap:14px;color:var(--sub);margin-top:5px;font-size:12px}.legend i{display:inline-block;width:14px;height:3px;margin-right:5px;vertical-align:middle}.goal-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:12px}.goal-grid label{display:flex;align-items:center;gap:10px}.goal-grid input{width:90px;padding:5px;border:1px solid var(--line);border-radius:5px}.track{height:7px;background:#eaf0f8;border-radius:6px;margin:12px 0;overflow:hidden}.track span{display:block;height:100%;background:var(--blue)}.goal-grid p{margin:4px 0}.notice{padding:8px 12px;border-left:3px solid #f79009;background:#fff8e9;color:#7a5119;margin-top:12px}.table-wrap{overflow:auto}table{border-collapse:collapse;width:100%;white-space:nowrap;margin-top:12px}th,td{text-align:right;padding:9px 12px;border-bottom:1px solid #eef1f6}th{background:#f8fafc;color:var(--sub);font-weight:500}th:first-child,td:first-child{text-align:left}.detail{padding:9px 12px;background:#f5f7fb;border-radius:6px}.links button{background:white;border:1px solid var(--line);border-radius:6px;padding:8px 12px;color:var(--blue)}footer{font-size:12px;color:var(--sub)}[hidden]{display:none!important}
+.page-tabs{display:flex;gap:8px;margin-bottom:14px}.page-tabs button{padding:10px 20px;border:1px solid var(--line);border-radius:7px;background:white;color:var(--sub)}.page-tabs button.active{background:#eef4ff;border-color:#a9c5ff;color:var(--blue);font-weight:600}.card small{display:block}.grid{display:grid;grid-template-columns:1.15fr 1fr;gap:14px}.chart{height:280px}.legend{display:flex;flex-wrap:wrap;gap:14px;color:var(--sub);margin-top:5px;font-size:12px}.legend i{display:inline-block;width:14px;height:3px;margin-right:5px;vertical-align:middle}.goal-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-top:12px}.goal-grid label{display:flex;align-items:center;gap:10px}.goal-grid input{width:90px;padding:5px;border:1px solid var(--line);border-radius:5px}.track{height:7px;background:#eaf0f8;border-radius:6px;margin:12px 0;overflow:hidden}.track span{display:block;height:100%;background:var(--blue)}.goal-grid p{margin:4px 0}.notice{padding:8px 12px;border-left:3px solid #f79009;background:#fff8e9;color:#7a5119;margin-top:12px}.table-wrap{overflow:auto}table{border-collapse:collapse;width:100%;white-space:nowrap;margin-top:12px}th,td{text-align:right;padding:9px 8px;border-bottom:1px solid #eef1f6}th{background:#f8fafc;color:var(--sub);font-weight:500}th:first-child,td:first-child{text-align:left}.detail{padding:9px 12px;background:#f5f7fb;border-radius:6px}.links button{background:white;border:1px solid var(--line);border-radius:6px;padding:8px 12px;color:var(--blue)}footer{font-size:12px;color:var(--sub)}[hidden]{display:none!important}
 @media(max-width:1100px){nav{flex-basis:108px}nav button{font-size:12px}.cards{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}.goal-grid{grid-template-columns:1fr}.heading{align-items:start}.badge{white-space:normal}}@media(max-width:650px){header{padding:12px;height:auto;flex-wrap:wrap}nav{flex-basis:90px;padding:8px 4px}nav button{padding:10px 6px}main{padding:12px}.cards{grid-template-columns:1fr}.filters label{min-width:0;width:100%}}
 </style>
 <header><b>学员管理</b><label>班期 <select id="class-selector" aria-label="班期"></select></label><span>交互预览 · 正式应用尚未修改</span></header>
@@ -22,24 +22,33 @@ main{flex:1;min-width:0;padding:20px;max-width:1700px}.heading{display:flex;alig
 <main>
 <section id="overview">
 <div class="heading"><div><h1>学习概览</h1><p class="sub">查看学习情况、批次变化与目标差距</p></div><span id="grade" class="badge"></span></div>
-<div class="panel"><div class="filters">
+<div class="page-tabs" role="tablist" aria-label="学习概览用途"><button id="tab-compare" class="active" role="tab" aria-selected="true" aria-controls="comparison-page">批次对比</button><button id="tab-goals" role="tab" aria-selected="false" aria-controls="goals-page">目标追踪</button></div>
+<section id="comparison-page" role="tabpanel" aria-labelledby="tab-compare">
+<div class="panel"><h2>两次催办之间，学习数据改善了多少？</h2><div class="filters" style="margin-top:12px">
 <label>查看批次<select id="current" aria-label="查看批次"></select></label>
 <label>对比批次<select id="baseline" aria-label="对比批次"></select></label>
-<p class="sub" id="scope"></p></div><div id="comparison-notice" class="notice"></div></div>
+<label>顶部指标对比节次<select id="compare-lesson" aria-label="顶部指标对比节次"></select></label>
+</div><p class="sub" id="scope"></p><div id="comparison-notice" class="notice"></div></div>
 <div class="cards" id="cards" aria-live="polite"></div>
-<div class="panel"><h2>目标差距 <small class="sub">· 按所选节次评估，目标仅在本页试算</small></h2>
-<div class="filters" style="margin-top:10px"><label>目标评估节次<select id="goal-lesson" aria-label="目标评估节次"></select></label></div>
+<div class="grid">
+<div class="panel"><h2>两批累计完课率与作业率</h2><p class="sub">实线为查看批次，虚线为对比批次；悬浮查看双方数值及变化。</p><div id="rate-chart" class="chart" style="height:320px"></div></div>
+<div class="panel"><h2>两批累计差值与考核线</h2><p class="sub">差值降低表示两条率的差距缩小；悬浮查看变化。</p><div id="gap-chart" class="chart" style="height:320px"></div></div>
+</div>
+<div id="detail" class="detail" style="margin-bottom:14px">点击逐节图表查看两批明细</div>
+<div class="panel"><h2 id="table-title">两批逐节数据对比</h2><p class="sub">变化＝查看批次－对比批次；率升高、差值降低为改善。pp 表示百分点。对比批次未开到该节时显示 —。</p><div class="table-wrap"><table><thead id="table-head"></thead><tbody id="rows"></tbody></table></div></div>
+</section>
+<section id="goals-page" role="tabpanel" aria-labelledby="tab-goals" hidden>
+<p class="sub" style="margin-bottom:14px">独立选择评估批次和节次，观察目标差距与最近几次催办的进展；不受「批次对比」的选择影响。</p>
+<div class="panel"><h2>距离目标还差多少 <small class="sub">· 所选批次与目标比较，目标仅在本页试算</small></h2>
+<div class="filters" style="margin-top:10px"><label>评估批次<select id="goal-batch" aria-label="评估批次"></select></label><label>目标评估节次<select id="goal-lesson" aria-label="目标评估节次"></select></label></div>
 <div class="goal-grid">
 <div><label>累计完课率 <input id="course-target" type="number" min="0" max="100" value="85" step="1" aria-label="累计完课率目标">%</label><div class="track"><span id="course-progress"></span></div><p id="course-goal"></p></div>
 <div><label>累计作业率 <input id="homework-target" type="number" min="0" max="100" value="85" step="1" aria-label="累计作业率目标">%</label><div class="track"><span id="homework-progress"></span></div><p id="homework-goal"></p></div>
 <div><label>差值目标 <select id="gap-target" aria-label="差值目标"><option value="15">≤15pp · 及格</option><option value="10">≤10pp · 良好</option><option value="5">≤5pp · 优秀</option></select></label><div class="track"><span id="gap-progress"></span></div><p id="gap-goal"></p></div>
 </div><p class="sub">差值试算假设累计完课人数不变、通过补交作业降低差值；同时提高两条率时以各自目标为准。</p></div>
-<div class="grid">
-<div class="panel"><h2>逐节累计完课率与作业率</h2><div class="legend"><span><i style="background:#2f6fed"></i>当前完课</span><span><i style="background:#15956e"></i>当前作业</span><span>虚线为对比批次 · 滑块调整节次范围</span></div><div id="rate-chart" class="chart"></div></div>
-<div class="panel"><h2>逐节差值与考核线</h2><div class="legend"><span>优秀 ≤5pp</span><span>良好 ≤10pp</span><span>及格 ≤15pp</span><span>不合格 &gt;15pp</span></div><div id="gap-chart" class="chart"></div></div>
-</div>
-<div class="panel"><h2>批次走势 · 同一节次对比</h2><p id="trend-note" class="sub"></p><div id="trend-chart" class="chart" style="height:220px"></div><div id="detail" class="detail">点击逐节图表查看明细</div></div>
-<div class="panel"><h2>逐节对账</h2><div class="table-wrap"><table><thead><tr><th>节次</th><th>累计完课率</th><th>较对比批次</th><th>累计作业率</th><th>较对比批次</th><th>差值</th><th>差值变化</th><th>考核</th></tr></thead><tbody id="rows"></tbody></table></div></div>
+
+<div class="panel"><h2>最近几次催办，是否越来越接近目标？</h2><div class="filters" style="margin-top:10px"><label>观察指标<select id="trend-metric" aria-label="观察指标"><option value="gap">累计差值（越低越好）</option><option value="course">累计完课率（越高越好）</option><option value="homework">累计作业率（越高越好）</option></select></label></div><p id="trend-note" class="sub"></p><div id="trend-chart" class="chart" style="height:280px"></div><div id="trend-detail" class="detail"></div></div>
+</section>
 <footer id="source"></footer>
 </section>
 <section id="workbench" hidden><div class="heading"><div><h1>催办工作台</h1><p class="sub">逐人查看欠交课程与作业、联系学员并登记反馈</p></div></div><div class="panel"><h2>模块分工预览</h2><p>正式工作台保留学员表格、欠交明细、以往反馈、本次反馈、免催和联系人操作。学习图表与历史对比移至「学习概览」。</p><p>本次反馈继续写回对应学员和对应催办批次；本页未接入学员明细，不执行反馈保存或联系人操作。</p><div class="links"><button id="back-overview">查看学习概览</button></div></div></section>
@@ -49,51 +58,60 @@ main{flex:1;min-width:0;padding:20px;max-width:1700px}.heading{display:flex;alig
 const DATA = /*__DATA__*/;
 const $=id=>document.getElementById(id), fmt=n=>Number(n).toFixed(2), signed=n=>(n>0?'+':'')+fmt(n)+'pp';
 const grades=[{max:5,label:'优秀',color:'#15956e'},{max:10,label:'良好',color:'#2f6fed'},{max:15,label:'及格',color:'#d4820d'},{max:Infinity,label:'不合格',color:'#d92d20'}];
-const grade=n=>grades.find(g=>n<=g.max);
-const current=$('current'), baseline=$('baseline');
+const grade=n=>grades.find(g=>n<=g.max), current=$('current'), baseline=$('baseline'), goalBatch=$('goal-batch');
 function option(select,value,label){const o=document.createElement('option');o.value=value;o.textContent=label;select.appendChild(o)}
 option($('class-selector'),DATA.className,DATA.className+'（本次预览数据）');
-DATA.batches.slice().reverse().forEach(b=>{option(current,b.id,'第'+b.id+'次 · '+b.time);option(baseline,b.id,'第'+b.id+'次 · '+b.time)});
-if(DATA.batches.length){current.value=DATA.batches.at(-1).id;baseline.value=DATA.batches.at(-2)?.id||current.value}
-const charts=['rate-chart','gap-chart','trend-chart'].map(id=>echarts.init($(id)));
+DATA.batches.slice().reverse().forEach(b=>{[current,baseline,goalBatch].forEach(s=>option(s,b.id,'第'+b.id+'次 · '+b.time))});
+if(DATA.batches.length){current.value=goalBatch.value=DATA.batches.at(-1).id;baseline.value=DATA.batches.at(-2)?.id||current.value}
+const charts=[echarts.init($('rate-chart')),echarts.init($('gap-chart')),null];
+let trendConfig=null, activeTab='compare';
 function selected(select){return DATA.batches.find(b=>String(b.id)===select.value)}
 function baseRow(lesson){return selected(baseline)?.lessons.find(r=>r.lesson===lesson)}
 function delta(value,b,key){return b?signed(value-b[key]):'—（无该节快照）'}
-const zoom=[{type:'slider',height:16,bottom:4,start:0,end:100,brushSelect:false},{type:'inside'}];
+function rate(value,suffix){return value==null?'—':fmt(value)+suffix}
+function lessonOptions(select,rows,reset=false){const old=select.value;select.innerHTML='';rows.forEach(r=>option(select,r.lesson,'第'+r.lesson+'节（第1～'+r.lesson+'节累计）'));select.value=!reset&&rows.some(r=>String(r.lesson)===old)?old:String(rows.at(-1)?.lesson||'')}
 function line(name,data,color,dashed=false){return {name,type:'line',data,connectNulls:false,symbolSize:6,lineStyle:{color,type:dashed?'dashed':'solid'},itemStyle:{color}}}
-function chartOption(names,series,min,max,suffix){return {animation:false,grid:{left:55,right:22,top:20,bottom:58},tooltip:{trigger:'axis',valueFormatter:v=>v==null?'—':fmt(v)+suffix},xAxis:{type:'category',data:names,axisLabel:{color:'#667085'}},yAxis:{type:'value',min,max,axisLabel:{formatter:'{value}'+suffix},splitLine:{lineStyle:{color:'#eef1f6'}}},dataZoom:zoom,series}}
-function render(){
-const c=selected(current),b=selected(baseline);if(!c){$('scope').textContent='暂无批次快照';return}
-const rows=c.lessons,last=rows.at(-1),ref=last?baseRow(last.lesson):null;
-$('scope').textContent='所选批次在读 '+c.total+' 人 · 已开课快照 '+rows.length+' 节 · 数据时间 '+c.time;
-$('comparison-notice').textContent='累计口径：第1～N节全部完成 ÷ 该批次在读人数（含免催、不含补位）。'+(c.total!==b.total?'两批分母不同（'+c.total+' / '+b.total+'人），比例变化包含人员变化，不能直接换算催办新增人数。':'按各批次原始聚合快照比较，不代表同一群学员的改善或催办因果效果。')+(c.id===b.id?'当前与对比选择相同，变化为0。':'');
-$('grade').textContent=last?'第'+last.lesson+'节 · '+grade(last.gap).label+' · '+fmt(last.gap)+'pp':'暂无有效数据';$('grade').style.background=last?grade(last.gap).color:'#667085';
-const cardData=last?[['累计完课率',fmt(last.course)+'%',delta(last.course,ref,'course')],['累计作业率',fmt(last.homework)+'%',delta(last.homework,ref,'homework')],['累计差值',fmt(last.gap)+'pp',delta(last.gap,ref,'gap')],['在读人数',c.total+'人','对比批次 '+b.total+'人']]:[['累计完课率','—','缺少有效快照'],['累计作业率','—','缺少有效快照'],['累计差值','—','缺少有效快照'],['在读人数',c.total+'人','']];
-$('cards').innerHTML=cardData.map(a=>'<div class="card"><span>'+a[0]+'</span><div class="value">'+a[1]+'</div><small>'+a[2]+(last&&a[0]!=='在读人数'?' · 第'+last.lesson+'节较对比批次':'')+'</small></div>').join('');
-const old=$('goal-lesson').value;$('goal-lesson').innerHTML='';rows.forEach(r=>option($('goal-lesson'),r.lesson,'第'+r.lesson+'节（第1～'+r.lesson+'节累计）'));$('goal-lesson').value=rows.some(r=>String(r.lesson)===old)?old:String(last?.lesson||'');
-const names=rows.map(r=>'第'+r.lesson+'节'),br=rows.map(r=>baseRow(r.lesson));
-charts[0].setOption(chartOption(names,[line('当前完课率',rows.map(r=>r.course),'#2f6fed'),line('当前作业率',rows.map(r=>r.homework),'#15956e'),line('对比完课率',br.map(r=>r?.course??null),'#7a9fe9',true),line('对比作业率',br.map(r=>r?.homework??null),'#78b6a5',true)],0,100,'%'),true);
-const allGaps=rows.map(r=>r.gap).concat(br.filter(Boolean).map(r=>r.gap));const low=Math.min(0,...allGaps)-2,high=Math.max(20,...allGaps)+3;
-const gap=line('当前差值',rows.map(r=>r.gap),'#d4820d');gap.markLine={symbol:'none',data:grades.slice(0,3).map(g=>({yAxis:g.max,label:{formatter:g.label+' '+g.max+'pp',position:'insideStartTop'},lineStyle:{color:g.color,type:'dashed'}}))};gap.markArea={silent:true,data:[{a:low,b:5,color:'rgba(21,149,110,.09)'},{a:5,b:10,color:'rgba(47,111,237,.08)'},{a:10,b:15,color:'rgba(212,130,13,.08)'},{a:15,b:high,color:'rgba(217,45,32,.07)'}].map(g=>[{yAxis:g.a,itemStyle:{color:g.color}},{yAxis:g.b}])};
-charts[1].setOption(chartOption(names,[gap,line('对比差值',br.map(r=>r?.gap??null),'#98a2b3',true)],low,high,'pp'),true);
-$('rows').innerHTML=rows.map(r=>{const x=baseRow(r.lesson),g=grade(r.gap);return '<tr><td>第'+r.lesson+'节</td><td>'+fmt(r.course)+'%</td><td>'+delta(r.course,x,'course')+'</td><td>'+fmt(r.homework)+'%</td><td>'+delta(r.homework,x,'homework')+'</td><td>'+fmt(r.gap)+'pp</td><td>'+delta(r.gap,x,'gap')+'</td><td style="color:'+g.color+'">'+g.label+'</td></tr>'}).join('');
-$('source').textContent='真实聚合快照 · 导出时间 '+DATA.exportedAt+'。本页离线试算，不刷新数据库，不写入目标或反馈。最新批次仍可能被正式应用后续刷新；这里展示的是导出时的数据。';
-showDetail(rows.length-1);renderGoals();
+function chartOption(names,series,min,max,suffix){return {animation:false,legend:{top:4,textStyle:{fontSize:11},itemWidth:20,itemHeight:8},grid:{left:55,right:22,top:65,bottom:58},tooltip:{trigger:'axis',valueFormatter:v=>v==null?'—':fmt(v)+suffix},xAxis:{type:'category',data:names,axisLabel:{color:'#667085'}},yAxis:{type:'value',min,max,axisLabel:{formatter:'{value}'+suffix},splitLine:{lineStyle:{color:'#eef1f6'}}},dataZoom:[{type:'slider',height:16,bottom:4,start:0,end:100,brushSelect:false},{type:'inside'}],series}}
+function compareTooltip(lesson){const c=selected(current),b=selected(baseline),r=c.lessons.find(x=>x.lesson===lesson),x=baseRow(lesson);return '<b>第'+lesson+'节累计数据</b><br>第'+c.id+'次（'+c.total+'人） / 第'+b.id+'次（'+b.total+'人）<br>'+['course','homework','gap'].map((key,i)=>['完课率','作业率','差值'][i]+'：'+rate(r?.[key],i===2?'pp':'%')+' / '+rate(x?.[key],i===2?'pp':'%')+' · 变化 '+(r?delta(r[key],x,key):'—')).join('<br>')}
+function renderCards(){const c=selected(current),b=selected(baseline),r=c?.lessons.find(x=>String(x.lesson)===$('compare-lesson').value),x=r?baseRow(r.lesson):null;
+$('grade').textContent=r?'第'+c.id+'次 · 第'+r.lesson+'节 · '+grade(r.gap).label:'暂无共同节次';$('grade').style.background=r?grade(r.gap).color:'#667085';
+const metrics=['course','homework','gap'];$('cards').innerHTML=metrics.map((key,i)=>{const change=r&&x?r[key]-x[key]:null;const good=change!=null&&(i===2?change<0:change>0);return '<div class="card"><span>第'+(r?.lesson||'—')+'节 · '+['累计完课率','累计作业率','累计差值'][i]+'</span><div class="value">'+rate(r?.[key],i===2?'pp':'%')+'</div><small>第'+c.id+'次 '+rate(r?.[key],i===2?'pp':'%')+' ← 第'+b.id+'次 '+rate(x?.[key],i===2?'pp':'%')+'</small><span class="'+(change===0?'sub':good?'positive':'negative')+'">'+(change==null?'暂无共同节次可比':signed(change)+(change===0?' · 不变':good?' · 改善':' · 变差'))+'</span></div>'}).join('')+'<div class="card"><span>在读人数</span><div class="value">'+c.total+'人</div><small>第'+c.id+'次 '+c.total+'人 ← 第'+b.id+'次 '+b.total+'人</small><span class="sub">'+(c.total===b.total?'两批人数相同':'两批分母不同')+'</span></div>';
 }
-function showDetail(index){const c=selected(current),r=c?.lessons[index];$('detail').textContent=r?'第'+r.lesson+'节：累计完课 '+(r.courseDone??'—')+' 人（'+fmt(r.course)+'%），累计作业 '+(r.homeworkDone??'—')+' 人（'+fmt(r.homework)+'%），差值 '+fmt(r.gap)+'pp。':'缺少有效逐节快照';}
-function renderGoals(){
-const c=selected(current),r=c?.lessons.find(x=>String(x.lesson)===$('goal-lesson').value);
-for(const key of ['course','homework']){const input=$(key+'-target'),target=Number(input.value);if(!r||input.value===''||!Number.isFinite(target)||target<0||target>100){$(key+'-goal').textContent='请选择有效节次并输入0～100%的目标';$(key+'-progress').style.width='0%';continue}const done=r[key+'Done'],need=done==null?null:Math.max(0,Math.ceil(target*c.total/100)-done);$(key+'-progress').style.width=Math.min(100,target?100*r[key]/target:100)+'%';$(key+'-goal').textContent='当前 '+fmt(r[key])+'% · '+(r[key]>=target?'已达到目标':('还差 '+fmt(target-r[key])+'pp'+(need===null?'':'，需再完成 '+need+'人')))}
-const target=Number($('gap-target').value);const need=r&&r.courseDone!=null&&r.homeworkDone!=null?Math.max(0,Math.ceil(r.courseDone-r.homeworkDone-target*c.total/100-1e-9)):null;
-$('gap-progress').style.width=r?Math.min(100,r.gap<=target?100:target/r.gap*100)+'%':'0%';$('gap-goal').textContent=!r?'暂无有效数据':r.gap<=target?'当前 '+fmt(r.gap)+'pp · 已达到目标':'需降低 '+fmt(r.gap-target)+'pp'+(need===null?'':'，约需 '+need+' 人补齐累计作业');
-const history=DATA.batches.filter(b=>b.id<=c.id).slice(-5),same=history.map(b=>b.lessons.find(x=>x.lesson===r?.lesson));
-$('trend-note').textContent=r?'最近至多5批，统一比较第'+r.lesson+'节；未开到该节的批次留空，各批分母列在日期下方。':'暂无可比较节次';
-const trend=chartOption(history.map(b=>'第'+b.id+'次\n'+b.time.slice(5,16)+'\n'+b.total+'人'),[line('同节次累计差值',same.map(x=>x?.gap??null),'#d4820d')],Math.min(0,...same.filter(Boolean).map(x=>x.gap))-2,Math.max(20,...same.filter(Boolean).map(x=>x.gap))+3,'pp');trend.grid.bottom=80;charts[2].setOption(trend,true);
+function render(reset=false){const c=selected(current),b=selected(baseline);if(!c||!b){$('scope').textContent='暂无批次快照';return}
+const rows=c.lessons,shared=rows.filter(r=>baseRow(r.lesson));lessonOptions($('compare-lesson'),shared,reset);
+$('scope').textContent='比较第'+c.id+'次（'+c.time+'）与第'+b.id+'次（'+b.time+'）保存的学习数据。顶部默认选择双方都有数据的最新节次；图表及表格展示查看批次的全部有效节次。';
+$('comparison-notice').textContent='累计口径：第1～N节全部完成 ÷ 该批次在读人数（含免催、不含补位）。'+(c.total!==b.total?'两批分母不同（'+c.total+' / '+b.total+'人），比例变化包含人员变化，不能直接换算催办新增人数。':'按各批次原始聚合快照比较，不代表催办的因果效果。')+(c.id===b.id?'两批选择相同，变化为0。':'')+(!shared.length?'双方暂无共同节次，顶部不提供估算对比。':'');
+renderCards();const names=rows.map(r=>'第'+r.lesson+'节'),br=rows.map(r=>baseRow(r.lesson));
+const rateOption=chartOption(names,[line('第'+c.id+'次 完课率',rows.map(r=>r.course),'#2f6fed'),line('第'+c.id+'次 作业率',rows.map(r=>r.homework),'#15956e'),line('第'+b.id+'次 完课率（虚线）',br.map(r=>r?.course??null),'#7a9fe9',true),line('第'+b.id+'次 作业率（虚线）',br.map(r=>r?.homework??null),'#78b6a5',true)],0,100,'%');rateOption.tooltip.formatter=ps=>compareTooltip(rows[ps[0].dataIndex].lesson);charts[0].setOption(rateOption,true);
+const allGaps=rows.map(r=>r.gap).concat(br.filter(Boolean).map(r=>r.gap)),low=Math.min(0,...allGaps)-2,high=Math.max(20,...allGaps)+3;
+const gap=line('第'+c.id+'次 差值',rows.map(r=>r.gap),'#d4820d');gap.markLine={symbol:'none',data:grades.slice(0,3).map(g=>({yAxis:g.max,label:{formatter:g.label+' '+g.max+'pp',position:'insideStartTop'},lineStyle:{color:g.color,type:'dashed'}}))};gap.markArea={silent:true,data:[{a:low,b:5,color:'rgba(21,149,110,.09)'},{a:5,b:10,color:'rgba(47,111,237,.08)'},{a:10,b:15,color:'rgba(212,130,13,.08)'},{a:15,b:high,color:'rgba(217,45,32,.07)'}].map(g=>[{yAxis:g.a,itemStyle:{color:g.color}},{yAxis:g.b}])};
+const gapOption=chartOption(names,[gap,line('第'+b.id+'次 差值（虚线）',br.map(r=>r?.gap??null),'#98a2b3',true)],low,high,'pp');gapOption.tooltip.formatter=rateOption.tooltip.formatter;charts[1].setOption(gapOption,true);
+$('table-title').textContent='第'+c.id+'次 与 第'+b.id+'次 · 逐节数据对比';
+$('table-head').innerHTML='<tr><th rowspan="2">节次</th>'+['累计完课率','累计作业率','累计差值'].map(key=>'<th colspan="3" style="text-align:center">'+key+'</th>').join('')+'<th rowspan="2">考核</th></tr><tr>'+[0,1,2].map(()=>'<th>第'+c.id+'次</th><th>第'+b.id+'次</th><th>变化</th>').join('')+'</tr>';
+$('rows').innerHTML=rows.map(r=>{const x=baseRow(r.lesson),g=grade(r.gap);return '<tr><td>第'+r.lesson+'节</td>'+['course','homework','gap'].map((key,i)=>'<td>'+rate(r[key],i===2?'pp':'%')+'</td><td>'+rate(x?.[key],i===2?'pp':'%')+'</td><td title="'+(x?'变化＝查看批次－对比批次':'对比批次无该节快照')+'">'+(x?delta(r[key],x,key):'—')+'</td>').join('')+'<td style="color:'+g.color+'">'+g.label+'</td></tr>'}).join('');
+showDetail(rows.findIndex(r=>String(r.lesson)===$('compare-lesson').value));
 }
-current.onchange=render;baseline.onchange=render;$('goal-lesson').onchange=renderGoals;
-['course-target','homework-target','gap-target'].forEach(id=>$(id).addEventListener('input',renderGoals));
+function showDetail(index){const c=selected(current),b=selected(baseline),r=c?.lessons[index],x=r?baseRow(r.lesson):null;$('detail').textContent=r?'第'+r.lesson+'节 · 第'+c.id+'次 / 第'+b.id+'次：累计完课率 '+rate(r.course,'%')+' / '+rate(x?.course,'%')+'（'+delta(r.course,x,'course')+'），累计作业率 '+rate(r.homework,'%')+' / '+rate(x?.homework,'%')+'（'+delta(r.homework,x,'homework')+'），差值 '+rate(r.gap,'pp')+' / '+rate(x?.gap,'pp')+'（'+delta(r.gap,x,'gap')+'）。':'暂无共同节次可比较；图表与表格中的缺失数据留空。';}
+function renderGoals(reset=false){const c=selected(goalBatch);lessonOptions($('goal-lesson'),c?.lessons||[],reset);updateGoals()}
+function updateGoals(){const c=selected(goalBatch),r=c?.lessons.find(x=>String(x.lesson)===$('goal-lesson').value);
+for(const key of ['course','homework']){const input=$(key+'-target'),target=Number(input.value);if(!r||input.value===''||!Number.isFinite(target)||target<0||target>100){$(key+'-goal').textContent='请选择有效节次并输入0～100%的目标';$(key+'-progress').style.width='0%';continue}const done=r[key+'Done'],need=done==null?null:Math.max(0,Math.ceil(target*c.total/100)-done);$(key+'-progress').style.width=Math.min(100,target?100*r[key]/target:100)+'%';$(key+'-goal').textContent='第'+c.id+'次 · 当前 '+fmt(r[key])+'% · '+(r[key]>=target?'已达到目标':('还差 '+fmt(target-r[key])+'pp'+(need===null?'':'，需再完成 '+need+'人')))}
+const target=Number($('gap-target').value),need=r&&r.courseDone!=null&&r.homeworkDone!=null?Math.max(0,Math.ceil(r.courseDone-r.homeworkDone-target*c.total/100-1e-9)):null;
+$('gap-progress').style.width=r?Math.min(100,r.gap<=target?100:target/r.gap*100)+'%':'0%';$('gap-goal').textContent=!r?'暂无有效数据':'第'+c.id+'次 · 当前 '+fmt(r.gap)+'pp · '+(r.gap<=target?'已达到目标':'需降低 '+fmt(r.gap-target)+'pp'+(need===null?'':'，约需 '+need+' 人补齐累计作业'));
+const history=DATA.batches.filter(b=>b.id<=c?.id).slice(-5),same=history.map(b=>b.lessons.find(x=>x.lesson===r?.lesson)),metric=$('trend-metric').value,metricLabel={gap:'累计差值',course:'累计完课率',homework:'累计作业率'}[metric],input=$(metric+'-target'),goal=Number(input.value),valid=input.value!==''&&Number.isFinite(goal)&&goal>=0&&goal<=100;
+$('trend-note').textContent=r?'固定比较第1～'+r.lesson+'节的'+metricLabel+'，从最近几批看'+(metric==='gap'?'差距是否持续缩小':'完成比例是否持续提高')+'；截至第'+c.id+'次，未开到该节的批次留空。':'暂无可比较节次';
+const trendLine=line(metricLabel,same.map(x=>x?.[metric]??null),metric==='gap'?'#d4820d':metric==='course'?'#2f6fed':'#15956e');if(valid)trendLine.markLine={symbol:'none',data:[{yAxis:goal,label:{formatter:'目标 '+goal+(metric==='gap'?'pp':'%'),position:'insideStartTop'},lineStyle:{color:'#15956e',type:'dashed'}}]};
+trendConfig=chartOption(history.map(b=>'第'+b.id+'次\n'+b.time.slice(5,16)+'\n'+b.total+'人'),[trendLine],metric==='gap'?Math.min(0,...same.filter(Boolean).map(x=>x.gap))-2:0,metric==='gap'?Math.max(20,...same.filter(Boolean).map(x=>x.gap))+3:100,metric==='gap'?'pp':'%');trendConfig.grid.bottom=80;trendConfig.grid.top=40;if(charts[2])charts[2].setOption(trendConfig,true);
+const available=same.map((row,i)=>({row,batch:history[i]})).filter(x=>x.row),first=available[0],last=available.at(-1),change=first&&last?last.row[metric]-first.row[metric]:null;
+$('trend-detail').textContent=r&&last?'第'+r.lesson+'节 '+metricLabel+'：第'+first.batch.id+'次 '+rate(first.row[metric],metric==='gap'?'pp':'%')+' → 第'+last.batch.id+'次 '+rate(last.row[metric],metric==='gap'?'pp':'%')+'；'+(available.length>1?'变化 '+signed(change)+'。':'仅一批有数据，尚不能判断趋势。')+'各批人数可能不同，人数见横轴。':'暂无该节走势数据。';
+}
+function resizeCharts(){charts.filter(Boolean).forEach(c=>c.resize())}
+function switchTab(tab){activeTab=tab;const comparison=tab==='compare';$('comparison-page').hidden=!comparison;$('goals-page').hidden=comparison;$('grade').hidden=!comparison;['compare','goals'].forEach(key=>{const b=$('tab-'+key);b.classList.toggle('active',key===tab);b.setAttribute('aria-selected',String(key===tab));b.tabIndex=key===tab?0:-1});if(!comparison&&!charts[2]){charts[2]=echarts.init($('trend-chart'));if(trendConfig)charts[2].setOption(trendConfig,true)}resizeCharts()}
+current.onchange=()=>render(true);baseline.onchange=()=>render(true);$('compare-lesson').onchange=()=>{renderCards();showDetail(selected(current).lessons.findIndex(r=>String(r.lesson)===$('compare-lesson').value))};goalBatch.onchange=()=>renderGoals(true);$('goal-lesson').onchange=updateGoals;$('trend-metric').onchange=updateGoals;
+['course-target','homework-target','gap-target'].forEach(id=>$(id).addEventListener('input',updateGoals));
 charts.slice(0,2).forEach(ch=>{ch.on('click',p=>showDetail(p.dataIndex));ch.on('datazoom',()=>{const z=ch.getOption().dataZoom[0];showDetail(Math.round((selected(current).lessons.length-1)*z.start/100))})});
-function navigate(overview){$('overview').hidden=!overview;$('workbench').hidden=overview;['nav-overview','nav-workbench'].forEach(id=>{$(id).classList.toggle('active',(id==='nav-overview')===overview);if((id==='nav-overview')===overview)$(id).setAttribute('aria-current','page');else $(id).removeAttribute('aria-current')});if(overview)charts.forEach(c=>c.resize())}
+['compare','goals'].forEach(key=>{$('tab-'+key).onclick=()=>switchTab(key);$('tab-'+key).onkeydown=e=>{if(['ArrowLeft','ArrowRight','Home','End'].includes(e.key)){e.preventDefault();const next=e.key==='Home'?'compare':e.key==='End'?'goals':key==='compare'?'goals':'compare';switchTab(next);$('tab-'+next).focus()}}});
+function navigate(overview){$('overview').hidden=!overview;$('workbench').hidden=overview;['nav-overview','nav-workbench'].forEach(id=>{$(id).classList.toggle('active',(id==='nav-overview')===overview);if((id==='nav-overview')===overview)$(id).setAttribute('aria-current','page');else $(id).removeAttribute('aria-current')});if(overview)resizeCharts()}
 $('nav-overview').onclick=()=>navigate(true);$('nav-workbench').onclick=()=>navigate(false);$('back-overview').onclick=()=>navigate(true);
-window.addEventListener('resize',()=>charts.forEach(c=>c.resize()));render();
+$('source').textContent='真实聚合快照 · 导出时间 '+DATA.exportedAt+'。本页离线试算，不刷新数据库，不写入目标或反馈。最新批次仍可能被正式应用后续刷新；这里展示的是导出时的数据。';
+window.addEventListener('resize',resizeCharts);render(true);renderGoals(true);
 </script></html>

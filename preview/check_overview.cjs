@@ -3,38 +3,69 @@ const assert=require('assert');
 const path=require('path');
 const fs=require('fs');
 const {pathToFileURL}=require('url');
-const root=path.resolve(__dirname,'..');
-const output=path.join(root,'output','overview');
+const output=path.resolve(__dirname,'../output/overview');
 fs.mkdirSync(output,{recursive:true});
 (async()=>{
  const browser=await chromium.launch({executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe',headless:true});
+ try {
  const page=await browser.newPage({viewport:{width:1280,height:820}});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(pathToFileURL(path.join(__dirname,'learning-overview-local.html')).href);
  await page.waitForFunction(()=>document.querySelectorAll('#rows tr').length>0);
- const initial=await page.evaluate(()=>({batch:document.querySelector('#current').value,rows:document.querySelectorAll('#rows tr').length,total:document.querySelector('#scope').textContent}));
+ const latest=await page.locator('#current').inputValue();
+ assert(await page.locator('#comparison-page').isVisible());assert(!(await page.locator('#goals-page').isVisible()));
+ await page.selectOption('#baseline','12');
+ assert.strictEqual(await page.locator('#compare-lesson').inputValue(),'4');
+ assert((await page.locator('#cards').textContent()).includes('第4节'));
+ const actual=await page.evaluate(()=>{const a=selected(current),b=selected(baseline),chart=charts[0].getOption(),gap=charts[1].getOption();return {
+  seriesMatch:chart.series[0].data.every((v,i)=>v===a.lessons[i].course)&&chart.series[2].data.every((v,i)=>v===(b.lessons.find(x=>x.lesson===a.lessons[i].lesson)?.course??null)),
+  names:chart.series.map(s=>s.name),tooltip:chart.tooltip[0].formatter([{dataIndex:0}]),
+  marks:gap.series[0].markLine.data.map(x=>x.yAxis)
+ }});
+ assert(actual.seriesMatch);assert(actual.names.some(x=>x.includes('第12次')));assert(actual.tooltip.includes('变化'));assert(actual.tooltip.includes('第12次'));assert.deepStrictEqual(actual.marks,[5,10,15]);
+ assert.strictEqual(await page.locator('#rows tr').last().locator('td:nth-child(3)').textContent(),'—');
+ assert.strictEqual(await page.locator('#rows tr').last().locator('td:nth-child(4)').getAttribute('title'),'对比批次无该节快照');
  await page.selectOption('#current','12');await page.selectOption('#baseline','11');
- assert.strictEqual(await page.locator('#current').inputValue(),'12');
- const different=await page.locator('#comparison-notice').textContent();assert(different.includes('分母不同'));
+ assert((await page.locator('#comparison-notice').textContent()).includes('分母不同'));
  await page.selectOption('#baseline','12');
  assert((await page.locator('#comparison-notice').textContent()).includes('变化为0'));
- const deltas=await page.locator('#rows tr td:nth-child(3)').allTextContents();assert(deltas.every(x=>x==='0.00pp'));
+ for(const nth of [4,7,10])assert((await page.locator('#rows tr td:nth-child('+nth+')').allTextContents()).every(x=>x==='0.00pp'));
+ await page.selectOption('#current',latest);await page.selectOption('#baseline','14');
+ const cards=await page.locator('#cards').textContent();
+ await page.click('#tab-goals');assert(await page.locator('#goals-page').isVisible());assert(!(await page.locator('#baseline').isVisible()));
+ assert.strictEqual(await page.locator('#goal-batch').inputValue(),latest);
+ await page.selectOption('#goal-lesson','2');
+ assert((await page.locator('#trend-note').textContent()).includes('第1～2节'));
+ assert((await page.locator('#trend-detail').textContent()).includes('第2节'));
+ await page.selectOption('#trend-metric','homework');assert((await page.locator('#trend-note').textContent()).includes('作业率'));
  await page.fill('#homework-target','100');assert((await page.locator('#homework-goal').textContent()).includes('需再完成'));
+ const marker=await page.evaluate(()=>charts[2].getOption().series[0].markLine.data[0].yAxis);assert.strictEqual(marker,100);
  await page.fill('#course-target','101');assert((await page.locator('#course-goal').textContent()).includes('0～100'));
  await page.fill('#course-target','85');await page.fill('#homework-target','85');
- await page.selectOption('#current',initial.batch);await page.selectOption('#baseline','12');
- await page.selectOption('#goal-lesson','1');assert((await page.locator('#trend-note').textContent()).includes('第1节'));
- await page.selectOption('#goal-lesson',String(initial.rows));
- await page.click('#nav-workbench');assert(await page.locator('#workbench').isVisible());assert(!(await page.locator('#overview').isVisible()));
- await page.click('#back-overview');assert(await page.locator('#overview').isVisible());
- await page.evaluate(()=>{const ch=echarts.getInstanceByDom(document.querySelector('#rate-chart'));ch.dispatchAction({type:'dataZoom',start:40,end:100})});
- assert((await page.locator('#detail').textContent()).includes('第'));
- await page.evaluate(()=>echarts.getInstanceByDom(document.querySelector('#rate-chart')).dispatchAction({type:'dataZoom',start:0,end:100}));
- await page.screenshot({path:path.join(output,'overview-1280.png'),fullPage:true});
- await page.setViewportSize({width:1000,height:700});await page.waitForTimeout(250);
- const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth);assert(!overflow);
+ assert.strictEqual(await page.locator('#cards').textContent(),cards);
+ const goalText=await page.locator('#homework-goal').textContent();
+ await page.click('#tab-compare');await page.selectOption('#baseline','12');
+ await page.click('#tab-goals');assert.strictEqual(await page.locator('#homework-goal').textContent(),goalText);
+ assert.strictEqual(await page.locator('#goal-lesson').inputValue(),'2');
+ await page.selectOption('#goal-batch','12');assert.strictEqual(await page.locator('#current').inputValue(),latest);
+ await page.selectOption('#goal-batch',latest);await page.selectOption('#trend-metric','gap');await page.selectOption('#goal-lesson','2');
+ await page.screenshot({path:path.join(output,'goals-1280.png'),fullPage:true});
+ await page.setViewportSize({width:1000,height:700});await page.waitForTimeout(200);
+ assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)));
+ await page.screenshot({path:path.join(output,'goals-1000.png'),fullPage:true});
+ await page.click('#tab-compare');
+ await page.locator('#tab-compare').focus();await page.keyboard.press('ArrowRight');assert(await page.locator('#goals-page').isVisible());await page.keyboard.press('ArrowLeft');assert(await page.locator('#comparison-page').isVisible());
+ await page.click('#nav-workbench');assert(await page.locator('#workbench').isVisible());await page.click('#back-overview');assert(await page.locator('#comparison-page').isVisible());
+ await page.evaluate(()=>charts[0].dispatchAction({type:'dataZoom',start:40,end:100}));assert((await page.locator('#detail').textContent()).includes('第12次'));
+ await page.evaluate(()=>charts[0].dispatchAction({type:'dataZoom',start:0,end:100}));
  await page.screenshot({path:path.join(output,'overview-1000.png'),fullPage:true});
+ await page.setViewportSize({width:1280,height:820});await page.waitForTimeout(200);
+ await page.screenshot({path:path.join(output,'overview-1280.png'),fullPage:true});
+ // A synthetic old snapshot with no learning rows must not produce estimated comparisons.
+ await page.evaluate(()=>{DATA.batches.push({id:999,time:'demo',total:10,lessons:[]});option(baseline,999,'缺少数据样例');baseline.value='999';render(true)});
+ assert.strictEqual(await page.locator('#compare-lesson option').count(),0);
+ assert((await page.locator('#cards').textContent()).includes('暂无共同节次'));
  assert.deepStrictEqual(errors,[]);
- console.log(JSON.stringify({passed:true,batches:await page.locator('#current option').count(),lessons:initial.rows,checks:['batch switch','baseline zero deltas','different denominators','target input validation','same-lesson trend','navigation','zoom','1280 and 1000 layout'],pageErrors:errors}));
- await browser.close();
+ console.log(JSON.stringify({passed:true,checks:['independent tabs and selectors','latest shared lesson','actual series and tooltip comparisons','5/10/15 bands','missing historical lesson','same batch zero deltas','different denominators','target validation and line','consistent trend lesson','keyboard tabs','navigation and zoom','two viewport sizes','no shared lesson fallback'],pageErrors:errors}));
+ } finally {await browser.close()}
 })().catch(e=>{console.error(e);process.exit(1)});
