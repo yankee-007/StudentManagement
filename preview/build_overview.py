@@ -10,17 +10,16 @@ from pathlib import Path
 
 
 def completion_snapshot(connection, batch, data, has_followup):
-    records = connection.execute('SELECT student_id,name,snapshot,eligible FROM campaign_students WHERE batch_id=?', (batch,)).fetchall()
+    records = connection.execute('SELECT student_id,snapshot FROM campaign_students WHERE batch_id=?', (batch,)).fetchall()
     flags = dict(connection.execute('SELECT student_id,status FROM campaign_followup_status WHERE batch_id=?', (batch,))) if has_followup else {}
-    targets, reading = [], 0
-    for sid, name, raw, eligible in records:
+    population = []
+    for sid, raw in records:
         snap = json.loads(raw)
-        if snap.get('roster_status') == '在读' and not snap.get('is_placeholder'):reading += 1
-        if eligible and (name or '').strip() and snap.get('wechat') == '是' and snap.get('roster_status') in ('', '在读') and not snap.get('is_placeholder'):
-            targets.append((sid, snap))
+        if snap.get('roster_status') == '在读' and not snap.get('is_placeholder'):
+            population.append((sid, snap))
     counts, followup = Counter(), Counter()
     unknown = 0
-    for sid, snap in targets:
+    for sid, snap in population:
         if 'completed_courses' in snap:
             value = snap['completed_courses']
         else:
@@ -32,10 +31,10 @@ def completion_snapshot(connection, batch, data, has_followup):
         count = int(value)
         counts[count] += 1
         if flags.get(sid) == '是':followup[count] += 1
-    total = len(targets)
-    marked = sum(sid in flags for sid, snap in targets)
-    summary = dict(total=total, marked=marked, yes=sum(flags.get(sid) == '是' for sid, snap in targets),
-                   no=sum(flags.get(sid) == '否' for sid, snap in targets), unmarked=total-marked)
+    total = len(population)
+    marked = sum(sid in flags for sid, snap in population)
+    summary = dict(total=total, marked=marked, yes=sum(flags.get(sid) == '是' for sid, snap in population),
+                   no=sum(flags.get(sid) == '否' for sid, snap in population), unmarked=total-marked)
     opened = max([int(data.get('opened') or 0)] + [int(r['lesson']) for r in data.get('courses', [])])
     buckets = []
     if counts:
@@ -47,10 +46,10 @@ def completion_snapshot(connection, batch, data, has_followup):
             if marked:bucket['followable'] = followup[count]
             buckets.append(bucket)
     notes = ['完课次数来自该批次学员保存的完成计数，不反推累计学习率。']
-    if unknown:notes.append(f'{unknown}名催办学员未保存可用完成计数，不归入0次；比例仍以本次催办人数为分母。')
+    if unknown:notes.append(f'{unknown}名在读学员未保存可用完成计数，不归入0次；比例仍以全班在读人数为分母。')
     if not marked:notes.append('本批次尚未填写可跟进标记，可跟进人数显示 —。')
     elif marked < total:notes.append(f'尚有{total-marked}人未填写，可跟进人数仅统计已确认是的学员。')
-    return buckets, total, ' '.join(notes), summary, len(records), reading
+    return buckets, total, ' '.join(notes), summary, len(records), total
 
 
 def load_batches(connection, feedback_batch=None):
@@ -75,7 +74,10 @@ def load_batches(connection, feedback_batch=None):
                                 homeworkDone=hw.get('completed')))
         completion, total, completion_notice, summary, members, reading = completion_snapshot(connection, row[0], data, has_followup)
         learning_notice = '' if lessons else ('本批次仅保存单节学习快照，无法还原第1～N节累计率。' if row[2] else '本批次未保存累计学习快照；学员成员与完成计数仍可查看。')
-        batches.append(dict(id=row[0], time=row[1], total=data.get('total', reading),
+        if lessons and data.get('total') != reading:
+            learning_notice = f'原累计看板按{data.get("total")}人保存，学员快照在读为{reading}人；缺少逐节原始标志，无法重算一致范围的累计率，暂不参与累计对比。原记录保留，完课次数仍可查看。'
+            lessons = []
+        batches.append(dict(id=row[0], time=row[1], total=reading,
                             lessons=lessons, completion=completion, members=members,
                             completionTotal=total, followupSummary=summary,
                             learningNotice=learning_notice,
