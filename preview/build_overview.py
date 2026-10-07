@@ -3,12 +3,17 @@ import argparse
 import json
 import os
 import sqlite3
+import sys
 from datetime import datetime
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from app.feedback_status import is_reply
 
 
 def load_batches(connection, feedback_batch=None):
     batches = []
+    connection.create_function('feedback_is_reply', 2, is_reply)
     latest = connection.execute("SELECT MAX(id) FROM campaigns").fetchone()[0]
     for row in connection.execute(
         "SELECT c.id,c.created_at,d.data FROM campaigns c "
@@ -42,7 +47,7 @@ def load_batches(connection, feedback_batch=None):
                 "AND json_extract(s.snapshot,'$.roster_status')='在读' "
                 "AND COALESCE(json_extract(s.snapshot,'$.is_placeholder'),0)=0 "
                 "AND EXISTS(SELECT 1 FROM campaign_feedback f WHERE f.batch_id=s.batch_id "
-                "AND f.student_id=s.student_id AND f.kind='reply') GROUP BY 1", (opened, row[0])))
+                "AND f.student_id=s.student_id AND feedback_is_reply(f.content,f.kind)) GROUP BY 1", (opened, row[0])))
             for bucket in completion:
                 value = sum(number for count, number in reply_counts.items() if count <= bucket['count'])
                 capacity = sum(item['people'] for item in completion if item['count'] <= bucket['count'])

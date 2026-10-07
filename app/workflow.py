@@ -180,6 +180,7 @@ class Workflow(QObject):
                 results.append((key, False))
                 self.owner.toast.emit('反馈保存失败：' + str(exc))
         if updated:
+            self.refresh_dashboard()
             sid = self._selected.get('student_id')
             self._model.reconcile_rows(self.display_rows())
             self._selected = next((r for r in self._model.rows if r['student_id'] == sid), {})
@@ -345,7 +346,7 @@ class Workflow(QObject):
         self._attach_followable()
 
     def _attach_followable(self):
-        """「可跟进人数」＝该完课次数桶里已有反馈记录、且不是「未回复」标记的学员。
+        """「可跟进人数」＝该完课次数桶里反馈状态为「已回复」的学员。
 
         分布本身是快照口径（历史批次冻结），但反馈会随登记变化，且只有最新批次的反馈可改，
         因此只在最新批次上计算；历史批次这一列保持为空。
@@ -361,7 +362,7 @@ class Workflow(QObject):
                 if row.get('is_placeholder'):continue
                 try:value=int(row.get('completed_courses') or 0)
                 except (TypeError,ValueError):continue
-                states[min(value,opened)]=states.get(min(value,opened),0)+(row['reply_state']not in ('未回复','—'))
+                states[min(value,opened)]=states.get(min(value,opened),0)+(row['reply_state']=='已回复')
             for bucket in completion.get('courses') or []:
                 bucket['followable']=states.get(bucket['count'],0)
         except Exception as exc:

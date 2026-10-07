@@ -121,8 +121,8 @@ def run():
         assert [b["count"] for b in buckets] == [4, 3, 2, 1, 0], buckets
         assert [b["people"] for b in buckets] == [1, 2, 0, 1, 1], buckets
         assert [b["cumulative"] for b in buckets] == [1, 3, 3, 4, 5], buckets
-        # 0、2 号已回复计入 4/3 节桶；1 号是「未回复」标记，不计入；3 号待反馈、4 号还没反馈记录都算可跟进。
-        assert [b["followable"] for b in buckets] == [1, 1, 0, 1, 1], buckets
+        # 0、2 号已回复计入 4/3 节桶；1 号是「未回复」标记，不计入；3 号待反馈、4 号还没反馈记录不计入。
+        assert [b["followable"] for b in buckets] == [1, 1, 0, 0, 0], buckets
 
         engine = QQmlApplicationEngine()
         warnings = []
@@ -166,7 +166,7 @@ def run():
         rows = rows_of(completion)
         assert len(rows) == 5, rows
         assert rows[0] == ["4", "1", "20.00%", "1", "", "", "20.00%", "1"], rows[0]
-        assert rows[4] == ["0", "1", "20.00%", "1", "", "", "100.00%", "5"], rows[4]
+        assert rows[4] == ["0", "1", "20.00%", "0", "", "", "100.00%", "5"], rows[4]
         header = texts(panel)
         for label in HEADERS:
             assert label in header, (label, header)

@@ -78,6 +78,20 @@ def run():
         assert visual(detail, 'feedbackShortcutButton') is None and menu.property('count') == 4
         assert backend.workflow.feedbackShortcuts == ['答应补课', '未接听电话']
         draft.forceActiveFocus()
+        draft.setProperty('text', '未接听电话')
+        QTest.qWait(650)
+        assert backend.workflow.selected['reply_state'] == '未回复'
+        assert draft.property('text') == '未接听电话'
+        assert visual(detail, 'feedbackDraft') == draft and draft.hasActiveFocus()
+        assert sum(b['followable'] for b in backend.workflow.dashboard['completion']['courses']) == 0
+        if os.environ.get('UNANSWERED_SCREENSHOT'):
+            assert window.grabWindow().save(os.environ['UNANSWERED_SCREENSHOT'])
+        draft.setProperty('text', '未接听电话；答应补课')
+        QTest.qWait(650)
+        assert backend.workflow.selected['reply_state'] == '已回复'
+        draft.setProperty('text', '')
+        QTest.qWait(650)
+        assert backend.workflow.selected['reply_state'] == '待反馈'
         draft.setProperty("text", "界面草稿")
         app.processEvents()
         assert backend.workflow.store.rows(backend.workflow._batch, sid)[0]["feedback"] == ""

@@ -164,7 +164,7 @@ ColumnLayout {
                             }
                         }
                         Label { text: card.saveState; font.pixelSize: 12; color: card.saveState.indexOf("失败") >= 0 ? "#b42318" : UiTheme.muted; wrapMode: Text.Wrap; Layout.fillWidth: true }
-                        Label { text: card.service.canEdit ? "有内容即计为已回复；清空后恢复待反馈" : "历史反馈仅供查看"; font.pixelSize: 12; color: "#98a2b3"; wrapMode: Text.Wrap; Layout.fillWidth: true }
+                        Label { text: card.service.canEdit ? "仅填未接听电话／未回复计为未回复；清空后恢复待反馈" : "历史反馈仅供查看"; font.pixelSize: 12; color: "#98a2b3"; wrapMode: Text.Wrap; Layout.fillWidth: true }
                         CheckBox { id: historyToggle; text: "查看以往反馈（含迁移前记录）" }
                         TextArea {
                             visible: historyToggle.checked; text: historyToggle.checked ? card.service.previousFeedback : ""

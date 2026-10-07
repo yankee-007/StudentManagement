@@ -7,15 +7,17 @@ from build_overview import load_batches
 class ExportCompletionTests(unittest.TestCase):
     def test_replied_counts_include_current_bucket_and_lower_buckets(self):
         with sqlite3.connect(':memory:') as conn:
-            conn.executescript('CREATE TABLE campaigns(id INTEGER,created_at TEXT); CREATE TABLE campaign_dashboards(batch_id INTEGER,data TEXT); CREATE TABLE campaign_students(batch_id INTEGER,student_id TEXT,snapshot TEXT); CREATE TABLE campaign_feedback(batch_id INTEGER,student_id TEXT,kind TEXT);')
+            conn.executescript('CREATE TABLE campaigns(id INTEGER,created_at TEXT); CREATE TABLE campaign_dashboards(batch_id INTEGER,data TEXT); CREATE TABLE campaign_students(batch_id INTEGER,student_id TEXT,snapshot TEXT); CREATE TABLE campaign_feedback(batch_id INTEGER,student_id TEXT,kind TEXT,content TEXT NOT NULL DEFAULT "有效回复");')
             conn.executemany('INSERT INTO campaigns VALUES(?,?)', [(1, 'old'), (2, 'history'), (3, 'latest')])
             buckets = [dict(count=2, people=1, cumulative=1, followable=999),dict(count=1, people=2, cumulative=3),dict(count=0, people=4, cumulative=7)]
             for bid, version in [(1, 2), (2, 3), (3, 3)]:
                 conn.execute('INSERT INTO campaign_dashboards VALUES(?,?)',(bid,json.dumps(dict(version=version,total=7,opened=2,completion=dict(courses=buckets)))))
             for sid,count,status,placeholder,kind in [('a',0,'在读',False,'reply'),('b',0,'在读',False,'reply'),('c',0,'在读',False,'reply'),('d',0,'在读',False,'unreplied'),('e',1,'在读',False,'reply'),('f',1,'在读',False,None),('g',2,'在读',False,'reply'),('h',0,'退课',False,'reply'),('i',0,'在读',True,'reply')]:
                 conn.execute('INSERT INTO campaign_students VALUES(?,?,?)',(3,sid,json.dumps(dict(completed_courses=count,roster_status=status,is_placeholder=placeholder))))
-                if kind:conn.execute('INSERT INTO campaign_feedback VALUES(?,?,?)',(3,sid,kind))
-            conn.execute("INSERT INTO campaign_feedback VALUES(3,'a','reply')")
+                if kind:conn.execute('INSERT INTO campaign_feedback(batch_id,student_id,kind) VALUES(?,?,?)',(3,sid,kind))
+            conn.execute("INSERT INTO campaign_feedback(batch_id,student_id,kind) VALUES(3,'a','reply')")
+            conn.execute("INSERT INTO campaign_students VALUES(3,'j',?)",(json.dumps(dict(completed_courses=0,roster_status='在读',is_placeholder=False)),))
+            conn.execute("INSERT INTO campaign_feedback VALUES(3,'j','reply','未接听电话')")
             rows=load_batches(conn)
             self.assertEqual(rows[0]['completion'],[])
             self.assertTrue(all('followable' not in b for b in rows[1]['completion']))

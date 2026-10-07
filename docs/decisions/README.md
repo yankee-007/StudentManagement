@@ -15,6 +15,7 @@
 | [ADR-009](ADR-009-live-absence-per-lesson.md) | 未进直播间按节次判定，null 与 0 秒分开，每节课只提醒一次 | Accepted | 未进直播间、直播数据采集、群发名单来源 |
 | [ADR-010](ADR-010-dashboard-cumulative-and-completion-buckets.md) | 看板累计人数与累计率同源，完课次数按完成节数分桶 | Accepted | 学习看板、批次快照版本、可跟进人数 |
 | [ADR-011](ADR-011-inline-wecom-remark-tool.md) | 备注批改的 OCR 工具内联进 app/，不再依赖 wecomrename/ 目录 | Accepted | 备注批改、依赖声明、仓库入库范围 |
+| [ADR-012](ADR-012-unanswered-feedback-status.md) | 未接听电话不算已回复，新旧反馈共用显式否定判定 | Accepted | 反馈保存/显示、最新可跟进统计、只读预览 |
 
 新增条目需满足：不知道这一决定很可能重踩坑或破坏业务。改变已接受决策时，更新原条目状态并链接替代条目，避免互相矛盾的规则。
 
