@@ -11,6 +11,10 @@ RowLayout {
     property string caption
     property string displayCaption: caption
     property var options: []
+    readonly property var choiceOptions: {
+        var filled = options.filter(function(value) { return value !== "" })
+        return options.indexOf("") >= 0 ? filled.concat([""]) : filled
+    }
     property string initialValue
     property bool editable: true
     property bool ready: false
@@ -37,7 +41,7 @@ RowLayout {
         if (input.activeFocus && input.inputMethodComposing) Qt.inputMethod.reset()
         input.text = initialValue
         choice.savedValue = initialValue
-        choice.currentIndex = options.indexOf(initialValue)
+        choice.currentIndex = choiceOptions.indexOf(initialValue)
         loading = false
     }
     onInitialValueChanged: loadValue()
@@ -54,9 +58,9 @@ RowLayout {
         font.pixelSize: field.compact ? 11 : 13
         leftPadding: field.compact ? 5 : 10
         wheelEnabled: false
-        model: field.options
+        model: field.choiceOptions
         property string savedValue: field.initialValue
-        currentIndex: field.options.indexOf(savedValue)
+        currentIndex: field.choiceOptions.indexOf(savedValue)
         displayText: currentIndex < 0 ? "原值：" + savedValue : (currentText || "未填写")
         background: Rectangle { radius: 6; color: choice.down ? "#eef2ff" : "#f9fafb"; border.color: choice.activeFocus ? "#809aff" : UiTheme.line }
         delegate: ItemDelegate {
@@ -88,7 +92,7 @@ RowLayout {
             if (field.deferTextSave) {
                 if (field.saveTarget.queueEditorField(field.recordKey, field.caption, picked)) savedValue = picked
             } else if (field.saveValue(picked)) savedValue = picked
-            currentIndex = field.options.indexOf(savedValue)
+            currentIndex = field.choiceOptions.indexOf(savedValue)
         }
     }
     UiTextField {
