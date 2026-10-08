@@ -211,7 +211,8 @@ class DailyWorkspace(QObject):
     @Property('QVariantMap', notify=changed)
     def summary(self):
         return dict(self._summary, reviewCount=sum(bool(row['task'] and (row['review_needed'] or row['overdue'])) for row in self._rows),
-                    visibleCount=len(self._model.rows), selectedCount=len(self._checked), notice=self._notice or self._summary.get('notice', ''),
+                    visibleCount=len(self._model.rows), selectedCount=len(self._checked),
+                    notice=' · '.join(value for value in (self._notice, self._summary.get('notice', '')) if value),
                     cursor=f'正在处理 第{next((i+1 for i,r in enumerate(self._model.rows) if r["student_id"]==self._selected),0)} / {len(self._model.rows)}条')
     @Property('QVariantList', notify=changed)
     def lessonOptions(self): return [dict(value=row['lesson'], label=f'第1～{row["lesson"]}节') for row in self._batch.get('lessons', [])]

@@ -37,7 +37,7 @@ ColumnLayout {
     }
     Label {
         visible: page.height < 560 && daily.summary.valid
-        text: (daily.summary.metrics || []).map(function(metric) { return metric.title+" "+metric.value+" / 目标 "+metric.target }).join(" · ")
+        text: (daily.summary.metrics || []).map(function(metric) { return metric.title+" "+metric.value+" / 目标 "+metric.target+" / "+(metric.need ? "还需"+metric.need+"人" : "已达到") }).join(" · ")
         Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.ink
     }
     Label { objectName: "dailyStatus"; text: daily.summary.notice || ""; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.warning }

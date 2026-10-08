@@ -89,8 +89,11 @@ class DailyTests(unittest.TestCase):
             for r in data['courses']:r.update(completed=2,completedRate='100.00%')
             for r in data['homework']:r.update(completed=0,completedRate='0.00%')
             conn.execute('UPDATE campaign_dashboards SET data=?',(json.dumps(data),))
+        self.d._notice='刷新完成'
         self.d.reload(False)
         self.assertEqual(self.d.summary['removed'],1)
+        self.assertIn('刷新完成',self.d.summary['notice'])
+        self.assertIn('移出1人',self.d.summary['notice'])
 
     def test_partial_unknown_missing_old_then_complete(self):
         task=self.commit()
@@ -115,6 +118,26 @@ class DailyTests(unittest.TestCase):
         values=self.learning();values[0]['Z1']='T';self.fetch(values)
         self.assertEqual(next(t for t in self.d.store.tasks() if t['id']==task['id'])['lifecycle'],'completed')
         self.assertEqual(self.d.summary['metrics'][1]['value'],'33.3%')
+
+    def test_one_of_five_homework_items_is_partial_without_cumulative_credit(self):
+        values=self.learning()
+        for value in values:
+            for number in range(3,6):
+                value[f'C{number}']='T'
+                value[f'Z{number}']='T'
+        for number in range(1,6): values[0][f'Z{number}']='F'
+        self.fetch(values,True)
+        self.assertTrue(self.goal(5))
+        task=self.commit()
+        self.assertEqual(task['items'],['z1','z2','z3','z4','z5'])
+        before=self.d.summary['metrics'][1]['value']
+        values[0]['Z1']='T'
+        self.fetch(values)
+        current=self.d.detailsFor(sid(1))['task']
+        self.assertEqual(current['result'],'部分完成')
+        self.assertEqual(current['lifecycle'],'active')
+        self.assertEqual(current['evidence']['completed'],['z1'])
+        self.assertEqual(self.d.summary['metrics'][1]['value'],before)
 
     def test_new_batch_keeps_commitment_and_historical_learning(self):
         task=self.commit()
