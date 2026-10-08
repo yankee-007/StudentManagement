@@ -148,6 +148,22 @@ class ContactOpener(QObject):
             return False
 
     @Slot(str,str,result=bool)
+    def openDailyContact(self,key,prefix):
+        if self.active:return False
+        try:
+            if self.owner.workflow.send_busy or self.owner.busy:raise ValueError('正在处理其他操作，请稍后打开联系人')
+            _,_,_,_,student=self.owner.dailyWorkspace._context(key)
+            contact=prefix.strip()+student['name'].strip()
+            if not student['name'].strip() or any(ch in contact for ch in ('\r','\n','\0')):raise ValueError('联系人姓名无效')
+            self.owner.repo.set_setting('campaign_contact_prefix',prefix.strip())
+            worker=ContactOpenTask(contact,self,keep_float=self._keep_float,verify_contact=self._verify_contact)
+            worker.result.connect(self._result);worker.finished.connect(self._finished);worker.finished.connect(worker.deleteLater)
+            self._worker=worker;self._notice='正在打开：'+contact
+            worker.start();self.changed.emit();return True
+        except Exception as exc:
+            self._notice=str(exc);self.changed.emit();return False
+
+    @Slot(str,str,result=bool)
     def openContact(self,key,prefix):
         if self.active:return False
         try:

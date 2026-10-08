@@ -4,7 +4,7 @@
 
 ## 入口与边界
 
-main.py 创建 QApplication（原生文件对话框需要 QWidget 支持），设置 Fusion/字体/应用名称，将 Backend 和 studentModel 注入 QQmlApplicationEngine，加载 qml/Main.qml。Main 切换工作台、学习概览、画像、班期学员、设置、群发中心、备注批改、未进直播间，并管理独立浮窗。学习概览接入于2026-10-07。
+main.py 创建 QApplication（原生文件对话框需要 QWidget 支持），设置 Fusion/字体/应用名称，将 Backend 和 studentModel 注入 QQmlApplicationEngine，加载 qml/Main.qml。Main 切换今日工作台、催办、学习概览、画像、班期学员、设置、群发中心、备注批改、未进直播间，并管理独立浮窗。今日工作台接入于2026-10-08，学习概览接入于2026-10-07。
 
 ```text
 Main.qml / 模块 QML / 浮窗
@@ -89,6 +89,14 @@ Backend / TermModule / SettingsModule / LiveAbsence → AcquisitionTask（QThrea
 - 切班由 Workflow.selectClass 末尾的 liveAbsence.reload() 触发，和备注批改同一模式；该页与群发/其它采集互斥（busy）。
 
 ## 持久化边界
+
+### 今日工作台
+
+Backend.dailyWorkspace → DailyWorkspace（独立选择与冻结列表、目标聚合、方案排序、核验）→ FollowupStore（每班daily_goals/daily_tasks/daily_events）。读路径不建表；首次写入前对已有学员的班库做SQLite备份，再新增三个表及单目标/单未结束承诺索引。正式目标与LearningOverview临时试算分开；累计仍复用load_batches有效性校验，采用最新批次成员，周期开始人员只用于变化提示。当前逐节flags仅在source_sync一致时补充范围内事实，N之后的未知不影响已确认范围。
+
+Backend.fetchData记录请求启动时间，成功导入及刷新/建批后把实际返回且姓名匹配的人员交给after_fetch。核验要求请求启动晚于承诺项目/时间调整，保存启动/完成/原同步时间与各项目证据；未返回者保留原结果。核验、承诺和联系事件不改反馈或人工可跟进状态。每分钟提示、跨班重载和关闭/重启沿用Qt生命周期。
+
+FollowupEditor共用于今日详情与催办详情/浮窗的折叠区。草稿同时捕获数据库、学号、任务、修订、目标及编辑器token；离开前flushEditor，失败阻止切换/关闭；同学员另一编辑器保留冲突输入。列表修订使用reconcile_rows和next_cursor，不以冻结过期行生成名单。GroupCenter.createFromDailySelection创建独立名单，learning_data关联学号、班库、正式目标、任务及版本；发送结果只供详情读取，不写承诺完成。
 
 ### 学习概览（只读）
 

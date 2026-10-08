@@ -40,6 +40,8 @@ class Backend(QObject):
     @Property(QObject, constant=True)
     def learningOverview(self):return self._learning_overview
     @Property(QObject, constant=True)
+    def dailyWorkspace(self):return self._daily_workspace
+    @Property(QObject, constant=True)
     def workflow(self):
         return self._workflow
     @Property(QObject, constant=True)
@@ -245,6 +247,7 @@ class Backend(QObject):
         self._statistics = ""
         self._fetch_task = None
         self._create_after_fetch = False
+        self._daily_fetch_started_at = None
         self.refresh()
         from .workflow import Workflow
         self._workflow = Workflow(self)
@@ -268,6 +271,8 @@ class Backend(QObject):
         self._contact_opener = ContactOpener(self)
         from .campaign_companion import CampaignCompanion
         self._campaign_companion = CampaignCompanion(self)
+        from .daily_workspace import DailyWorkspace
+        self._daily_workspace = DailyWorkspace(self)
         app = QCoreApplication.instance()
         if app:
             app.aboutToQuit.connect(self._wait_for_fetch)
@@ -355,10 +360,15 @@ class Backend(QObject):
     def fetchData(self):
         if self._busy or self.workflow.send_busy:
             return False
+        if hasattr(self, '_daily_workspace') and not self.dailyWorkspace.flushEditor():
+            self.toast.emit('请先保存承诺，当前输入已保留')
+            return False
         if self.termsModule.busy:
             self.toast.emit('班期名单正在获取，请等待完成。')
             return False
         try:
+            from .followup_store import now
+            self._daily_fetch_started_at = now()
             entry = self.workflow._classes[self.workflow.class_index]
             term_id = entry.get('term_id')
             if not term_id:
@@ -413,6 +423,7 @@ class Backend(QObject):
 
     def _fetch_succeeded(self, payload):
         create_campaign = False
+        imported_success = False
         try:
             if str(self.db.path) != self._fetch_db_path:
                 raise ValueError('获取期间班期已切换，未导入数据或创建催办')
@@ -451,6 +462,7 @@ class Backend(QObject):
             self.toast.emit(f"获取完成：匹配 {result['matched']} 人，姓名不符 {result['mismatched']} 人，名单外 {result['unknown']} 人，未获取 {result['missing']} 人；两平台在读匹配 {source_stats['双方在读并导出']} 人"
                             + ('；最新催办批次欠交数据已同步' if followed else ''))
             create_campaign = self._create_after_fetch
+            imported_success = True
         except Exception as exc:
             self.toast.emit(str(exc))
         finally:
@@ -458,6 +470,11 @@ class Backend(QObject):
             self._finish_fetch()
         if create_campaign:
             self.workflow.createBatch()
+        if imported_success:
+            try:
+                self.dailyWorkspace.after_fetch(rows, self._daily_fetch_started_at)
+            except Exception as exc:
+                self.toast.emit('学习数据已导入，承诺核验失败：' + str(exc))
 
     def _refresh_statistics(self, students=None):
         snapshot = json.loads(self.repo.get_setting('snapshot', '[]'))

@@ -12,6 +12,7 @@ Window {
     transientParent: null
     property bool pinned: true
     property var companion: backend.campaignCompanion
+    onClosing: function(close) { Qt.inputMethod.commit(); if (!backend.dailyWorkspace.flushEditor() || !backend.workflow.flushFeedback()) close.accepted=false }
     flags: Qt.Window | Qt.WindowTitleHint | Qt.WindowSystemMenuHint | Qt.WindowCloseButtonHint | (pinned ? Qt.WindowStaysOnTopHint : 0)
     onActiveChanged: companion.setEditing(active && visible)
     onVisibleChanged: {
@@ -32,6 +33,7 @@ Window {
         Label { text: companion.notice; font.pixelSize: 13; color: UiTheme.muted; wrapMode: Text.Wrap; Layout.fillWidth: true }
         Rectangle { Layout.fillWidth: true; height: 1; color: UiTheme.line }
         CampaignDetail {
+            objectName: "floatingCampaignDetail"
             visible: !!companion.selected.student_id
             Layout.fillWidth: true; Layout.fillHeight: true
             service: companion; workflow: backend.workflow

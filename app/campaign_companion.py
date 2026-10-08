@@ -162,6 +162,9 @@ class CampaignCompanion(QObject):
         candidates = [r for r in self.owner.workflow._rows if self._real(r) and name_in_chat_title(r['name'], title)]
         next_sid = candidates[0]['student_id'] if len(candidates) == 1 else None
         if next_sid != self._selected.get('student_id'):
+            if hasattr(self.owner, '_daily_workspace') and not self.owner.dailyWorkspace.flushEditor():
+                self._set_notice('承诺保存失败，当前输入已保留')
+                return
             if not self.owner.workflow.flushFeedback():
                 self._set_notice('反馈保存失败，请保留当前内容并重试')
                 return

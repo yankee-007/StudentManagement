@@ -191,6 +191,23 @@ class GroupCenter(QObject):
         except Exception as exc:self._notice='保存失败：'+str(exc);self._notify_status();return False
 
     @Slot(str,'QVariantList','QVariantList',result=bool)
+    def createFromDailySelection(self,title,fields,record_keys):
+        if self.active or self.owner.workflow.send_busy or self.owner.busy:return False
+        try:
+            source=self.owner.dailyWorkspace
+            people=source.build_people(fields,record_keys)
+            self._id=self.store.create(title,people,content_template=fields)
+            try: source.store.link_list(people,self._id)
+            except Exception as exc:
+                self.owner.toast.emit('名单已创建，跟进关联记录未保存：'+str(exc))
+            self._preview=[];self._confirmation=None
+            self._notice=f'已从今日工作台创建{len(people)}人名单，尚未发送'
+            self._reload_snapshot(lists=True);self._notify_preview();self._notify_status()
+            return True
+        except Exception as exc:
+            self._notice='创建失败：'+str(exc);self._notify_status();return False
+
+    @Slot(str,'QVariantList','QVariantList',result=bool)
     def createFromProfiles(self,title,fields,record_keys):
         if self.active:return False
         try:

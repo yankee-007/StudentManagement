@@ -14,6 +14,7 @@ ColumnLayout {
     property bool showContactAction: true
     property bool showName: true
     property bool compact: false
+    property bool followupExpanded: false
     property var fields: []
     spacing: 8
 
@@ -196,6 +197,18 @@ ColumnLayout {
                         }
                     }
                 }
+            }
+            UiButton {
+                visible: card.service.canEdit && card.hasStudent
+                text: card.followupExpanded ? "收起承诺跟进" : "展开承诺跟进"
+                onClicked: card.followupExpanded=!card.followupExpanded
+            }
+            FollowupEditor {
+                objectName: "campaignFollowupEditor"
+                visible: card.followupExpanded && card.service.canEdit && card.hasStudent
+                Layout.fillWidth: true
+                studentId: card.service.selected.student_id || ""
+                showContact: false
             }
         }
     }

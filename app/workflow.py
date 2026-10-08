@@ -534,6 +534,7 @@ class Workflow(QObject):
     @Slot(int)
     def selectRow(self,row):
         sid = self._model.rows[row]['student_id'] if 0 <= row < len(self._model.rows) else None
+        if hasattr(self.owner, '_daily_workspace') and not self.owner.dailyWorkspace.flushEditor(): return
         if not self.flushFeedback(): return
         selected = next((r for r in self._model.rows if r['student_id'] == sid), None)
         if selected is not None:
@@ -548,6 +549,7 @@ class Workflow(QObject):
     @Slot(int)
     def selectBatch(self,index):
         if self.send_busy:return
+        if hasattr(self.owner, '_daily_workspace') and not self.owner.dailyWorkspace.flushEditor(): return
         if not self.flushFeedback():return
         if 0<=index<len(self._batches):
             self._batch=self._batches[index]['id']
@@ -784,6 +786,7 @@ class Workflow(QObject):
     @Slot(int)
     def selectClass(self,index):
         if self.owner.busy or self.send_busy or not 0<=index<len(self._classes):return
+        if hasattr(self.owner, '_daily_workspace') and not self.owner.dailyWorkspace.flushEditor(): return
         if hasattr(self.owner,'_terms_module') and self.owner.termsModule.busy:return
         if not self.flushFeedback():return
         entry=self._classes[index]

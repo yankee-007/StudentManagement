@@ -13,11 +13,13 @@ ApplicationWindow {
     palette: UiTheme.controlPalette
     font.pixelSize: 13
     property bool campaignDetailOpen: width >= 1000
-    readonly property var moduleNames: ["催办工作台", "学员画像", "班期学员", "设置", "群发中心", "备注批改", "未进直播间", "学习概览"]
+    readonly property var moduleNames: ["催办工作台", "学员画像", "班期学员", "设置", "群发中心", "备注批改", "未进直播间", "学习概览", "今日工作台"]
     property var wf: backend.workflow
     property var sender: backend.groupCenter
     property var restartService: typeof restartController !== "undefined" ? restartController : null
     onClosing: function(close) {
+        Qt.inputMethod.commit()
+        if (!backend.dailyWorkspace.flushEditor()) { close.accepted=false; return }
         if (!wf.flushFeedback()) { close.accepted=false; return }
         if (root.moduleIndex === 4 && !backend.groupCenter.active) groupCenterPage.saveSettings()
         if (root.moduleIndex === 5 && !backend.remarkRenamer.active) remarkRenamerPage.saveOptions()
@@ -28,6 +30,8 @@ ApplicationWindow {
     }
     property int moduleIndex: 0
     function switchModule(index) {
+        Qt.inputMethod.commit()
+        if (!backend.dailyWorkspace.flushEditor()) return
         if (!wf.flushFeedback()) return
         moduleIndex = index
         if (index === 1) backend.profilesModule.activate()
@@ -37,6 +41,7 @@ ApplicationWindow {
         else if (index === 4) backend.groupCenter.refresh()
         else if (index === 5) backend.remarkRenamer.reload()
         else if (index === 6) backend.liveAbsence.activate()
+        else if (index === 8) backend.dailyWorkspace.setActive(true)
     }
     CampaignExportDialog { id: batchExportDialog; workflow: root.wf }
     CampaignFieldDialog { id: fieldDialog; workflow: root.wf }
@@ -54,7 +59,7 @@ ApplicationWindow {
                 id: classBox
                 objectName: "classSelector"
                 popup.objectName: "classSelectorPopup"
-                visible: root.moduleIndex === 0 || root.moduleIndex === 1 || root.moduleIndex === 2 || root.moduleIndex === 5 || root.moduleIndex === 6 || root.moduleIndex === 7
+                visible: root.moduleIndex === 0 || root.moduleIndex === 1 || root.moduleIndex === 2 || root.moduleIndex === 5 || root.moduleIndex === 6 || root.moduleIndex === 7 || root.moduleIndex === 8
                 model: wf.classes; currentIndex: wf.classIndex
                 enabled: !backend.busy && !backend.termsModule.busy && !sender.active && !wf.sender.active && !backend.contactOpener.active && !backend.remarkRenamer.active && !backend.liveAbsence.busy
                 Layout.preferredWidth: 100
@@ -103,7 +108,7 @@ ApplicationWindow {
         ColumnLayout {
             anchors.fill: parent; anchors.margins: 10; spacing: 6
             Repeater {
-                model: [0, 7, 1, 2, 6, 5]
+                model: [8, 0, 7, 1, 2, 6, 5]
                 UiButton {
                     required property int modelData
                     objectName: "moduleButton" + modelData
@@ -261,6 +266,7 @@ ApplicationWindow {
     RemarkRenamer { id: remarkRenamerPage; visible: root.moduleIndex === 5; anchors.fill: parent; anchors.margins: 16; anchors.leftMargin: navigation.width + 16 }
     LiveAbsence { id: liveAbsencePage; visible: root.moduleIndex === 6; anchors.fill: parent; anchors.margins: 16; anchors.leftMargin: navigation.width + 16; onOpenGroupCenter: root.switchModule(4) }
     LearningOverview { objectName: "learningOverviewPage"; visible: root.moduleIndex === 7; anchors.fill: parent; anchors.margins: 16; anchors.leftMargin: navigation.width + 16 }
+    DailyWorkspace { objectName: "dailyWorkspacePage"; visible: root.moduleIndex === 8; anchors.fill: parent; anchors.margins: 16; anchors.leftMargin: navigation.width + 16; onOpenGroupCenter: root.switchModule(4); onOpenCampaign: root.switchModule(0) }
     ProfileFilterDialog { id: columnDialog; filterObjectName: "campaignColumnFilter"; profiles: root.wf }
     Dialog {
         id: createDialog; anchors.centerIn: parent; modal: true; title: "建立新的催办批次"; standardButtons: Dialog.Ok | Dialog.Cancel

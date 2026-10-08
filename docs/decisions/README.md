@@ -4,6 +4,7 @@
 
 | ADR | 主题 | 状态 | 相关区域 |
 | --- | --- | --- | --- |
+| [ADR-014](ADR-014-daily-goals-and-commitments.md) | 正式目标与跨批次承诺独立于催办快照 | Accepted | 今日工作台、手动采集核验、共用编辑器、独立名单 |
 | [ADR-001](ADR-001-independent-lists-feedback.md) | 筛选名单与反馈独立于发送，兼容旧来源名单 | Accepted | 工作台、群发、反馈 |
 | [ADR-002](ADR-002-editor-identity-lifecycle.md) | 编辑身份与稳定 QML 委托 | Accepted | 自动保存、浮窗、模型/界面测试 |
 | [ADR-003](ADR-003-autosave-preview-boundary.md) | 群发参数自动保存与显式发送边界 | Accepted | 设置、消息编辑、预览、发送保护 |
