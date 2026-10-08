@@ -63,7 +63,7 @@ Backend / TermModule / SettingsModule / LiveAbsence → AcquisitionTask（QThrea
 - setLeave/clearLeave → profile_storage.set_exemption：画像/催办共享免催表；日历返回后复查身份，刷新当前资料但不修改历史快照。
 - 两个浮窗是无主窗口从属关系的独立窗口，主窗口最小化时仍可见；主窗口关闭时显式关闭浮窗。浮窗定时读取经进程验证的前台企微独立聊天标题。画像浮窗默认跨已登记班级识别，已保存备注或本班前缀＋姓名优先，唯一姓名兜底；重名时要求下拉指定班级。手动班级按数据库路径固定，只影响浮窗，不调用主界面 selectClass；主界面全部班级视图也不禁用画像浮窗。匹配成功每 2 秒重读，失败每 500ms 重查；按路径缓存仓库，兼容尚无 student_contacts 的班级库。切换/重读前提交待保存编辑，失败保留编辑并阻止切换。催办浮窗仍按当前班级唯一姓名匹配。CampaignCompanion 限最新批次，独立于主表选择；切班/批次清身份。ProfileCompanion 的画像身份格式不同，不能混用 key。
 - ContactOpener 使用 ContactOpenTask 打开/验证联系人，不发送消息；与群发互斥，退出等待任务结束。画像和催办填写卡片的姓名右侧提供打开按钮，ContactOptions 弹层共用前缀输入、使用前缀／验证联系人／保留浮窗多选项。设置页通过 defaultPrefix / setDefaultPrefix 在固定主库保存 settings.contact_default_prefix；原班期 profile_contact_prefix / campaign_contact_prefix 优先（包括显式空值），缺失才回退默认值。使用默认值可在弹层显式选择；不改变已有打开接口的身份校验与按班期记忆。
-- ProfileModule.wechatVerifier（app/profile_wechat.py）为完整当前班期名单批量核验微信；名单直接读active的class_roster并关联profiles，排除已退课/补位，不使用冻结筛选范围。QThread只搜索并发送核验结果，主线程写入前复核数据库路径、姓名及学籍，复用autoSaveField/reflect_saved同步微信与最新身份并保留筛选。RemarkDriver只读标题、关闭浮窗；明确姓名/旧姓名斜杠备注/本班已知前缀或已保存备注才接受，重名及其他标题留待确认。ContactNotFoundError继承RuntimeError区分未找到与窗口操作失败，保留旧调用兼容。逐人结果仅保留在会话，无新表；共享企微互斥、F11及关闭等待，并在退出前投递已完成联系人的待写结果。
+- ProfileModule.wechatVerifier（app/profile_wechat.py）按当前画像匹配名单批量核验微信：有搜索/列筛选时从_scope_rows取真正匹配者并保留表格排序，空结果不回退全班；无查询时从active的class_roster关联profiles默认排除已退课，两种范围均排除补位。筛选范围可包含已退课学员，任务记录该初始状态，运行中原未退课者变为已退课仍跳过。查询/冻结集合改变时重建预览，同一查询的值变化保留上轮结果。QThread只搜索并发送核验结果，主线程写入前复核数据库路径、姓名及学籍，复用autoSaveField/reflect_saved同步微信与最新身份并保留筛选。RemarkDriver只读标题、关闭浮窗；明确姓名/旧姓名斜杠备注/本班已知前缀或已保存备注才接受，重名及其他标题留待确认。ContactNotFoundError继承RuntimeError区分未找到与窗口操作失败，保留旧调用兼容。逐人结果仅保留在会话，无新表；共享企微互斥、F11及关闭等待，并在退出前投递已完成联系人的待写结果。
 
 ### 群发
 

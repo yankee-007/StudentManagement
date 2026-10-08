@@ -16,7 +16,7 @@ Dialog {
     contentItem: ColumnLayout {
         spacing: 10
         Label {
-            text: "按当前班期完整名单逐人搜索企业微信，排除已退课与补位学员。确认匹配后将微信改为「是」，未找到或待确认时保留原值。重名与非标准备注请人工确认。"
+            text: dialog.verifier.scopeText + "。确认匹配后将微信改为「是」，未找到或待确认时保留原值。重名与非标准备注请人工确认。"
             Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted
         }
         Label {

@@ -4,7 +4,7 @@
 
 | Task ID | 标题 | 工作状态 | 分支或范围 | 文件 |
 | --- | --- | --- | --- | --- |
-| TASK-20261008-92b25cfb4c40 | 学员画像批量验证微信 | awaiting_acceptance | codex/daily-workspace／92项回归及真实QML通过，待企微客户端验收 | [任务](TASK-20261008-92b25cfb4c40-profile-wechat-verification.md) |
+| TASK-20261008-92b25cfb4c40 | 学员画像批量验证微信 | awaiting_acceptance | codex/daily-workspace／筛选优先、默认未退课，26项及真实QML通过，待企微验收 | [任务](TASK-20261008-92b25cfb4c40-profile-wechat-verification.md) |
 | TASK-20261008-c5a14e0cd673 | 今日工作台与跨批次承诺闭环 | awaiting_acceptance | codex/daily-workspace／填写卡片优化、30项回归及真实QML通过，待体验与一周班级试用 | [任务](TASK-20261008-c5a14e0cd673-daily-workspace.md) |
 | TASK-20261007-a3c8742d601b | 亮暗主题与设置切换 | awaiting_acceptance | main／35项定向测试与主题QML通过，待屏幕体验验收 | [任务](TASK-20261007-a3c8742d601b-dark-mode.md) |
 | TASK-20261007-4bf9738271ad | 独立可跟进状态与本次催办分桶模拟 | awaiting_acceptance | main／未填写/是/否已实现，第9/16批保留，预览待评审 | [任务](TASK-20261007-4bf9738271ad-followup-status.md) |

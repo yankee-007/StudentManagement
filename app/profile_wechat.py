@@ -1,5 +1,6 @@
 """Verify the current class roster against WeCom without sending or renaming."""
 from collections import Counter
+import json
 import threading
 
 from PySide6.QtCore import QObject, Property, Signal, Slot, QThread, QCoreApplication, QEvent
@@ -93,13 +94,15 @@ class ProfileWechatVerifier(QObject):
         self.owner = profiles.owner
         self._model = DictTableModel(COLUMNS, self)
         self._context = ''
+        self._prepared_query = None
+        self._scope_text = '未筛选时默认验证本班未退课学员；有筛选时按筛选名单验证，排除补位学员'
         self._class_name = ''
         self._worker = None
         self._paused = False
         self._stopping = False
         self._updated = 0
         self._failure = ''
-        self._notice = '按当前班期完整名单验证，排除已退课与补位学员'
+        self._notice = self._scope_text
         self._hotkey = F11Hotkey(self.togglePause)
         app = QCoreApplication.instance()
         if app:
@@ -119,6 +122,8 @@ class ProfileWechatVerifier(QObject):
     def notice(self): return self._notice
     @Property(str, notify=changed)
     def className(self): return self._class_name
+    @Property(str, notify=changed)
+    def scopeText(self): return self._scope_text
     @Property(int, notify=changed)
     def total(self): return len(self._model.rows)
     @Property(int, notify=changed)
@@ -127,13 +132,18 @@ class ProfileWechatVerifier(QObject):
     def updated(self): return self._updated
 
     def _tasks(self):
-        # Read the full roster, independent of profile filters and frozen rows.
+        # Use ADR-007's matching scope; a filtered empty list must stay empty.
         with self.owner.db.connect() as conn:
             roster = [dict(r) for r in conn.execute(
                 'SELECT * FROM class_roster WHERE active=1 ORDER BY ordinal,student_id')]
             contacts = {r['student_id']: r['remark'] for r in conn.execute('SELECT * FROM student_contacts')}
             ids = {r[0] for r in conn.execute('SELECT student_id FROM profiles')}
         names = Counter(normalize_text(r['name']) for r in roster if not r['is_placeholder'])
+        filtered = self.profiles._query_active()
+        if filtered:
+            by_id = {r['student_id']: r for r in roster}
+            roster = [by_id[r['student_id']] for r in self.profiles._scope_rows()
+                      if r['_db_path'] == str(self.owner.db.path) and r['student_id'] in by_id]
         entry = self.owner.workflow._classes[self.owner.workflow.class_index]
         prefixes = tuple(dict.fromkeys((
             term_prefix(entry.get('term_no')),
@@ -141,7 +151,7 @@ class ProfileWechatVerifier(QObject):
             self.owner.repo.get_setting('profile_contact_prefix', self.owner.contactOpener.defaultPrefix))))
         tasks = []
         for row in roster:
-            if row['status'].strip() == '已退课' or row['is_placeholder'] or row['student_id'] not in ids:
+            if (not filtered and row['status'].strip() == '已退课') or row['is_placeholder'] or row['student_id'] not in ids:
                 continue
             name = row['name'].strip()
             review = ''
@@ -150,9 +160,18 @@ class ProfileWechatVerifier(QObject):
             elif names[normalize_text(name)] > 1:
                 review = '班期名单存在重名，无法唯一确认联系人'
             tasks.append(dict(student_id=row['student_id'], name=name, prefixes=prefixes,
+                              allow_retired=filtered and row['status'].strip() == '已退课',
                               remark=contacts.get(row['student_id'], ''), review=review,
                               state=PENDING, observed='', detail=''))
         return tasks
+
+    def _query_signature(self):
+        return (self.profiles._search, json.dumps(self.profiles._filters, sort_keys=True),
+                frozenset(self.profiles._frozen) if self.profiles._frozen is not None else None)
+
+    def _describe_scope(self):
+        return ('按当前搜索／筛选匹配名单验证，排除补位学员' if self.profiles._query_active()
+                else '未设置筛选，默认验证当前班期未退课学员，排除补位学员')
 
     @Slot(result=bool)
     def prepare(self):
@@ -161,14 +180,17 @@ class ProfileWechatVerifier(QObject):
         try:
             if self.profiles.allClasses:
                 raise ValueError('全部班级为只读总览，请选择一个班期')
-            if self._context == str(self.owner.db.path) and self.completed:
+            if (self._context == str(self.owner.db.path) and self.completed
+                    and self._prepared_query == self._query_signature()):
                 return True
             tasks = self._tasks()
             self._context = str(self.owner.db.path)
             self._class_name = self.owner.workflow.className
+            self._prepared_query = self._query_signature()
+            self._scope_text = self._describe_scope()
             self._model.set_rows(tasks)
             self._updated = 0
-            self._notice = f'本轮验证 {len(tasks)} 人；不受搜索或筛选影响，未找到或待确认时保留原微信值'
+            self._notice = f'本轮验证 {len(tasks)} 人；未找到或待确认时保留原微信值'
             self.changed.emit()
             return True
         except Exception as exc:
@@ -191,10 +213,12 @@ class ProfileWechatVerifier(QObject):
                 raise ValueError('其他任务正在运行，请等待完成')
             tasks = self._tasks()
             if not tasks:
-                raise ValueError('当前班期没有可验证的学员')
+                raise ValueError('当前名单没有可验证的学员')
             driver = self._driver_factory()
             self._hotkey.start()
             self._model.set_rows(tasks)
+            self._prepared_query = self._query_signature()
+            self._scope_text = self._describe_scope()
             self._updated = 0
             self._paused = self._stopping = False
             self._failure = ''
@@ -235,7 +259,8 @@ class ProfileWechatVerifier(QObject):
                 with self.owner.db.connect() as conn:
                     member = conn.execute('SELECT * FROM class_roster WHERE student_id=?', (sid,)).fetchone()
                 if (not member or not member['active'] or member['is_placeholder']
-                        or member['status'].strip() == '已退课' or member['name'].strip() != task['name']):
+                        or (member['status'].strip() == '已退课' and not task['allow_retired'])
+                        or member['name'].strip() != task['name']):
                     state, detail = SKIPPED, '学员身份或状态已变化，未写入'
                 else:
                     current = self.owner.repo.get(sid)

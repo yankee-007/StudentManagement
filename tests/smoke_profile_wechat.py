@@ -46,7 +46,6 @@ def run():
                 conn.execute('UPDATE class_roster SET status=? WHERE student_id=?', (status, sid))
         b.refresh()
         profiles, verifier = b.profilesModule, b.profilesModule.wechatVerifier
-        profiles.setColumnFilter('profile:微信', 'values', ['否'], '')
         engine = QQmlApplicationEngine()
         warnings = []
         engine.warnings.connect(lambda items: warnings.extend(i.toString() for i in items))
@@ -67,6 +66,14 @@ def run():
         assert dialog.property('visible') and verifier.total == 3
         assert not verifier.active, '打开预览不应操作企微'
         assert window.findChild(QObject, 'profileWechatTable').property('rows') == 3
+        assert '未设置筛选' in verifier.scopeText
+        QMetaObject.invokeMethod(dialog, 'close')
+        profiles.setColumnFilter('profile:微信', 'values', ['否', ''], '')
+        profiles.setColumnFilter('roster_status', 'values', ['在读', ''], '')
+        QMetaObject.invokeMethod(button, 'click')
+        QTest.qWait(80)
+        assert verifier.total == 2 and '筛选匹配名单' in verifier.scopeText
+        assert [r['name'] for r in verifier.tableModel.rows] == ['示例甲', '示例乙']
         window.grabWindow().save(str(output / 'preview-light.png'))
 
         entered, release = threading.Event(), threading.Event()
@@ -93,8 +100,8 @@ def run():
                 assert window.findChild(QObject, 'profileWechatPause').property('text') == '继续验证'
                 QMetaObject.invokeMethod(window.findChild(QObject, 'profileWechatPause'), 'click')
                 wait_until(lambda: not verifier.active)
-                assert driver.reads == ['示例甲', '示例乙', '示例丙']
-                assert verifier.completed == 3 and verifier.updated == 1
+                assert driver.reads == ['示例甲', '示例乙']
+                assert verifier.completed == 2 and verifier.updated == 1
                 assert b.repo.get('P2026175001A')['profile:微信'] == '是'
                 assert b.repo.get('P2026175002A')['profile:微信'] == ''
                 assert b.repo.get('P2026175004A')['profile:微信'] == '否'
@@ -104,7 +111,7 @@ def run():
                 QMetaObject.invokeMethod(dialog, 'close')
                 QMetaObject.invokeMethod(button, 'click')
                 QTest.qWait(80)
-                assert verifier.completed == 3, '重新打开应可查看已完成结果'
+                assert verifier.completed == 2, '重新打开应可查看已完成结果'
                 b.settingsModule.setAppearanceMode('dark')
                 QTest.qWait(160)
                 window.grabWindow().save(str(output / 'result-dark.png'))
@@ -121,6 +128,9 @@ def run():
                 QTest.qWait(80)
                 assert not button.property('enabled')
                 profiles.setAllClasses(False)
+                profiles.clearFilters()
+                assert verifier.prepare() and verifier.total == 3
+                assert verifier.completed == 0 and '未设置筛选' in verifier.scopeText
                 # Closing while a contact is being checked stops safely after it finishes.
                 entered.clear()
                 release.clear()
@@ -136,7 +146,7 @@ def run():
                 release.set()
                 verifier.shutdown()
         assert not [w for w in warnings if 'ProfileWechat' in w], warnings
-        print('Profile WeChat preview/full scope, pause/resume, results, freeze, read-only, safe close and light/dark/narrow QML: OK')
+        print('Profile WeChat filtered/default scope, pause/resume, results, freeze, read-only, safe close and light/dark/narrow QML: OK')
 
 
 if __name__ == '__main__':

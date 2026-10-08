@@ -57,19 +57,63 @@ class ProfileWechatTests(unittest.TestCase):
         worker.run()
         return self.verifier.tableModel.rows
 
-    def test_full_roster_ignores_filters_and_keeps_existing_yes_in_scope(self):
+    def test_unfiltered_defaults_to_non_retired_and_keeps_existing_yes_in_scope(self):
         self.seed([('1', '示例甲', '在读', '否'), ('2', '示例乙', '', '是'),
                    ('3', '退课学员', '已退课', '否'), ('4', '補位学员', '在读', '否')])
         with self.backend.db.connect() as conn:
             conn.execute("UPDATE class_roster SET is_placeholder=1 WHERE student_id='4'")
         self.profiles.refresh()
-        self.profiles.search('示例甲')
-        self.assertEqual(self.profiles.visibleCount, 1)
         rows = self.run_round(FakeDriver({'示例甲': '示例甲/新生', '示例乙': '示例乙'}))
         self.assertEqual([r['student_id'] for r in rows], ['1', '2'])
         self.assertEqual([r['state'] for r in rows], [FOUND, FOUND])
         self.assertEqual(self.verifier.updated, 1)
         self.assertEqual(self.backend.repo.get('3')['profile:微信'], '否')
+
+    def test_search_and_filters_use_current_sorted_matching_scope(self):
+        self.seed([('1', '示例甲', '在读', '否'), ('2', '示例乙', '在读', '是'),
+                   ('3', '示例丙', '在读', '否')])
+        self.profiles.setColumnFilter('profile:微信', 'values', ['否'], '')
+        self.profiles.sortField('student_id', True)
+        self.verifier.prepare()
+        self.assertEqual([r['student_id'] for r in self.verifier.tableModel.rows], ['3', '1'])
+        self.profiles.search('示例甲')
+        driver = FakeDriver({'示例甲': '示例甲', '示例丙': '示例丙'})
+        rows = self.run_round(driver)
+        self.assertEqual([r['student_id'] for r in rows], ['1'])
+        self.assertEqual(driver.reads, ['示例甲'])
+        self.assertEqual(self.backend.repo.get('3')['profile:微信'], '否')
+
+    def test_explicit_filtered_retired_student_can_be_verified(self):
+        self.seed([('1', '在读学员', '在读', '否'), ('2', '退课学员', '已退课', '否')])
+        self.profiles.setColumnFilter('roster_status', 'values', ['已退课'], '')
+        rows = self.run_round(FakeDriver({'退课学员': '退课学员'}))
+        self.assertEqual([r['student_id'] for r in rows], ['2'])
+        self.assertEqual(rows[0]['state'], FOUND)
+        self.assertEqual(self.backend.repo.get('2')['profile:微信'], '是')
+        self.assertEqual(self.backend.repo.get('1')['profile:微信'], '否')
+
+    def test_empty_filtered_scope_does_not_fall_back_to_the_class(self):
+        self.seed([('1', '示例甲', '在读', '否')])
+        self.profiles.search('不存在的姓名')
+        self.assertTrue(self.verifier.prepare())
+        self.assertEqual(self.verifier.total, 0)
+        with patch.object(self.verifier, '_driver_factory') as factory:
+            self.assertFalse(self.verifier.start())
+            factory.assert_not_called()
+
+    def test_stale_frozen_rows_are_excluded_and_changed_query_rebuilds_preview(self):
+        self.seed([('1', '示例甲', '在读', '否'), ('2', '示例乙', '在读', '否')])
+        self.profiles.setColumnFilter('profile:微信', 'values', ['否'], '')
+        self.profiles.autoSaveField('1', '微信', '是')
+        driver = FakeDriver({'示例乙': '示例乙'})
+        self.run_round(driver)
+        self.assertEqual(driver.reads, ['示例乙'])
+        self.assertTrue(self.verifier.prepare())
+        self.assertEqual(self.verifier.completed, 1, '值变化保留上轮结果')
+        self.profiles.clearFilters()
+        self.assertTrue(self.verifier.prepare())
+        self.assertEqual(self.verifier.completed, 0)
+        self.assertEqual(self.verifier.total, 2)
 
     def test_only_wechat_changes_and_filter_freeze_and_selection_are_preserved(self):
         self.seed([('1', '示例甲', '在读', '否'), ('2', '示例乙', '在读', '否')])
