@@ -58,7 +58,7 @@ ColumnLayout {
         Layout.fillWidth: true; service: card.service
     }
     ScrollView {
-        id: details; Layout.fillWidth: true; Layout.fillHeight: true
+        id: details; objectName: "campaignDetailScroll"; Layout.fillWidth: true; Layout.fillHeight: true
         contentWidth: availableWidth; clip: true
         ColumnLayout {
             width: details.availableWidth - (card.compact ? 4 : 12); spacing: card.compact ? 6 : 10
@@ -209,6 +209,8 @@ ColumnLayout {
                 Layout.fillWidth: true
                 studentId: card.service.selected.student_id || ""
                 showContact: false
+                compact: card.compact
+                outerScroll: details
             }
         }
     }

@@ -359,6 +359,8 @@ class DailyWorkspace(QObject):
             selected = items(list(values.get('items', [])))
             allowed = {value['key'] for value in self.detailsFor(sid)['options']}
             if not set(selected).issubset(allowed): raise ValueError('项目已变化，请重新检查欠交数据')
+            if values.get('review_required') and not str(values.get('review_at', '')).strip():
+                raise ValueError('请填写复查日期和时间，或取消另设复查时间')
             self.store.save_task(sid, student['name'], goal_id, selected, values.get('due_at', ''),
                                  values.get('review_at', ''), values.get('note', ''), task_id, revision)
             self._drafts.pop(editor or key, None)

@@ -98,6 +98,8 @@ Backend.fetchData记录请求启动时间，成功导入及刷新/建批后把�
 
 FollowupEditor共用于今日详情与催办详情/浮窗的折叠区。草稿同时捕获数据库、学号、任务、修订、目标及编辑器token；模块切换只隐藏编辑器并保留草稿，切换学员/班级/批次及关闭前flushEditor，失败阻止该操作；同学员另一编辑器保留冲突输入。列表修订使用reconcile_rows和next_cursor，不以冻结过期行生成名单。GroupCenter.createFromDailySelection创建独立名单，learning_data关联学号、班库、正式目标、任务及版本；发送结果只供详情读取，不写承诺完成。
 
+今日卡片固定联系人头部与底部操作，中间ScrollView滚动；嵌入CampaignDetail时随外层滚动并沿用compact尺寸，聚焦输入保持可见。联系人使用ContactOptions；联系记录复用workflow.feedbackShortcuts并捕获编辑key。项目模型只在内容变化时替换，同一学员保存保留前缀与展开状态。期限支持快捷日期，独立复查、指标贡献、历史和取消按需展开；review_required由保存入口校验，留空时不能在身份切换提交中退回默认期限。输入停顿不自动新建承诺，保存/回车及既有离开提交继续生效；已有承诺仅完整输入500ms合并提交，输入法组合期间不提交，菜单或日期弹窗打开时暂停计时；版本冲突及过期保存通知保留草稿。保存错误在表单显示并聚焦无效字段。
+
 ### 学习概览（只读）
 
 LearningOverview接收Workflow.overviewSourceChanged，在激活时或可见期间读取当前owner.db.path；独立SQLite只读连接开启读取事务，不构造Database/CampaignStore，不迁移、不联网、不写历史。不可读取Workflow._model.rows或store.rows的当前身份联动结果替代冻结成员。失活时仅置脏；切班即标记重置，重新激活清除旧选择。四页签各存批次/节次状态，最新固定max(id)，目标及范围均不落库。Main切模块仍先flushFeedback，概览选择不调用工作台selectBatch/selectRow。

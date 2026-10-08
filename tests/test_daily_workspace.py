@@ -78,6 +78,25 @@ class DailyTests(unittest.TestCase):
         batch['lessons'][0].update(course=45,homework=43,gap=2,courseDone=90,homeworkDone=86)
         self.assertFalse(goal_summary(goal,batch)['met'])
 
+    def test_explicit_review_time_blocks_incomplete_draft_on_flush(self):
+        detail=self.d.detailsFor(sid(1))
+        values=dict(items=detail['selectedItems'],due_at='2099-12-31 20:00',review_at='',review_required=True,note='约定另行复查')
+        self.d.queueDraft(detail['key'],values,'card')
+        self.assertFalse(self.d.flushEditor())
+        self.assertTrue(self.d.hasDraft(detail['key'],'card'))
+        self.assertFalse(self.d.detailsFor(sid(1))['task'])
+        self.assertIn('复查日期和时间',self.d.summary['notice'])
+        values['review_at']='2099-12-30 19:30'
+        self.assertTrue(self.d.saveCommitment(detail['key'],values,'card'))
+        task=self.d.detailsFor(sid(1))['task']
+        self.assertEqual(task['review_at'],'2099-12-30T19:30:00')
+        values.update(review_at='',review_required=False)
+        self.d.queueDraft(self.d.detailsFor(sid(1))['key'],values,'card')
+        self.assertTrue(self.d.flushEditor())
+        task=self.d.detailsFor(sid(1))['task']
+        self.assertEqual(task['review_at'],task['due_at'])
+        self.assertFalse(self.d._drafts)
+
     def test_smallest_improvement_first_gap_tie_and_population_change(self):
         self.assertEqual(self.d.tableModel.rows[0]['student_id'],sid(2))
         proposal,_=recommendation(dict(c=['c1'],z=['z1']),dict(valid=True,met=False,needs=dict(course=1,homework=1,gap=1),total=200))

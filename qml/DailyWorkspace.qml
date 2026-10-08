@@ -59,13 +59,14 @@ ColumnLayout {
         UiButton { visible: page.width < 860; text: page.detailOpen ? "学员列表" : "学员详情"; onClicked: page.detailOpen=!page.detailOpen }
     }
     RowLayout {
+        visible: page.width >= 860 || !page.detailOpen
         Layout.fillWidth: true
         UiTextField { objectName: "dailySearch"; Layout.fillWidth: true; placeholderText: "搜索姓名或学号"; Accessible.name: "搜索今日学员"; onTextEdited: daily.search(text) }
         CheckBox { objectName: "dailyCheckAll"; text: "全选"; onClicked: daily.checkAll(checked) }
         UiButton { text: "重新筛选"; onClicked: daily.reapply() }
         UiButton { objectName: "dailyCreateList"; text: "生成群发名单"; enabled: daily.summary.selectedCount > 0; onClicked: if(daily.flushEditor()) listDialog.open() }
     }
-    Label { text: daily.summary.cursor+" · 已选"+(daily.summary.selectedCount || 0)+"人"; color: UiTheme.muted }
+    Label { visible: page.width >= 860 || !page.detailOpen; text: daily.summary.cursor+" · 已选"+(daily.summary.selectedCount || 0)+"人"; color: UiTheme.muted }
     RowLayout {
         Layout.fillWidth: true; Layout.fillHeight: true; spacing: 12
         UiPanel {
@@ -104,11 +105,10 @@ ColumnLayout {
             }
         }
         UiPanel {
+            objectName: "dailyDetailCard"
             visible: page.width >= 860 || page.detailOpen
-            Layout.preferredWidth: 340; Layout.minimumWidth: 260; Layout.fillWidth: page.width < 860; Layout.fillHeight: true; padding: 12
-            ScrollView { id: detailScroll; objectName: "dailyDetailScroll"; anchors.fill: parent; contentWidth: availableWidth; clip: true
-                FollowupEditor { objectName: "dailyEditor"; width: detailScroll.availableWidth; studentId: daily.selectedId }
-            }
+            Layout.preferredWidth: 380; Layout.minimumWidth: 300; Layout.fillWidth: page.width < 860; Layout.fillHeight: true; padding: 12
+            FollowupEditor { objectName: "dailyEditor"; anchors.fill: parent; studentId: daily.selectedId }
         }
     }
     Dialog {
