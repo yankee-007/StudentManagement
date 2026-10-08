@@ -5,11 +5,13 @@ import QtQuick.Layouts
 Item {
     id: page
     property var profiles: backend.profilesModule
+    property var wechatVerifier: profiles.wechatVerifier
     property var student: profiles.selected
     property var openFloatingProfile: function() {}
     property bool cardExpanded: width >= 760
     signal openGroupCenter()
     ProfileFilterDialog { id: columnFilter; profiles: page.profiles }
+    ProfileWechatDialog { id: wechatDialog; verifier: page.wechatVerifier }
     ColumnLayout {
         anchors.fill: parent; spacing: 10
         RowLayout {
@@ -37,15 +39,17 @@ Item {
                         Layout.fillWidth: true; spacing: 6
                         UiButton { objectName: "createProfileList"; text: "生成群发名单"; highlighted: true; enabled: profiles.recipientKeys.length > 0 && !backend.groupCenter.active; onClicked: profileGroupDialog.open() }
                         UiButton { text: "管理字段"; enabled: !profiles.allClasses; onClicked: fieldManager.open() }
+                        UiButton { objectName: "verifyProfileWechat"; text: wechatVerifier.active ? "查看微信验证进度" : "批量验证微信"; enabled: wechatVerifier.active || !profiles.allClasses; onClicked: { if (wechatVerifier.active || wechatVerifier.prepare()) wechatDialog.open() } }
                         UiButton { text: "聊天跟随浮窗"; enabled: !profiles.allClasses; onClicked: page.openFloatingProfile() }
                     }
                     Flow {
                         Layout.fillWidth: true; spacing: 6
-                        CheckBox { text: "全部班级"; checked: profiles.allClasses; onToggled: profiles.setAllClasses(checked) }
+                        CheckBox { text: "全部班级"; checked: profiles.allClasses; enabled: !wechatVerifier.active; onToggled: profiles.setAllClasses(checked) }
                         UiButton { objectName: "profileReapplyFilter"; text: "重新应用筛选"; visible: profiles.hasStale; onClicked: profiles.reapplyFilters() }
                         UiButton { text: "清除列筛选"; visible: profiles.filteredKeys.length > 0; onClicked: profiles.clearFilters() }
                     }
                     Label { text: profiles.allClasses ? "全部班级为只读总览，取消勾选后可填写资料。" : profiles.notice; font.pixelSize: 12; color: UiTheme.muted; wrapMode: Text.Wrap; Layout.fillWidth: true; visible: text.length > 0 }
+                    Label { text: wechatVerifier.notice; visible: wechatVerifier.active; font.pixelSize: 12; color: UiTheme.accent; wrapMode: Text.Wrap; Layout.fillWidth: true }
                     Item {
                         Layout.fillWidth: true; Layout.fillHeight: true; clip: true
                         HorizontalHeaderView {

@@ -451,6 +451,7 @@ class GroupCenter(QObject):
         if self.active or not self._preview:return False
         try:
             if self.owner.contactOpener.active:raise ValueError('正在打开画像联系人，请等待完成')
+            if self.owner.profilesModule.wechatVerifier.active:raise ValueError('正在批量验证微信，请等待完成')
             if self.owner.busy or self.owner.termsModule.busy or self.owner.workflow.sender.active:raise ValueError('其他任务正在运行，请等待完成')
             if self._confirmation!=(self._id,self.selected['options']) or self.store.plan(self._id)!=self._preview:raise ValueError('名单或参数已变更，请重新预览')
             from .wecom_sender import WeComSender

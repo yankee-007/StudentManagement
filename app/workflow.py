@@ -66,7 +66,10 @@ class Workflow(QObject):
 
     @property
     def send_busy(self):
-        return self.sender.active or (hasattr(self.owner,'_group_center') and self.owner.groupCenter.active) or (hasattr(self.owner,'_contact_opener') and self.owner.contactOpener.active)
+        return (self.sender.active
+                or (hasattr(self.owner,'_group_center') and self.owner.groupCenter.active)
+                or (hasattr(self.owner,'_contact_opener') and self.owner.contactOpener.active)
+                or (hasattr(self.owner,'_profiles_module') and self.owner.profilesModule.wechatVerifier.active))
 
     @Property(QObject, constant=True)
     def tableModel(self): return self._model

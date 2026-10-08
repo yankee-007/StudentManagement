@@ -26,6 +26,7 @@ ApplicationWindow {
         if (backend.contactOpener.active) { close.accepted=false; snack.text="正在打开联系人，请等待完成后关闭"; snack.open() }
         else if (sender.active) { close.accepted=false; sender.stop(); snack.text="正在结束发送，请等待当前联系人处理完成后再关闭"; snack.open() }
         else if (backend.remarkRenamer.active) { close.accepted=false; backend.remarkRenamer.stop(); snack.text="正在结束备注批改，请等待当前联系人处理完成后再关闭"; snack.open() }
+        else if (backend.profilesModule.wechatVerifier.active) { close.accepted=false; backend.profilesModule.wechatVerifier.stop(); snack.text="正在结束微信验证，请等待当前联系人处理完成后再关闭"; snack.open() }
         else { profileFloat.close(); campaignFloat.close() }
     }
     property int moduleIndex: 0
@@ -61,7 +62,7 @@ ApplicationWindow {
                 popup.objectName: "classSelectorPopup"
                 visible: root.moduleIndex === 0 || root.moduleIndex === 1 || root.moduleIndex === 2 || root.moduleIndex === 5 || root.moduleIndex === 6 || root.moduleIndex === 7 || root.moduleIndex === 8
                 model: wf.classes; currentIndex: wf.classIndex
-                enabled: !backend.busy && !backend.termsModule.busy && !sender.active && !wf.sender.active && !backend.contactOpener.active && !backend.remarkRenamer.active && !backend.liveAbsence.busy
+                enabled: !backend.busy && !backend.termsModule.busy && !sender.active && !wf.sender.active && !backend.contactOpener.active && !backend.remarkRenamer.active && !backend.liveAbsence.busy && !backend.profilesModule.wechatVerifier.active
                 Layout.preferredWidth: 100
                 popupTextAlignment: Text.AlignHCenter
                 Accessible.name: "班期"
@@ -88,7 +89,7 @@ ApplicationWindow {
                 objectName: "debugRestartButton"
                 text: "调试重启"
                 visible: root.restartService !== null
-                enabled: !backend.busy && !backend.termsModule.busy && !backend.settingsModule.busy && !sender.active && !wf.sender.active && !backend.contactOpener.active && !backend.remarkRenamer.active
+                enabled: !backend.busy && !backend.termsModule.busy && !backend.settingsModule.busy && !sender.active && !wf.sender.active && !backend.contactOpener.active && !backend.remarkRenamer.active && !backend.profilesModule.wechatVerifier.active
                 ToolTip.visible: hovered
                 ToolTip.text: "退出后重新启动整个程序，加载已保存的代码修改"
                 onClicked: {

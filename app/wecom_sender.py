@@ -6,6 +6,10 @@ from .send_options import normalize
 from .message_content import prepare_content
 
 
+class ContactNotFoundError(RuntimeError):
+    """Search did not open a contact float with the requested identity."""
+
+
 class DispatchError(RuntimeError):
     def __init__(self,message,uncertain=False):
         super().__init__(message)
@@ -82,7 +86,7 @@ class WeComSender:
                 if candidate!=main_hwnd and self.gui.IsWindow(candidate) and self.process.GetWindowThreadProcessId(candidate)[1]==pid:
                     hwnd=candidate;break
                 time.sleep(.1)
-            if hwnd is None:raise RuntimeError('未打开联系人浮窗，未发送')
+            if hwnd is None:raise ContactNotFoundError('未打开联系人浮窗，未发送')
             time.sleep(options['wait'])
             title=self.gui.GetWindowText(hwnd).strip()
             self._check(hwnd,title,pid)
@@ -93,7 +97,7 @@ class WeComSender:
                 return (hwnd,pid,title) if capture_title else (hwnd,pid)
             # close_on_success=True: the verified float is never used for sending.
             self.keys.hotkey('ctrl','w');time.sleep(options['wait'])
-            if not matched:raise RuntimeError('联系人浮窗标题不匹配，未发送')
+            if not matched:raise ContactNotFoundError('联系人浮窗标题不匹配，未发送')
             self._check(main_hwnd,'企业微信',pid)
             if activate_on_close:
                 # The caller continues in the main window (remark revision needs the

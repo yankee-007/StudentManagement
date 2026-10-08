@@ -40,6 +40,11 @@ class ProfileModule(QObject):
         self._descending=False
         self._notice='修改后自动保存'
         self.refresh()
+        from .profile_wechat import ProfileWechatVerifier
+        self._wechat_verifier = ProfileWechatVerifier(self)
+
+    @Property(QObject,constant=True)
+    def wechatVerifier(self):return self._wechat_verifier
 
     @Property(QObject,constant=True)
     def tableModel(self):return self._model
@@ -394,7 +399,9 @@ class ProfileModule(QObject):
         self.refresh(keep_query=True)
 
     @Slot(bool)
-    def setAllClasses(self,value):self._all=value;self.refresh()
+    def setAllClasses(self,value):
+        if self.wechatVerifier.active:return
+        self._all=value;self.refresh()
     @Slot(str)
     def search(self,value):self._search=value;self.apply()
     @Slot(int)

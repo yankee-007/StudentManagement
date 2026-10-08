@@ -192,6 +192,7 @@ class SendController(QObject):
             if self.wf.owner.busy or self.wf.owner.termsModule.busy:raise ValueError('请等待数据获取完成')
             if self.wf.owner.groupCenter.active:raise ValueError('群发中心正在处理，请先结束本轮')
             if self.wf.owner.contactOpener.active:raise ValueError('正在打开画像联系人，请等待完成')
+            if self.wf.owner.profilesModule.wechatVerifier.active:raise ValueError('正在批量验证微信，请等待完成')
             store=self._dispatch_store if self._test_mode else self.wf.store
             batch=self._dispatch_batch if self._test_mode else self.wf._batch
             if self._context!=(str(store.db.path),batch) or receipts.plan(store,batch)!=self._preview:
