@@ -96,8 +96,6 @@ LearningOverview接收Workflow.overviewSourceChanged，在激活时或可见期�
 
 目标追踪的差值目标提供只读补作业名单弹窗。名单用campaign_students保存的姓名/学号、欠交课程与作业节次、完成计数筛选在读非补位、第1～N节课程全部完成且仍有欠交作业的学员（该范围欠交合计0/X），不限制本批人工可跟进标记。弹窗标题及条件随选择显示实际节次，明确「排除范围内未完课程人员，再保留范围内欠交作业人员」两个条件；第N节之后的欠课/欠作业不影响入选。缺失/未匹配/非法学习数据不推断，候选人数与试算所需人数分别展示，人数不足提示缺口；切班、离开目标页或累计数据失效时关闭弹窗。
 
-补作业名单移除序号列，OverviewTable的可选actionDelegate承载逐人联系人按钮；未配置操作列的统计表保持原布局。CampaignContactButton与催办工作台共用，弹窗ContactOptions读取相同campaign_contact_prefix、全局默认前缀和验证/浮窗设置；工作台重新显示时加载已保存的共用前缀。ContactOpener.openOverviewContact通过LearningOverview.homeworkContact核对当前班级、目标页和当前候选名单身份（支持所选历史批次），然后复用工作台的打开任务、前缀保存与群发互斥；旧工作台/浮窗身份限制保留。点击不联动工作台批次/学员，不修改学习/反馈；切班、切批、失活或不再符合所选范围时拒绝旧身份。
-
 campaign_students.snapshot推导全班范围和精确完成次数，campaign_followup_status仅补人工统计；campaign_dashboards累计版本/人数/比率校验失败时保留批次及成员，累计指标留空。LearningOverview.qml用OverviewChart的QtQuick Canvas与RangeSlider绘制实线/虚线、考核线、悬浮/键盘明细，用OverviewTable显示同源明细和固定节次走势；目标输入委托固定，统计更新不销毁输入焦点。没有新依赖或存储格式。见ADR-013。
 
 | 范围 | 内容 |

@@ -2,7 +2,6 @@
 import os
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
 
 from PySide6.QtCore import QObject, QPoint, QPointF, Qt, QUrl
 from PySide6.QtGui import QFontDatabase
@@ -60,7 +59,6 @@ def run():
             seed(conn, 3, dashboard(lessons=(1, 2, 3, 4, 5)), members,
                  marks={'A':'是', 'B':'否', 'C':'否', 'D':'否'})
         b.workflow.reload_batches()
-        b.contactOpener.setDefaultPrefix('py169')
         b.workflow.filterRows('all', '虚构学员A')
         cursor = b.workflow.editorKey
         assert b.workflow.queueFeedbackForSelection(cursor, '合成反馈')
@@ -158,29 +156,10 @@ def run():
                     table = visual(window.contentItem(), 'overviewHomeworkTable')
                     table_rows = table.property('rows')
                     if hasattr(table_rows, 'toVariant'): table_rows = table_rows.toVariant()
-                    assert table.property('headers').toVariant() == ['姓名','学号','欠交作业节次','联系人']
-                    assert table_rows[0]['cells'] == ['虚构学员A','A','1、2、3、4、5']
-                    assert table_rows[1]['cells'] == ['虚构学员B','B','1、2、3、4、5']
+                    assert table_rows[0]['cells'] == ['1','虚构学员A','A','1、2、3、4、5']
+                    assert table_rows[1]['cells'] == ['2','虚构学员B','B','1、2、3、4、5']
                     assert len(table_rows) == 2
                     assert dialog.property('title') == '第1～5节 · 补作业名单'
-                    if width == 1280:
-                        click(window, visual(window.contentItem(), 'overviewHomeworkContactOptions'))
-                        prefix = visual(window.contentItem(), 'overviewHomeworkContactPrefix')
-                        assert prefix.property('text') == 'py169'
-                        prefix.setProperty('text', 'camp-')
-                        click(window, visual(window.contentItem(), 'overviewHomeworkKeepContactFloat'))
-                        click(window, visual(window.contentItem(), 'overviewHomeworkVerifyContact'))
-                        QTest.keyClick(window, Qt.Key_Escape); QTest.qWait(30)
-                        with patch('app.contact_opener.ContactOpenTask') as task:
-                            click(window, visual(window.contentItem(), 'overviewOpenContactB'))
-                            assert task.call_args.args[0] == 'camp-虚构学员B'
-                            assert not task.call_args.kwargs['keep_float'] and not task.call_args.kwargs['verify_contact']
-                            assert not visual(window.contentItem(), 'overviewOpenContactA').isEnabled()
-                            assert b.workflow.editorKey == cursor
-                            b.contactOpener._result('已搜索联系人（未验证）：camp-虚构学员B')
-                            b.contactOpener._finished(); QTest.qWait(40)
-                        assert visual(window.contentItem(), 'overviewOpenContactA').isEnabled()
-                        assert b.contactOpener.campaignContactPrefix == 'camp-'
                     assert window.grabWindow().save(str(output/f'homework-candidates-{width}.png'))
                     b.learningOverview.selectLesson(1); QTest.qWait(40)
                     assert dialog.property('visible')
@@ -190,7 +169,7 @@ def run():
                     assert '保留第1节内仍有欠交作业' in filter_text
                     table_rows = table.property('rows')
                     if hasattr(table_rows, 'toVariant'): table_rows = table_rows.toVariant()
-                    assert [row['cells'][1:] for row in table_rows] == [['A','1'],['B','1'],['C','1']]
+                    assert [row['cells'][2:] for row in table_rows] == [['A','1'],['B','1'],['C','1']]
                     assert window.grabWindow().save(str(output/f'homework-first-lesson-{width}.png'))
                     if width == 720:
                         viewport = visual(window.contentItem(), 'overviewHomeworkScroll').property('contentItem')
@@ -222,30 +201,8 @@ def run():
         assert dialog.property('visible') and dialog.property('title') == '第1节 · 补作业名单'
         assert len(b.learningOverview.view['homeworkCandidates']['rows']) == 3
         assert window.grabWindow().save(str(output/'homework-first-lesson-dark-720.png'))
-        viewport = visual(window.contentItem(), 'overviewHomeworkScroll').property('contentItem')
-        viewport.setProperty('contentY', max(0, viewport.property('contentHeight')-viewport.property('height')))
-        QTest.qWait(40)
-        with patch('app.contact_opener.ContactOpenTask') as task:
-            button = visual(window.contentItem(), 'overviewOpenContactC')
-            assert button.isEnabled()
-            button.forceActiveFocus(); QTest.keyClick(window, Qt.Key_Space); QTest.qWait(40)
-            assert task.call_args.args[0] == 'camp-虚构学员C'
-            b.contactOpener._result('已搜索联系人（未验证）：camp-虚构学员C')
-            b.contactOpener._finished(); QTest.qWait(40)
-        assert window.grabWindow().save(str(output/'homework-first-lesson-dark-bottom-720.png'))
         QTest.keyClick(window, Qt.Key_Escape); QTest.qWait(30)
         b.settingsModule.setAppearanceMode('light')
-        window.resize(1280,820); window.switchModule(0); QTest.qWait(80)
-        with patch('app.contact_opener.ContactOpenTask') as task:
-            button = visual(window.contentItem(), 'openCampaignContact')
-            assert button.isVisible() and button.isEnabled()
-            click(window, button)
-            assert task.call_args.args[0] == 'camp-虚构学员A'
-            assert not task.call_args.kwargs['verify_contact'] and not task.call_args.kwargs['keep_float']
-            b.contactOpener._result('已搜索联系人（未验证）：camp-虚构学员A')
-            b.contactOpener._finished(); QTest.qWait(40)
-        assert b.workflow.editorKey == cursor
-        window.switchModule(7); QTest.qWait(80)
         b.learningOverview.selectBatch('goal', 1); QTest.qWait(40)
         scroll.property('contentItem').setProperty('contentY', 0); QTest.qWait(40)
         assert b.learningOverview.view['homeworkCandidates']['rows'] == []

@@ -189,11 +189,11 @@ class OverviewIntegrationTests(unittest.TestCase):
         original_cursor = (self.w._batch, self.w.editorKey)
         candidates = self.o.view['homeworkCandidates']
         self.assertTrue(candidates['available'])
-        self.assertEqual([row['cells'] for row in candidates['rows']],
+        self.assertEqual([row['cells'][1:] for row in candidates['rows']],
                          [['虚构学员A', 'A', '1'], ['虚构学员C', 'C', '2']])
         self.assertIn('1名学员学习数据未知', candidates['notice'])
         self.o.selectLesson(1)
-        self.assertEqual([row['cells'][1] for row in self.o.view['homeworkCandidates']['rows']], ['A'])
+        self.assertEqual([row['cells'][2] for row in self.o.view['homeworkCandidates']['rows']], ['A'])
         self.assertIn('候选人数比所需人数少 1人', self.o.view['homeworkCandidates']['notice'])
         self.o.selectBatch('goal', 1)  # 第3次无欠交作业，不继承第4次学习结果
         self.assertEqual(self.o.view['homeworkCandidates']['rows'], [])
@@ -229,7 +229,7 @@ class OverviewIntegrationTests(unittest.TestCase):
                  {'A':'是', 'B':'否', 'D':'是'})
         self.o.reload(); self.o.selectTab(3); self.o.selectBatch('goal', 0)
         self.o.selectLesson(5)
-        self.assertEqual([row['cells'] for row in self.o.view['homeworkCandidates']['rows']],
+        self.assertEqual([row['cells'][1:] for row in self.o.view['homeworkCandidates']['rows']],
                          [['虚构学员B','B','2'], ['虚构学员C','C','5']])
         self.o.selectLesson(1)
         self.assertEqual(self.o.view['homeworkCandidates']['rows'], [])
@@ -256,90 +256,17 @@ class OverviewIntegrationTests(unittest.TestCase):
         cursor = (self.w._batch, self.w.editorKey)
         self.o.selectLesson(1)
         candidates = self.o.view['homeworkCandidates']
-        self.assertEqual([row['cells'][1:] for row in candidates['rows']],
+        self.assertEqual([row['cells'][2:] for row in candidates['rows']],
                          [[f'S{n:03d}', '1'] for n in range(1, 21)])
         self.assertEqual(candidates['scope'], '第1节')
         self.assertIn('排除第1节内仍有未完课程', candidates['filterText'])
         self.assertIn('保留第1节内仍有欠交作业', candidates['filterText'])
         self.assertEqual(self.o.view['metrics'][2]['value'], '12.12pp')
         self.o.selectLesson(5)
-        self.assertEqual([row['cells'][1] for row in self.o.view['homeworkCandidates']['rows']],
+        self.assertEqual([row['cells'][2] for row in self.o.view['homeworkCandidates']['rows']],
                          [f'S{n:03d}' for n in range(1, 5)])
         self.assertEqual(self.o.view['homeworkCandidates']['scope'], '第1～5节')
         self.assertEqual((self.w._batch, self.w.editorKey), cursor)
-
-    def _homework_contact_keys(self):
-        from app.campaigns import learning_snapshot
-        from app.dashboard import learning_dashboard
-        members, source = [], {}
-        for sid, snap in records()[:4]:
-            flags = {f'{kind}{n}':'T' for kind in ('c','z') for n in range(1,6)}
-            if sid in ('B', 'C'):
-                flags['z1'] = 'F'
-            if sid == 'B':
-                flags.update({f'c{n}':'F' for n in range(2,6)})
-            source[sid] = flags
-            members.append((sid, dict(snap, matched=True, **learning_snapshot(flags))))
-        data = learning_dashboard([dict(student_id=sid, **snap) for sid, snap in members], source)
-        with self.backend.db.connect() as conn:
-            seed(conn, 4, data, members)
-        self.o.reload(); self.o.selectTab(3); self.o.selectBatch('goal', 0); self.o.selectLesson(1)
-        return {r['student_id']:r['contactKey'] for r in self.o.view['homeworkCandidates']['rows']}
-
-    def test_homework_contact_shares_campaign_options_without_moving_workbench(self):
-        from unittest.mock import Mock, patch
-        keys = self._homework_contact_keys()
-        with self.backend.db.connect() as conn:
-            seed(conn, 5, dashboard())
-        self.o.reload()  # The selected batch 4 is now historical.
-        opener = self.backend.contactOpener
-        cursor = (self.w._batch, self.w.editorKey)
-        with self.backend.db.connect() as conn:
-            before = list(conn.execute('SELECT batch_id,student_id,snapshot FROM campaign_students'))
-        opener.setDefaultPrefix('默认前缀')
-        self.assertEqual(opener.campaignContactPrefix, '默认前缀')
-        opener.setVerifyContact(False); opener.setKeepFloat(False)
-        with patch('app.contact_opener.ContactOpenTask') as factory:
-            self.backend.groupCenter._worker = Mock()
-            self.assertFalse(opener.openOverviewContact(keys['B'], '工作台前缀'))
-            factory.assert_not_called()
-            self.backend.groupCenter._worker = None
-            self.assertFalse(opener.openOverviewContact(keys['B'], '非法\n前缀'))
-            factory.assert_not_called()
-            self.assertTrue(opener.openOverviewContact(keys['B'], '工作台前缀'))
-            self.assertEqual(factory.call_args.args[0], '工作台前缀虚构学员B')
-            self.assertFalse(factory.call_args.kwargs['verify_contact'])
-            self.assertFalse(factory.call_args.kwargs['keep_float'])
-            self.assertEqual(opener.campaignContactPrefix, '工作台前缀')
-            self.assertFalse(opener.openOverviewContact(keys['C'], ''))
-            self.assertEqual(factory.call_count, 1)
-            opener._finished()
-        # Workbench remains on its batch while the overview opens a historical candidate.
-        self.assertEqual((self.w._batch, self.w.editorKey), cursor)
-        with self.backend.db.connect() as conn:
-            self.assertEqual(list(conn.execute('SELECT batch_id,student_id,snapshot FROM campaign_students')), before)
-
-    def test_homework_contact_rejects_stale_scope_batch_class_and_hidden_page(self):
-        from unittest.mock import patch
-        keys = self._homework_contact_keys()
-        opener = self.backend.contactOpener
-        with patch('app.contact_opener.ContactOpenTask') as factory:
-            self.assertFalse(opener.openOverviewContact('stale', ''))
-            self.o.selectLesson(5)  # B still has courses pending in this range.
-            self.assertFalse(opener.openOverviewContact(keys['B'], ''))
-            self.o.selectLesson(1)
-            self.o.selectBatch('goal', 1)
-            self.assertFalse(opener.openOverviewContact(keys['B'], ''))
-            self.o.selectBatch('goal', 0); self.o.selectLesson(1)
-            self.o.selectTab(0)
-            self.assertFalse(opener.openOverviewContact(keys['B'], ''))
-            self.o.selectTab(3); self.o.setActive(False)
-            self.assertFalse(opener.openOverviewContact(keys['B'], ''))
-            self.o.setActive(True)
-            self.w._classes.append(dict(name='空测试班', path=str(Path(self.folder.name)/'other.db')))
-            self.w.selectClass(1)
-            self.assertFalse(opener.openOverviewContact(keys['B'], ''))
-            factory.assert_not_called()
 
     def test_hidden_class_roundtrip_resets_choices_and_inspection_does_not_change_evaluation(self):
         self.o.selectTab(2)

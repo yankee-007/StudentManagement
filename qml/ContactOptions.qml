@@ -41,12 +41,12 @@ UiButton {
                 Accessible.name: "联系人前缀"
             }
             CheckBox {
-                objectName: options.namePrefix === "profile" ? "verifyProfileContact" : options.namePrefix === "campaign" ? "verifyCampaignContact" : options.namePrefix + "VerifyContact"
+                objectName: options.namePrefix === "profile" ? "verifyProfileContact" : "verifyCampaignContact"
                 text: "使用浮窗验证联系人"; checked: options.opener.verifyContact
                 onToggled: options.opener.setVerifyContact(checked)
             }
             CheckBox {
-                objectName: options.namePrefix === "profile" ? "keepProfileContactFloat" : options.namePrefix === "campaign" ? "keepCampaignContactFloat" : options.namePrefix + "KeepContactFloat"
+                objectName: options.namePrefix === "profile" ? "keepProfileContactFloat" : "keepCampaignContactFloat"
                 text: "保留企微浮窗（Ctrl+O）"; checked: options.opener.keepFloat
                 enabled: options.opener.verifyContact
                 onToggled: options.opener.setKeepFloat(checked)
