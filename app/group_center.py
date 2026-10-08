@@ -2,6 +2,7 @@
 from pathlib import Path
 import csv
 import json
+import hashlib
 from PySide6.QtCore import QObject, Property, Signal, Slot, QCoreApplication
 from PySide6.QtWidgets import QFileDialog
 from .group_dispatch import GroupStore
@@ -9,7 +10,7 @@ from . import group_dispatch as adapter
 from . import sending_store as receipts
 from .send_options import normalize
 from .send_controller import F11Hotkey, SendWorker
-from .message_content import render_content
+from .message_content import render_content, prepare_content
 from .qt_models import DictTableModel
 
 
@@ -87,6 +88,72 @@ class GroupCenter(QObject):
     def messageColumns(self):
         return [dict(index=index,label=column[1])
                 for index,column in enumerate(self._pending_model.columns[1:-2])]
+
+    @Property('QVariantMap',notify=rowsChanged)
+    def statistics(self):
+        rows=self._rows_cache
+        return dict(success=sum(r['state']==receipts.SENT for r in rows),
+                    failed=sum(r['state']==receipts.FAILED for r in rows),
+                    pending=sum(r['state'] not in receipts.PROTECTED and r['state']!=receipts.FAILED for r in rows),
+                    uncertain=sum(r['state'] in (receipts.UNKNOWN,'仅粘贴未发送') for r in rows))
+
+    @Property(str,notify=rowsChanged)
+    def contentRevision(self):
+        snapshot=[self._id,self._selected_cache.get('content_template',[]),
+                  [(r['id'],r['state'],r['content'],r['message']) for r in self._rows_cache]]
+        return hashlib.sha256(json.dumps(snapshot,ensure_ascii=False).encode('utf-8')).hexdigest()
+
+    @Property('QVariantList',notify=rowsChanged)
+    def defaultFields(self):
+        template=self._selected_cache.get('content_template',[])
+        rows=[r for r in self._pending_model.rows if r['editable']]
+        count=max(len(template),max((len(r['items']) for r in rows),default=0))
+        fields=[]
+        for index in range(count):
+            item=template[index] if index<len(template) else None
+            if item is None:
+                variants={(f['type'],f.get('template',f.get('text',f.get('path',''))))
+                          for r in rows if index<len(r['items'])
+                          for f in [r['items'][index]] if not f.get('personal_override')}
+                if len(variants)==1:
+                    kind,value=next(iter(variants));item=dict(type=kind,**({'text':value} if kind=='text' else {'path':value}))
+            fields.append(dict(sourceIndex=index,type=item['type'] if item else 'text',
+                               value=item.get('template',item.get('text',item.get('path',''))) if item else '',
+                               mixed=item is None))
+        return fields
+
+    @Slot(int,str,'QVariantList',bool,result=bool)
+    def saveDefaultRow(self,list_id,revision,draft,override_personal):
+        import sys as _sys
+        _orig=self.defaultFields
+        print('DSHPROBE rev_match',revision==self.contentRevision,'n_draft',len(draft),
+              'n_original',len(_orig),'draftIdx',[f.get('sourceIndex') for f in draft],
+              'list_id',list_id,'self._id',self._id,
+              'template',self._selected_cache.get('content_template'),
+              'rows',[(r['id'],r['items']) for r in self._pending_model.rows],
+              file=_sys.stderr,flush=True)
+        if self.active or list_id!=self._id:return False
+        try:
+            if revision!=self.contentRevision:raise ValueError('名单消息已变化，请重载配置后再应用；当前草稿仍保留')
+            original=self.defaultFields;seen=set();fields=[];template=[];complete=True
+            for raw in draft:
+                field=dict(raw);index=int(field['sourceIndex'])
+                if index < -1 or index>=len(original) or (index>=0 and index in seen):raise ValueError('消息位置已变化，请重载配置')
+                seen.add(index)
+                kind=field['type'];value=field['value']
+                previous=original[index] if index>=0 else None
+                changed=previous is None or previous['type']!=kind or previous['value']!=value or (override_personal and not previous['mixed'])
+                item=prepare_content([dict(type=kind,**({'text':value} if kind=='text' else {'path':value}))])[0] if changed else None
+                fields.append(dict(sourceIndex=index,item=item))
+                if item:template.append(item)
+                elif previous and not previous['mixed']:
+                    template.append(dict(type=kind,**({'text':value} if kind=='text' else {'path':value})))
+                else:complete=False
+            count=self.store.save_default_row(list_id,fields,template if complete else [],override_personal)
+            self._preview=[];self._confirmation=None
+            self._notice=f'默认消息已应用到 {count} 位待处理人员；个人改动'+('已覆盖' if override_personal else '已保留')+'，请重新预览'
+            self._reload_snapshot();self._notify_preview();self._notify_status();return True
+        except Exception as exc:self._notice='默认消息保存失败：'+str(exc);self._notify_status();return False
 
     @Slot(int,bool,result='QVariantMap')
     def columnInfo(self,index,include_personal):

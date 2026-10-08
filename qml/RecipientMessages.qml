@@ -6,19 +6,71 @@ Item {
     id: panel
     objectName: "recipientMessages"
     required property var center
+    property alias contactPrefix: prefix.text
     property var selectedRow: ({})
     property int selectedField: -1
     property int currentListId: -1
     property var currentModel: tabs.currentIndex===0 ? center.pendingModel : center.sentModel
-    property bool canManage: tabs.currentIndex===0 && !center.active && center.editableCount>0
+    property int fieldCount: tabs.currentIndex===0 ? center.pendingFieldCount : center.sentFieldCount
+    property bool canManage: !center.active && center.editableCount>0
+    property bool defaultsDirty: false
+    property bool loadingDefaults: false
+    readonly property bool compact: height<420
+    property string draftRevision: ""
+    property real nameWidth: width<750 ? 120 : 180
+    property real infoWidth: width<750 ? 150 : 220
+    property real messageWidth: Math.max(210,(messageArea.width-Math.max(0,fieldCount-1))/Math.max(1,fieldCount))
+    signal prefixEdited()
     signal resolveRequested(int recipientId, bool wasSent)
+    function loadDefaults() {
+        loadingDefaults=true
+        defaults.clear()
+        var fields=center.defaultFields
+        for(var i=0;i<fields.length;i++) defaults.append({sourceIndex:fields[i].sourceIndex,kind:fields[i].type,value:fields[i].value,mixed:fields[i].mixed})
+        draftRevision=center.contentRevision
+        defaultsDirty=false
+        overridePersonal.checked=false
+        loadingDefaults=false
+    }
+    function draftValues() {
+        var result=[]
+        for(var i=0;i<defaults.count;i++) {
+            var f=defaults.get(i)
+            result.push({sourceIndex:f.sourceIndex,type:f.kind,value:f.value})
+        }
+        return result
+    }
+    function updateDefault(index,value) {
+        if(!loadingDefaults && defaults.get(index).value!==value) {
+            defaults.setProperty(index,"value",value)
+            defaultsDirty=true
+        }
+    }
+    function addDefault(kind) {
+        defaults.append({sourceIndex:-1,kind:kind,value:"",mixed:false})
+        defaultsDirty=true
+        Qt.callLater(function() { defaultsScroll.contentX=Math.max(0,defaultsScroll.contentWidth-defaultsScroll.width) })
+    }
+    function removeDefault() {
+        if(defaults.count>0) { defaults.remove(defaults.count-1); defaultsDirty=true }
+    }
+    function saveDefaults() {
+        Qt.inputMethod.commit()
+        if(!defaultsDirty) return true
+        if(!canManage || currentListId!==center.selected.id) return false
+        console.log('DSHPROBE draft', draftRevision, 'current', center.contentRevision, 'listId', currentListId)
+        if(!center.saveDefaultRow(currentListId,draftRevision,draftValues(),overridePersonal.checked)) return false
+        loadDefaults()
+        return true
+    }
     function editRecipient(recipientId) {
+        if(!saveDefaults()) return
         tabs.currentIndex=0
         selectedRow=center.recipientForView(recipientId,false)
         openEditor()
     }
     function openEditor() {
-        if(!selectedRow.id) return
+        if(!selectedRow.id || !saveDefaults()) return
         editor.listId=center.selected.id
         editor.recipientId=selectedRow.id
         editor.canEdit=selectedRow.editable && !center.active
@@ -26,42 +78,10 @@ Item {
         messages.load(selectedRow.items)
         editor.open()
     }
-    function typeAt(column) {
-        return center.columnInfo(column,false).type
-    }
-    function maxFieldIndex() {
-        return center.pendingFieldCount-1
-    }
-    function editableAtColumn(column,includePersonal) {
-        return center.columnInfo(column,includePersonal).count
-    }
-    function openColumnEditor(column) {
-        if(!canManage || column<0 || column>=center.pendingFieldCount) return
-        selectedField=column
-        fieldDialog.listId=center.selected.id
-        fieldDialog.fieldIndex=column
-        fieldDialog.fieldType=typeAt(column)
-        fieldDialog.isAdding=false
-        fieldDialog.fieldValue=""
-        var template=center.selected.content_template || []
-        if(column<template.length) {
-            fieldDialog.fieldType=template[column].type
-            fieldDialog.fieldValue=template[column].type==="file" ? template[column].path : (template[column].template || template[column].text || "")
-        }
-        fieldDialog.overridePersonal=false
-        fieldDialog.open()
-    }
-    function addMessage(kind) {
-        fieldDialog.listId=center.selected.id
-        fieldDialog.fieldIndex=-1; fieldDialog.fieldType=kind; fieldDialog.fieldValue=""
-        fieldDialog.overridePersonal=false; fieldDialog.isAdding=true; fieldDialog.open()
-    }
-    function moveColumn(direction) {
-        var target=selectedField+direction
-        if(center.moveField(selectedField,direction)) selectedField=target
-    }
     function openCellEditor(person,index) {
-        if(!person.id || index<0 || index>=person.items.length) return
+        if(!person.id || index<0 || index>=person.items.length || !saveDefaults()) return
+        person=center.recipientForView(person.id,tabs.currentIndex===1)
+        if(index>=person.items.length) return
         var item=person.items[index]
         cellDialog.listId=center.selected.id
         cellDialog.recipientId=person.id
@@ -73,8 +93,11 @@ Item {
         cellDialog.open()
     }
     function restoreSelection() {
-        if(!selectedRow.id) return
-        selectedRow=center.recipientForView(selectedRow.id,tabs.currentIndex===1)
+        if(selectedRow.id) selectedRow=center.recipientForView(selectedRow.id,tabs.currentIndex===1)
+    }
+    function selectPerson(row,column) {
+        selectedRow=currentModel.get(row)
+        selectedField=column>0 && column<=fieldCount ? column-1 : -1
     }
     Connections {
         target: panel.center
@@ -84,170 +107,242 @@ Item {
                 panel.currentListId=listId
                 tabs.currentIndex=0
                 panel.selectedRow=({})
-                panel.selectedField=0
+                panel.selectedField=-1
+                panel.loadDefaults()
             }
         }
-        function onRowsChanged() { panel.restoreSelection(); fieldDialog.updateImpact() }
+        function onRowsChanged() {
+            panel.restoreSelection()
+            if(!panel.defaultsDirty) panel.loadDefaults()
+        }
+        function onModelInfoChanged() { table.forceLayout(); namesTable.forceLayout(); infoTable.forceLayout() }
     }
-    Component.onCompleted: currentListId=center.selected.id || 0
+    Component.onCompleted: { currentListId=center.selected.id || 0; loadDefaults() }
+    ListModel { id: defaults }
     ColumnLayout {
-        anchors.fill: parent
-        TabBar {
-            id: tabs; objectName: "groupMessageTabs"; Layout.fillWidth: true
-            onCurrentIndexChanged: { panel.selectedRow=({}); panel.selectedField=0 }
-            TabButton { text: "待处理（" + center.pendingCount + "）" }
-            TabButton { text: "已发送（" + center.sentCount + "）" }
-        }
+        anchors.fill: parent; spacing: 0
         RowLayout {
-            visible: tabs.currentIndex===0
-            Layout.fillWidth: true
-            Label { text: "批量编辑"; font.bold: true }
-            UiComboBox {
-                id: columnSelector; objectName: "groupColumnSelector"; Layout.fillWidth: true; Layout.minimumWidth: 100
-                model: center.messageColumns; textRole: "label"; currentIndex: panel.selectedField>=0 && panel.selectedField<center.pendingFieldCount ? panel.selectedField : (center.pendingFieldCount>0 ? 0 : -1)
-                enabled: panel.canManage && count>0
-                onActivated: panel.selectedField=currentIndex
-            }
-            UiButton { objectName: "groupBulkEditButton"; text: "修改本列"; enabled: panel.canManage && columnSelector.currentIndex>=0; onClicked: panel.openColumnEditor(columnSelector.currentIndex) }
-            UiButton { id: addFieldButton; text: "添加消息"; enabled: panel.canManage; onClicked: addMenu.popup(addFieldButton,0,addFieldButton.height) }
-            UiButton { id: columnActions; text: "调整列"; enabled: panel.canManage && columnSelector.currentIndex>=0; onClicked: { panel.selectedField=columnSelector.currentIndex; columnMenu.popup(columnActions,0,columnActions.height) } }
-        }
-        Label {
-            text: tabs.currentIndex===0 ? "批量修改默认保留个人改动。单击选中消息后可单独编辑，也可双击直接打开。" : "已发送消息只读；需要再次发送时，复制为新名单。"
-            elide: Text.ElideRight; color: UiTheme.muted; Layout.fillWidth: true
-            ToolTip.visible: hintHover.hovered; ToolTip.text: text
-            HoverHandler { id: hintHover }
-        }
-        Item {
-            Layout.fillWidth: true; Layout.fillHeight: true; clip: true
-            HorizontalHeaderView {
-                id: header; syncView: table; anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top; height: 34
-                delegate: Rectangle {
-                    required property var display
-                    required property int index
-                    property bool configurable: index>0 && index<=center.pendingFieldCount && panel.canManage
-                    implicitWidth: 220; implicitHeight: 34; color: headerTap.containsMouse && configurable ? UiTheme.selection : UiTheme.stripe
-                    Text { anchors.fill: parent; anchors.margins: 7; text: display + (configurable ? " · 批量编辑" : ""); elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter; color: UiTheme.ink }
-                    MouseArea { id: headerTap; anchors.fill: parent; enabled: parent.configurable; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: panel.openColumnEditor(index-1) }
+            Layout.fillWidth: true; spacing: 10
+            UiPanel {
+                Layout.preferredWidth: panel.nameWidth; Layout.minimumWidth: panel.nameWidth; Layout.maximumWidth: panel.nameWidth
+                Layout.preferredHeight: panel.compact ? 96 : 140; padding: panel.compact ? 8 : 12
+                ColumnLayout {
+                    anchors.fill: parent
+                    Label { text: "姓名前缀"; font.bold: true; font.pixelSize: 15 }
+                    UiTextField {
+                        id: prefix; objectName: "groupContactPrefix"; Layout.fillWidth: true
+                        enabled: !center.active && center.selectedIndex>=0
+                        placeholderText: "可留空"; Accessible.name: "姓名前缀"
+                        onTextChanged: panel.prefixEdited()
+                    }
+                    Label { visible: !panel.compact; text: "前缀＋姓名\n自动保存"; Layout.fillWidth: true; color: UiTheme.muted; font.pixelSize: 12 }
+                    Item { Layout.fillHeight: true }
                 }
             }
-            TableView {
-                id: table; objectName: "groupRecipientList"
-                anchors.left: parent.left; anchors.right: parent.right; anchors.top: header.bottom; anchors.bottom: parent.bottom
-                model: panel.currentModel; clip: true; reuseItems: true; columnSpacing: 1; rowSpacing: 1
-                columnWidthProvider: function(c) { return c===0 ? 110 : 220 }
-                rowHeightProvider: function(r) { return 52 }
-                ScrollBar.horizontal: ScrollBar {}
-                ScrollBar.vertical: ScrollBar {}
-                delegate: Rectangle {
-                    required property int row
-                    required property int column
-                    required property string display
-                    required property string recordKey
-                    implicitWidth: 220; implicitHeight: 52
-                    color: recordKey===String(panel.selectedRow.id || "") ? UiTheme.selection : row%2 ? UiTheme.stripe : UiTheme.surface
-                    border.width: recordKey===String(panel.selectedRow.id || "") && column>0 && column===panel.selectedField+1 ? 1 : 0
-                    border.color: UiTheme.focus
-                    Text { anchors.fill: parent; anchors.margins: 7; text: display; textFormat: Text.PlainText; wrapMode: Text.Wrap; maximumLineCount: 2; elide: Text.ElideRight; font.pixelSize: 12; color: UiTheme.ink }
-                    TapHandler {
-                        onTapped: {
-                            var person=panel.currentModel.get(row)
-                            panel.selectedRow=person
-                            var fieldCount=tabs.currentIndex===0 ? center.pendingFieldCount : center.sentFieldCount
-                            panel.selectedField=column>0 && column<=fieldCount ? column-1 : -1
+            UiPanel {
+                objectName: "groupDefaultRow"; Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.preferredHeight: panel.compact ? 96 : 140; padding: panel.compact ? 8 : 12
+                ColumnLayout {
+                    anchors.fill: parent; spacing: 4
+                    RowLayout {
+                        Layout.fillWidth: true; spacing: 4
+                        Label { text: "默认消息"; font.bold: true; font.pixelSize: 15; Layout.fillWidth: true; elide: Text.ElideRight }
+                        UiButton { objectName: "groupResetDefaults"; text: "重载"; visible: panel.defaultsDirty; enabled: !center.active; implicitHeight: 28; onClicked: panel.loadDefaults() }
+                        UiButton { objectName: "groupApplyDefaults"; text: "应用"; implicitHeight: 28; enabled: panel.canManage && panel.defaultsDirty; onClicked: panel.saveDefaults() }
+                        UiButton { objectName: "groupRemoveDefault"; text: "−"; implicitWidth: 28; implicitHeight: 28; enabled: panel.canManage && defaults.count>0; Accessible.name: "移除最后一条默认消息"; ToolTip.visible: hovered; ToolTip.text: "移除最后一条消息，应用后生效"; onClicked: panel.removeDefault() }
+                        UiButton { objectName: "groupAddDefault"; text: "+"; implicitWidth: 28; implicitHeight: 28; enabled: panel.canManage; Accessible.name: "添加默认消息"; onClicked: panel.addDefault("text") }
+                    }
+                    Flickable {
+                        id: defaultsScroll; objectName: "groupDefaultsViewport"; Layout.fillWidth: true; Layout.fillHeight: true
+                        clip: true; contentWidth: draftRow.width; contentHeight: height; boundsBehavior: Flickable.StopAtBounds
+                        onContentXChanged: if(dragging || flicking) table.contentX=contentX
+                        ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded }
+                        Row {
+                            id: draftRow; spacing: 1; height: defaultsScroll.height-12
+                            Repeater {
+                                model: defaults
+                                Rectangle {
+                                    id: draftField
+                                    required property int index
+                                    required property int sourceIndex
+                                    required property string kind
+                                    required property string value
+                                    required property bool mixed
+                                    width: panel.messageWidth; height: draftRow.height; color: UiTheme.stripe
+                                    ColumnLayout {
+                                        anchors.fill: parent; anchors.margins: 4; spacing: 2; enabled: panel.canManage
+                                        RowLayout {
+                                            Layout.fillWidth: true
+                                            Label { text: "消息"+(draftField.index+1); color: UiTheme.muted; font.pixelSize: 12; Layout.fillWidth: true }
+                                            UiComboBox {
+                                                objectName: "groupDefaultType"+draftField.index; model: ["文字","文件"]; implicitHeight: panel.compact ? 22 : 26; implicitWidth: 76
+                                                currentIndex: draftField.kind==="file" ? 1 : 0; Accessible.name: "消息"+(draftField.index+1)+"类型"
+                                                onActivated: { defaults.setProperty(draftField.index,"kind",currentIndex===1 ? "file" : "text"); defaults.setProperty(draftField.index,"value",""); panel.defaultsDirty=true }
+                                            }
+                                        }
+                                        ScrollView {
+                                            id: defaultTextScroll; visible: draftField.kind==="text"; Layout.fillWidth: true; Layout.fillHeight: true; contentWidth: availableWidth; clip: true
+                                            TextArea {
+                                            objectName: "groupDefaultText"+draftField.index; width: defaultTextScroll.availableWidth; text: draftField.value
+                                            font.pixelSize: 13; color: UiTheme.ink; wrapMode: TextEdit.Wrap; selectByMouse: true
+                                            placeholderText: draftField.mixed ? "此列内容不同，填写以统一" : "填写默认消息，可用 {姓名}"
+                                            Accessible.name: "消息"+(draftField.index+1)+"默认文字"
+                                            background: Rectangle { color: UiTheme.input; border.color: parent.activeFocus ? UiTheme.focus : UiTheme.line; radius: 3 }
+                                            onTextChanged: if(!inputMethodComposing) panel.updateDefault(draftField.index,text)
+                                            onInputMethodComposingChanged: if(!inputMethodComposing) panel.updateDefault(draftField.index,text)
+                                            }
+                                        }
+                                        RowLayout {
+                                            visible: draftField.kind==="file"; Layout.fillWidth: true; Layout.fillHeight: true
+                                            UiTextField { text: draftField.value; readOnly: true; Layout.fillWidth: true; placeholderText: "未选择文件"; Accessible.name: "消息"+(draftField.index+1)+"默认文件" }
+                                            UiButton { objectName: "groupDefaultFile"+draftField.index; text: "选择"; onClicked: { var path=center.chooseMessageFile(); if(path) panel.updateDefault(draftField.index,path) } }
+                                        }
+                                    }
+                                }
+                            }
                         }
-                        onDoubleTapped: {
-                            var person=panel.currentModel.get(row)
-                            var fieldCount=tabs.currentIndex===0 ? center.pendingFieldCount : center.sentFieldCount
-                            if(column>0 && column<=fieldCount) panel.openCellEditor(person,column-1)
+                        Label { anchors.centerIn: parent; visible: defaults.count===0; text: "点击 + 添加默认消息"; color: UiTheme.muted }
+                    }
+                }
+            }
+            UiPanel {
+                objectName: "groupStatistics"; Layout.preferredWidth: panel.infoWidth; Layout.minimumWidth: panel.infoWidth; Layout.maximumWidth: panel.infoWidth; Layout.preferredHeight: panel.compact ? 96 : 140; padding: panel.compact ? 8 : 12
+                ColumnLayout {
+                    anchors.fill: parent; spacing: 6
+                    Label { text: "状态统计"; font.bold: true; font.pixelSize: 15 }
+                    GridLayout {
+                        visible: !panel.compact; columns: 2; Layout.fillWidth: true; rowSpacing: 6
+                        Label { text: "成功"; color: UiTheme.muted; Layout.fillWidth: true }
+                        Label { objectName: "groupSuccessCount"; text: center.statistics.success; color: UiTheme.success; font.bold: true }
+                        Label { text: "失败"; color: UiTheme.muted }
+                        Label { objectName: "groupFailureCount"; text: center.statistics.failed; color: UiTheme.danger; font.bold: true }
+                        Label { text: "待发"; color: UiTheme.muted }
+                        Label { objectName: "groupPendingCount"; text: center.statistics.pending; color: UiTheme.warning; font.bold: true }
+                        Label { text: "待核实"; color: UiTheme.muted }
+                        Label { objectName: "groupUncertainCount"; text: center.statistics.uncertain; color: UiTheme.muted; font.bold: true }
+                    }
+                    GridLayout {
+                        visible: panel.compact; columns: 2; Layout.fillWidth: true; rowSpacing: 8; columnSpacing: 8
+                        Label { text: "成功 "+center.statistics.success; color: UiTheme.success; font.pixelSize: 12 }
+                        Label { text: "失败 "+center.statistics.failed; color: UiTheme.danger; font.pixelSize: 12 }
+                        Label { text: "待发 "+center.statistics.pending; color: UiTheme.warning; font.pixelSize: 12 }
+                        Label { text: "待核实 "+center.statistics.uncertain; color: UiTheme.muted; font.pixelSize: 12 }
+                    }
+                }
+            }
+        }
+        RowLayout {
+            Layout.fillWidth: true; spacing: 8
+            TabBar {
+                id: tabs; objectName: "groupMessageTabs"; Layout.fillWidth: true; implicitHeight: 30
+                onCurrentIndexChanged: { panel.selectedRow=({}); panel.selectedField=-1 }
+                TabButton { text: "待处理（"+center.pendingCount+"）"; implicitHeight: 30 }
+                TabButton { text: "已发送（"+center.sentCount+"）"; implicitHeight: 30 }
+            }
+            CheckBox { id: overridePersonal; objectName: "groupOverridePersonal"; text: panel.width<750 ? "覆盖个人改动" : "应用时覆盖个人改动"; enabled: panel.canManage; implicitHeight: 30; onToggled: if(!panel.loadingDefaults) panel.defaultsDirty=true }
+            UiButton { id: compactActions; objectName: "groupCompactRecipientActions"; visible: panel.compact; text: "编辑"; implicitHeight: 30; enabled: !!panel.selectedRow.id && !center.active; onClicked: recipientMenu.popup(compactActions,0,compactActions.height) }
+        }
+        RowLayout {
+            Layout.fillWidth: true; Layout.fillHeight: true; spacing: 10
+            UiPanel {
+                Layout.preferredWidth: panel.nameWidth; Layout.minimumWidth: panel.nameWidth; Layout.maximumWidth: panel.nameWidth; Layout.fillHeight: true; padding: 8
+                ColumnLayout {
+                    anchors.fill: parent; spacing: 1
+                    Label { text: "姓名"; Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; font.bold: true; Layout.preferredHeight: 34; background: Rectangle { color: UiTheme.stripe } }
+                    TableView {
+                        id: namesTable; objectName: "groupNamesTable"; Layout.fillWidth: true; Layout.fillHeight: true
+                        model: panel.currentModel; syncView: table; syncDirection: Qt.Vertical; clip: true; reuseItems: true; rowSpacing: 1
+                        columnWidthProvider: function(c) { return c===0 ? namesTable.width : 0 }; rowHeightProvider: function(r) { return 44 }
+                        delegate: Rectangle {
+                            required property int row
+                            required property string display
+                            required property string recordKey
+                            implicitWidth: 120; implicitHeight: 44; color: recordKey===String(panel.selectedRow.id || "") ? UiTheme.selection : row%2 ? UiTheme.stripe : UiTheme.surface
+                            Label { anchors.fill: parent; anchors.margins: 7; text: (row+1)+"  "+display; elide: Text.ElideRight; textFormat: Text.PlainText }
+                            TapHandler { onTapped: panel.selectPerson(row,0) }
                         }
                     }
                 }
             }
-            Label { anchors.centerIn: parent; visible: tabs.currentIndex===0 ? center.pendingCount===0 : center.sentCount===0; text: center.selectedIndex<0 ? "先新建名单，或从催办 / 画像生成名单" : tabs.currentIndex===0 ? "本名单暂无待处理人员" : "本名单还没有已发送记录"; color: UiTheme.subtle }
+            UiPanel {
+                id: messageArea; Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumWidth: 0; padding: 8
+                ColumnLayout {
+                    anchors.fill: parent; spacing: 1
+                    HorizontalHeaderView {
+                        id: header; syncView: table; Layout.fillWidth: true; Layout.preferredHeight: 34; clip: true
+                        delegate: Rectangle {
+                            required property var display
+                            required property int index
+                            implicitWidth: panel.messageWidth; implicitHeight: 34; color: UiTheme.stripe
+                            Label { anchors.fill: parent; anchors.margins: 7; text: panel.fieldCount===0 ? "消息" : display; elide: Text.ElideRight; horizontalAlignment: Text.AlignHCenter; font.bold: true }
+                        }
+                    }
+                    TableView {
+                        id: table; objectName: "groupRecipientList"; Layout.fillWidth: true; Layout.fillHeight: true
+                        model: panel.currentModel; clip: true; reuseItems: true; columnSpacing: 1; rowSpacing: 1
+                        columnWidthProvider: function(c) { return c>0 && c<=panel.fieldCount ? panel.messageWidth : (panel.fieldCount===0 && c===0 ? table.width : 0) }
+                        rowHeightProvider: function(r) { return 44 }
+                        onContentXChanged: if(!defaultsScroll.dragging && !defaultsScroll.flicking) defaultsScroll.contentX=Math.min(contentX,Math.max(0,defaultsScroll.contentWidth-defaultsScroll.width))
+                        ScrollBar.horizontal: ScrollBar {}
+                        ScrollBar.vertical: ScrollBar {}
+                        delegate: Rectangle {
+                            required property int row
+                            required property int column
+                            required property string display
+                            required property string recordKey
+                            implicitWidth: panel.messageWidth; implicitHeight: 44
+                            color: recordKey===String(panel.selectedRow.id || "") ? UiTheme.selection : row%2 ? UiTheme.stripe : UiTheme.surface
+                            border.width: recordKey===String(panel.selectedRow.id || "") && column===panel.selectedField+1 ? 1 : 0; border.color: UiTheme.focus
+                            Text { anchors.fill: parent; anchors.margins: 7; text: panel.fieldCount===0 ? "尚未配置消息" : display; textFormat: Text.PlainText; wrapMode: Text.Wrap; maximumLineCount: 2; elide: Text.ElideRight; font.pixelSize: 13; color: panel.fieldCount===0 ? UiTheme.muted : UiTheme.ink }
+                            TapHandler {
+                                onTapped: panel.selectPerson(row,column)
+                                onDoubleTapped: if(column>0 && column<=panel.fieldCount) panel.openCellEditor(panel.currentModel.get(row),column-1)
+                            }
+                        }
+                    }
+                    Label { visible: (tabs.currentIndex===0 ? center.pendingCount : center.sentCount)===0; text: center.selectedIndex<0 ? "先新建或生成名单" : "暂无人员"; color: UiTheme.muted; Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter }
+                }
+            }
+            UiPanel {
+                Layout.preferredWidth: panel.infoWidth; Layout.minimumWidth: panel.infoWidth; Layout.maximumWidth: panel.infoWidth; Layout.fillHeight: true; padding: 8
+                ColumnLayout {
+                    anchors.fill: parent; spacing: 1
+                    Label { text: "信息"; Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; font.bold: true; Layout.preferredHeight: 34; background: Rectangle { color: UiTheme.stripe } }
+                    TableView {
+                        id: infoTable; objectName: "groupInformationTable"; Layout.fillWidth: true; Layout.fillHeight: true
+                        model: panel.currentModel; syncView: table; syncDirection: Qt.Vertical; clip: true; reuseItems: true; rowSpacing: 1
+                        columnWidthProvider: function(c) { return c===panel.fieldCount+2 ? infoTable.width : 0 }; rowHeightProvider: function(r) { return 44 }
+                        delegate: Rectangle {
+                            required property int row
+                            required property string display
+                            required property string recordKey
+                            property var person: { var revision=center.contentRevision; return panel.currentModel.get(row) }
+                            implicitWidth: 160; implicitHeight: 44; color: recordKey===String(panel.selectedRow.id || "") ? UiTheme.selection : row%2 ? UiTheme.stripe : UiTheme.surface
+                            Text { anchors.fill: parent; anchors.margins: 7; text: (parent.person.state || "")+(display ? " · "+display : ""); textFormat: Text.PlainText; wrapMode: Text.Wrap; maximumLineCount: 2; elide: Text.ElideRight; font.pixelSize: 12; color: parent.person.state==="已发送" ? UiTheme.success : parent.person.state==="未发送失败" ? UiTheme.danger : UiTheme.muted }
+                            TapHandler { onTapped: panel.selectPerson(row,-1) }
+                            ToolTip.visible: infoHover.hovered; ToolTip.text: (person.state || "")+" "+display
+                            HoverHandler { id: infoHover }
+                        }
+                    }
+                }
+            }
         }
         RowLayout {
-            Layout.fillWidth: true
-            Label { text: panel.selectedRow.id ? "当前："+panel.selectedRow.name : "选择一位收件人，查看或编辑消息"; textFormat: Text.PlainText; elide: Text.ElideRight; Layout.fillWidth: true; color: UiTheme.ink }
-            UiButton { objectName: "groupEditCellButton"; text: panel.selectedRow.editable && tabs.currentIndex===0 ? "编辑所选消息" : "查看所选消息"; enabled: !center.active && !!panel.selectedRow.id && panel.selectedField>=0 && panel.selectedField<(panel.selectedRow.items || []).length; onClicked: panel.openCellEditor(panel.selectedRow,panel.selectedField) }
-            UiButton { objectName: "groupEditPersonButton"; text: panel.selectedRow.editable && tabs.currentIndex===0 ? "编辑此人全部消息" : "查看此人全部消息"; enabled: !!panel.selectedRow.id && !center.active; onClicked: panel.openEditor() }
+            visible: !panel.compact; Layout.fillWidth: true
+            Label { text: panel.selectedRow.id ? "当前："+panel.selectedRow.name : "默认消息在上方统一配置"; textFormat: Text.PlainText; elide: Text.ElideRight; Layout.fillWidth: true; color: UiTheme.muted }
+            UiButton { objectName: "groupEditCellButton"; text: "单独编辑"; enabled: !center.active && !!panel.selectedRow.id && panel.selectedField>=0 && panel.selectedField<(panel.selectedRow.items || []).length; onClicked: panel.openCellEditor(panel.selectedRow,panel.selectedField) }
+            UiButton { objectName: "groupEditPersonButton"; text: tabs.currentIndex===0 && panel.selectedRow.editable ? "此人全部消息" : "查看全部消息"; enabled: !!panel.selectedRow.id && !center.active; onClicked: panel.openEditor() }
         }
-        Label { text: (panel.selectedRow.state || "") + " " + (panel.selectedRow.detail || "") + (panel.selectedRow.sync_pending ? "（催办结果尚未回写）" : ""); visible: !!panel.selectedRow.id; wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.warning }
         RowLayout {
-            visible: panel.selectedRow.state==="结果待确认" || panel.selectedRow.state==="仅粘贴未发送"
-            enabled: !center.active
-            Label { text: "核实前不可编辑或重发" }
+            visible: panel.selectedRow.state==="结果待确认" || panel.selectedRow.state==="仅粘贴未发送"; enabled: !center.active; Layout.fillWidth: true
+            Label { text: "核实前不可编辑或重发"; Layout.fillWidth: true; color: UiTheme.warning }
             UiButton { text: "核实已发送"; onClicked: panel.resolveRequested(panel.selectedRow.id,true) }
             UiButton { text: "核实未发送"; onClicked: panel.resolveRequested(panel.selectedRow.id,false) }
         }
     }
-    Dialog {
-        id: fieldDialog; objectName: "groupColumnMessageDialog"; anchors.centerIn: parent; modal: true; title: fieldDialog.isAdding ? (fieldDialog.fieldType==="file" ? "新增文件字段" : "新增文字字段") : (fieldDialog.fieldType==="file" ? "统一配置文件列" : "统一配置话术列")
-        width: Math.min(panel.width-20,620)
-        property int fieldIndex: -1
-        property int listId: 0
-        property string fieldType: "text"
-        property string fieldValue: ""
-        property bool overridePersonal: false
-        property bool isAdding: false
-        property int impactCount: 0
-        property var columnSummary: ({})
-        function updateImpact() {
-            if(visible) {
-                columnSummary=isAdding ? ({}) : center.columnInfo(fieldIndex,overridePersonal)
-                impactCount=isAdding ? center.editableCount : columnSummary.count
-            }
-        }
-        onVisibleChanged: updateImpact()
-        onFieldIndexChanged: updateImpact()
-        onOverridePersonalChanged: updateImpact()
-        onOpened: { columnText.text=fieldType==="text" ? fieldValue : ""; columnFile.text=fieldType==="file" ? fieldValue : ""; updateImpact() }
-        ColumnLayout {
-            anchors.fill: parent
-            Label { text: fieldDialog.isAdding ? "将为 " + fieldDialog.impactCount + " 位可编辑人员追加消息。" : "将修改 " + fieldDialog.impactCount + " 人 · " + (fieldDialog.overridePersonal ? "包含" : "保留") + " " + (fieldDialog.columnSummary.personalCount || 0) + " 人的个人改动"; wrapMode: Text.Wrap; Layout.fillWidth: true; font.bold: true }
-            Label { text: "已发送、发送中和待核实记录不修改；保存后重新预览。"; wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.muted }
-            RowLayout {
-                visible: !fieldDialog.isAdding && !!fieldDialog.columnSummary.mixed
-                Layout.fillWidth: true
-                Label { text: "此列含文字和文件，统一改为：" }
-                UiComboBox { model: ["文字","文件"]; currentIndex: fieldDialog.fieldType==="file" ? 1 : 0; onActivated: fieldDialog.fieldType=currentIndex===1 ? "file" : "text" }
-            }
-            ScrollView {
-                visible: fieldDialog.fieldType==="text"; Layout.fillWidth: true; Layout.preferredHeight: 120; clip: true
-                TextArea { id: columnText; objectName: "groupColumnTemplateInput"; wrapMode: TextEdit.Wrap; selectByMouse: true; placeholderText: "输入统一模板，可使用 {姓名}、{学号} 和画像字段变量" }
-            }
-            RowLayout {
-                visible: fieldDialog.fieldType==="file"; Layout.fillWidth: true
-                UiTextField { id: columnFile; readOnly: true; Layout.fillWidth: true; placeholderText: "选择统一文件" }
-                UiButton { text: "选择文件"; onClicked: { var path=center.chooseMessageFile(); if(path) columnFile.text=path } }
-            }
-            CheckBox { visible: !fieldDialog.isAdding; text: "同时覆盖单独编辑过的内容"; checked: fieldDialog.overridePersonal; onToggled: fieldDialog.overridePersonal=checked; Layout.fillWidth: true }
-            Label { text: "文字变量：{" + backend.profilesModule.messagePlaceholders.join("}、{") + "}；另支持 {学号}。保存后需重新预览。"; visible: fieldDialog.fieldType==="text"; wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.muted }
-            Label { text: center.status; wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.warning }
-            RowLayout {
-                UiButton { objectName: "saveGroupColumnField"; text: (fieldDialog.isAdding ? "追加到 " : "保存到 ") + fieldDialog.impactCount + " 人"; highlighted: true; enabled: !center.active && fieldDialog.listId===center.selected.id && fieldDialog.impactCount>0 && (fieldDialog.fieldType==="text" ? columnText.text.trim().length>0 : columnFile.text.length>0); onClicked: { var item=fieldDialog.fieldType==="text" ? {type:"text",text:columnText.text} : {type:"file",path:columnFile.text}; var ok=fieldDialog.isAdding ? center.appendField(item) : center.bulkField(fieldDialog.listId,fieldDialog.fieldIndex,item,fieldDialog.overridePersonal); if(ok) { if(fieldDialog.isAdding) selectedField=panel.maxFieldIndex(); fieldDialog.close() } } }
-                UiButton { text: "取消"; onClicked: fieldDialog.close() }
-            }
-        }
-    }
     Menu {
-        id: addMenu
-        MenuItem { text: "添加文字消息"; onTriggered: panel.addMessage("text") }
-        MenuItem { text: "添加文件消息"; onTriggered: panel.addMessage("file") }
-    }
-    Menu {
-        id: columnMenu
-        MenuItem { text: "向前移动（立即保存）"; enabled: panel.selectedField>0; onTriggered: panel.moveColumn(-1) }
-        MenuItem { text: "向后移动（立即保存）"; enabled: panel.selectedField<center.pendingFieldCount-1; onTriggered: panel.moveColumn(1) }
-        MenuSeparator {}
-        MenuItem { text: "删除本列…"; onTriggered: { deleteConfirm.listId=center.selected.id; deleteConfirm.fieldIndex=panel.selectedField; deleteConfirm.open() } }
-    }
-    Dialog {
-        id: deleteConfirm; anchors.centerIn: parent; modal: true; title: "删除消息字段"; standardButtons: Dialog.Yes | Dialog.No
-        property int listId: 0
-        property int fieldIndex: -1
-        Label { text: "从可继续发送人员中删除所选字段？已发送和待核实人员的内容与发送记录保持不变。"; wrapMode: Text.Wrap }
-        onAccepted: { if(listId===center.selected.id && center.removeField(fieldIndex)) selectedField=-1 }
+        id: recipientMenu
+        MenuItem { text: "编辑所选消息"; enabled: panel.selectedField>=0 && panel.selectedField<(panel.selectedRow.items || []).length; onTriggered: panel.openCellEditor(panel.selectedRow,panel.selectedField) }
+        MenuItem { text: "查看或编辑此人全部消息"; onTriggered: panel.openEditor() }
     }
     Dialog {
         id: cellDialog; objectName: "groupSingleCellDialog"; anchors.centerIn: parent; modal: true

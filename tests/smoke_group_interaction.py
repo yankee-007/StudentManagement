@@ -50,6 +50,13 @@ def run():
 
         def item(name):
             result = window.findChild(QObject, name)
+            def visual_item(parent):
+                if parent.objectName()==name:return parent
+                for child in parent.childItems():
+                    found=visual_item(child)
+                    if found:return found
+                return None
+            if result is None:result=visual_item(window.contentItem())
             assert result is not None, name
             return result
 
@@ -73,22 +80,44 @@ def run():
         panel = item('recipientMessages')
         capture('group-center.png')
 
-        # Explicit column entry opens the existing editor; cancellation writes nothing.
+        # The unified row is always visible; reloading a draft writes nothing.
+        assert item('groupDefaultRow').property('visible')
+        assert window.findChild(QObject, 'groupBulkEditButton') is None
+        assert window.findChild(QObject, 'groupColumnSelector') is None
+        assert window.findChild(QObject, 'groupColumnMessageDialog') is None
         before = [r['content'] for r in g.rows]
-        click('groupBulkEditButton')
-        dialog = item('groupColumnMessageDialog')
-        assert dialog.property('visible') and dialog.property('impactCount') == 2
-        item('groupColumnTemplateInput').setProperty('text', '取消的修改')
-        invoke(dialog, 'close')
+        item('groupDefaultText0').setProperty('text', '取消的修改')
+        assert panel.property('defaultsDirty')
+        click('groupResetDefaults')
         assert [r['content'] for r in g.rows] == before
-        click('groupBulkEditButton')
-        item('groupColumnTemplateInput').setProperty('text', '{姓名}，本周资料已经更新。')
-        capture('group-bulk-edit.png')
-        click('saveGroupColumnField')
+        item('groupDefaultText0').setProperty('text', '{姓名}，本周资料已经更新。')
+        capture('group-default-edit.png')
+        click('groupApplyDefaults')
         content = [json.loads(r['content']) for r in g.rows]
         assert content[0][0]['text'] == '张三的个人消息'
         assert content[1][0]['text'] == '李四，本周资料已经更新。'
         assert all(r[1]['type'] == 'file' and r[2]['text'] == '完成后请回复，感谢配合。' for r in content)
+
+        # Add/remove operate on the draft; an empty addition blocks preview and list switching.
+        click('groupAddDefault')
+        item('groupDefaultText3').setProperty('text', '新增-{姓名}')
+        click('groupApplyDefaults')
+        assert all(len(json.loads(r['content'])) == 4 for r in g.rows)
+        click('groupRemoveDefault')
+        click('groupApplyDefaults')
+        assert all(len(json.loads(r['content'])) == 3 for r in g.rows)
+        click('groupAddDefault')
+        click('groupPreviewButton')
+        assert not item('groupSendPreview').property('visible')
+        assert panel.property('defaultsDirty') and g.pendingFieldCount == 3
+        invoke(window, 'switchModule', 1)
+        assert window.property('moduleIndex') == 4
+        click('groupResetDefaults')
+
+        # File selection happens directly in the same row and is validated before apply.
+        with patch.object(g, 'chooseMessageFile', return_value=str(attachment)):
+            click('groupDefaultFile1')
+        assert json.loads(g.rows[1]['content'])[1]['path'] == str(attachment)
 
         # An ordinary button edits precisely the selected person's selected field.
         panel.setProperty('selectedRow', g.pendingModel.get(1))
@@ -100,8 +129,11 @@ def run():
         assert json.loads(g.rows[1]['content'])[2]['text'] == '李四的补充说明'
         assert json.loads(g.rows[0]['content'])[2]['text'] == '完成后请回复，感谢配合。'
 
-        # Left settings save automatically and the single preview action stays beside the heading.
+        # Sending settings live behind the explicit configuration entry and still auto-save.
+        assert not item('groupSettingsPanel').property('visible')
+        click('groupConfigurationButton')
         assert item('groupSettingsPanel').property('visible')
+        capture('group-configuration.png')
         assert item('groupPreviewButton').parent().property('visible')
         assert window.findChild(QObject, 'saveGroupSettings') is None
         assert window.findChild(QObject, 'resetGroupSettings') is None
@@ -110,6 +142,7 @@ def run():
         single_send = item('groupSingleSend')
         assert single_send.property('text') == '每条消息单独发送'
         assert single_send.property('enabled') and single_send.property('y') > confirm_send.property('y')
+        click('groupCloseConfiguration')
         # An empty contact prefix only warns: the preview can still continue.
         click('groupPreviewButton')
         reminder = item('groupEmptyPrefixReminder')
@@ -160,6 +193,7 @@ def run():
         # Small-window layout still exposes primary actions and preview controls.
         window.resize(720, 480)
         QTest.qWait(100)
+        capture('group-center-small.png')
         assert item('groupPreviewButton').property('visible')
         assert item('groupRecipientList').height() > 70
         click('groupPreviewButton')
@@ -188,32 +222,50 @@ def run():
         g._worker = object()
         g._notify_activity()
         app.processEvents()
-        assert not item('groupBulkEditButton').property('enabled')
+        assert not item('groupApplyDefaults').property('enabled')
+        assert not item('groupAddDefault').property('enabled')
+        assert not item('groupDefaultText0').property('enabled')
+        assert not item('groupConfigurationButton').property('enabled')
         assert not item('groupContactPrefix').property('enabled')
         assert not item('groupPreviewButton').property('enabled')
         g._worker = None
         g._notify_activity()
 
+        # Dark mode keeps both the unified row and the roster readable.
+        window.resize(1250, 800)
+        assert b.settingsModule.setAppearanceMode('dark')
+        QTest.qWait(100)
+        capture('group-center-dark.png')
+        window.resize(720, 480)
+        QTest.qWait(100)
+        capture('group-center-dark-small.png')
+        assert b.settingsModule.setAppearanceMode('light')
+
         # A quick list switch flushes edits to the old list, never the new one.
         assert g.createCustom('另一份名单', '甲|第二份消息')
         other_id = g.selected['id']
         item('groupContactPrefix').setProperty('text', '第二份前缀-')
+        item('groupDefaultText0').setProperty('text', '第二份统一消息-{姓名}')
         invoke(item('groupCenterPage'), 'selectList', 1)
         assert g.store.get(other_id)['prefix'] == '第二份前缀-'
+        assert json.loads(g.store.rows(other_id)[0]['content'])[0]['text'] == '第二份统一消息-甲'
         assert g.selected['id'] == list_id
         assert item('groupContactPrefix').property('text') == '测试班-'
 
         # Closing before the debounce expires still saves the active list's edit.
         item('groupContactPrefix').setProperty('text', '关闭前前缀-')
+        item('groupDefaultText2').setProperty('text', '关闭前默认消息')
         window.close()
         app.processEvents()
         assert g.store.get(list_id)['prefix'] == '关闭前前缀-'
+        assert json.loads(g.store.rows(list_id)[0]['content'])[2]['text'] == '关闭前默认消息'
+        assert json.loads(g.store.rows(list_id)[1]['content'])[2]['text'] == '李四的补充说明'
         assert not warnings, warnings
         driver.assert_not_called()
         import shiboken6
         shiboken6.delete(engine)
         shiboken6.delete(b)
-        print('Group interaction smoke OK: batch/personal edits, cancel, settings, ordered preview, small layout, activity guards; no sending')
+        print('Group interaction smoke OK: unified defaults, draft cancellation/add/remove, personal edits, settings, ordered preview, light/dark/small layout, activity guards; no sending')
 
 
 if __name__ == '__main__':

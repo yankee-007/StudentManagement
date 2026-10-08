@@ -21,7 +21,7 @@ ApplicationWindow {
         Qt.inputMethod.commit()
         if (!backend.dailyWorkspace.flushEditor()) { close.accepted=false; return }
         if (!wf.flushFeedback()) { close.accepted=false; return }
-        if (root.moduleIndex === 4 && !backend.groupCenter.active) groupCenterPage.saveSettings()
+        if (root.moduleIndex === 4 && !backend.groupCenter.active && !groupCenterPage.saveSettings()) { close.accepted=false; return }
         if (root.moduleIndex === 5 && !backend.remarkRenamer.active) remarkRenamerPage.saveOptions()
         if (backend.contactOpener.active) { close.accepted=false; snack.text="正在打开联系人，请等待完成后关闭"; snack.open() }
         else if (sender.active) { close.accepted=false; sender.stop(); snack.text="正在结束发送，请等待当前联系人处理完成后再关闭"; snack.open() }
@@ -34,6 +34,7 @@ ApplicationWindow {
         Qt.inputMethod.commit()
         // 页面切换只隐藏承诺编辑器，保留草稿；学员/班级切换及关闭仍校验保存。
         if (!wf.flushFeedback()) return
+        if (moduleIndex === 4 && index !== 4 && !backend.groupCenter.active && !groupCenterPage.saveSettings()) return
         moduleIndex = index
         if (index === 1) backend.profilesModule.activate()
         else if (index === 0) wf.activate()

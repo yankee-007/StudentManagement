@@ -124,6 +124,39 @@ class GroupStore:
             if conn.execute("SELECT 1 FROM recipients WHERE list_id=? AND state='发送中'",(list_id,)).fetchone():raise ValueError('名单正在发送，不能修改参数')
             conn.execute('UPDATE lists SET prefix=?,options=? WHERE id=?',(prefix,json.dumps(options),list_id))
 
+    def save_default_row(self,list_id,fields,template,override_personal=False):
+        """Apply a complete draft in one transaction, retaining unchanged variants."""
+        with self.connect() as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            rows=list(conn.execute('SELECT * FROM recipients WHERE list_id=? ORDER BY id',(list_id,)))
+            if any(row['state']==source.RUNNING for row in rows):raise ValueError('发送期间不能修改消息')
+            editable=[row for row in rows if row['state'] not in source.PROTECTED]
+            if not editable:raise ValueError('当前没有可修改的待发送人员')
+            updates=[]
+            for row in editable:
+                old=json.loads(row['content']) or []
+                if not old and row['message']:old=[dict(type='text',text=row['message'])]
+                variables=json.loads(row['learning_data'] or '{}').get('profile_fields',{})
+                content=[]
+                for field in fields:
+                    index=field['sourceIndex']
+                    prior=old[index] if 0<=index<len(old) else None
+                    replacement=field['item']
+                    if replacement is None or (prior and prior.get('personal_override') and not override_personal):
+                        if prior:content.append(prior)
+                        continue
+                    if replacement['type']=='text':
+                        raw=replacement['text']
+                        item=render_content([replacement],row['name'],row['base_message'],variables)[0]
+                        _ensure_resolved(item['text'],variables,row['name'],variables.get('学号'))
+                        content.append(dict(type='text',text=item['text'],template=raw))
+                    else:content.append(dict(replacement,template=replacement['path']))
+                updates.append((json.dumps(content,ensure_ascii=False),describe(content),row['id']))
+            # Validate every recipient before writing any content or template.
+            conn.executemany('UPDATE recipients SET content=?,message=? WHERE id=?',updates)
+            conn.execute('UPDATE lists SET content_template=? WHERE id=?',(json.dumps(template,ensure_ascii=False),list_id))
+        return len(updates)
+
     def save_recipient_content(self,list_id,recipient_id,fields):
         content=prepare_content(fields)
         with self.connect() as conn:

@@ -62,16 +62,18 @@ def run():
         panel=window.findChild(QObject,'recipientMessages')
         panel.setProperty('selectedRow',b.groupCenter.pendingModel.get(0))
         selected_id=b.groupCenter.pendingModel.get(0)['id']
-        column_dialog=window.findChild(QObject,'groupColumnMessageDialog')
-        QMetaObject.invokeMethod(panel,'openColumnEditor',Q_ARG('QVariant',b.groupCenter.pendingFieldCount))
-        assert not column_dialog.property('visible')  # Status/detail headers are not message columns.
-        QMetaObject.invokeMethod(panel,'openColumnEditor',Q_ARG('QVariant',0));QTest.qWait(100)
-        assert column_dialog.property('visible')
-        template_input=window.findChild(QObject,'groupColumnTemplateInput')
+        assert window.findChild(QObject,'groupColumnMessageDialog') is None
+        def visual_item(parent,name):
+            if parent.objectName()==name:return parent
+            for child in parent.childItems():
+                found=visual_item(child,name)
+                if found:return found
+            return None
+        template_input=visual_item(window.contentItem(),'groupDefaultText0')
         template_input.setProperty('text','统一消息-{姓名}')
-        save_column=window.findChild(QObject,'saveGroupColumnField')
-        QMetaObject.invokeMethod(save_column,'click');QTest.qWait(100)
-        assert not column_dialog.property('visible')
+        save_defaults=window.findChild(QObject,'groupApplyDefaults')
+        QMetaObject.invokeMethod(save_defaults,'click');QTest.qWait(100)
+        assert not panel.property('defaultsDirty')
         assert all(r['message'].startswith('统一消息-'+r['name']) for r in b.groupCenter.rows)
         selected=panel.property('selectedRow')
         selected=selected.toVariant() if hasattr(selected,'toVariant') else selected
@@ -116,7 +118,7 @@ def run():
         QMetaObject.invokeMethod(editor,'close')
         window.close();app.processEvents()
         assert not warnings,warnings
-        print('Group center selection, tabs, column and cell editors, batch copy and read-only sent tab: OK')
+        print('Group center selection, tabs, unified default row and cell editors, batch copy and read-only sent tab: OK')
 
 
 if __name__=='__main__':run()
