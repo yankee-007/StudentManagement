@@ -28,7 +28,13 @@ def run():
     engine.rootContext().setContextProperty('backend',b)
     engine.load(QUrl.fromLocalFile(str(Path('qml/Main.qml').resolve())))
     assert engine.rootObjects(),errors
-    window=engine.rootObjects()[0];window.setProperty('moduleIndex',8);window.show();QTest.qWait(150)
+    window=engine.rootObjects()[0];window.show();QTest.qWait(150)
+    # Opening the daily page must not trap navigation to any other module.
+    with patch.object(b.termsModule,'activate'),patch.object(b.liveAbsence,'activate'):
+        for index in (8,0,8,1,8,2,8,3,8,4,8,5,8,6,8,7,8):
+            click(window,visual(window.contentItem(),f'moduleButton{index}'))
+            assert window.property('moduleIndex')==index,(index,d.summary)
+    assert not d._drafts
     page=visual(window.contentItem(),'dailyWorkspacePage')
     assert page is not None and page.isVisible()
     d.selectTab(0);d.selectRow(0);QTest.qWait(40)
@@ -71,6 +77,15 @@ def run():
     assert d.selectedId==old and due.property('text')=='invalid'
     assert not window.close()
     assert window.isVisible()
+    # Incomplete input stays in the same editor while other modules remain usable.
+    draft_key=visual(page,'dailyEditor').property('loadedKey')
+    draft_token=visual(page,'dailyEditor').property('editorToken')
+    with patch.object(b.termsModule,'activate'),patch.object(b.liveAbsence,'activate'):
+        for index in (0,1,2,3,4,5,6,7,8):
+            click(window,visual(window.contentItem(),f'moduleButton{index}'))
+            assert window.property('moduleIndex')==index,(index,d.summary)
+            assert due.property('text')=='invalid' and d.selectedId==old
+            assert d.hasDraft(draft_key,draft_token)
     key=d.detailsFor(old)['key'];d.discardDraft(key)
     due.setProperty('text','2099-12-31 20:00')
     assert d.flushEditor()

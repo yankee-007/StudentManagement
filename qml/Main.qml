@@ -31,7 +31,7 @@ ApplicationWindow {
     property int moduleIndex: 0
     function switchModule(index) {
         Qt.inputMethod.commit()
-        if (!backend.dailyWorkspace.flushEditor()) return
+        // 页面切换只隐藏承诺编辑器，保留草稿；学员/班级切换及关闭仍校验保存。
         if (!wf.flushFeedback()) return
         moduleIndex = index
         if (index === 1) backend.profilesModule.activate()
