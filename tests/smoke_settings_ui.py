@@ -28,14 +28,23 @@ vault = {}
 with tempfile.TemporaryDirectory() as folder, \
         patch('keyring.get_password', side_effect=lambda service, user: vault.get((service, user))), \
         patch('keyring.set_password', side_effect=lambda service, user, password: vault.update({(service, user): password})):
-    backend = Backend(Path(folder) / 'test.db')
+    path = Path(folder) / 'test.db'
+    backend = Backend(path)
     settings = backend.settingsModule
     assert settings.saveAccount('completion', 'saved-completion', 'saved-password')
-    backend.workflow._classes[0]['term_id'] = '551'
-    settings._homework_classes = [{'id': 23, 'name': '正式课py169', 'course_ids': [2]},
-                                  {'id': 31, 'name': '正式课py175', 'course_ids': [5]}]
-    settings._classes_loaded(settings._homework_classes)
+    assert settings.saveAccount('homework', 'saved-homework', 'saved-password')
+    terms = [{'termId': 551, 'termName': '测试完课班一', 'termNo': 'P2026169'},
+             {'termId': 564, 'termName': '测试完课班二', 'termNo': 'P2026175'},
+             {'termId': 578, 'termName': '测试完课班三', 'termNo': 'P2026180'}]
+    backend.termsModule._accept('terms', terms)
+    homework_classes = [{'id': 23, 'name': '测试作业班一', 'course_ids': [2]},
+                        {'id': 31, 'name': '测试作业班二', 'course_ids': [5, 9]}]
+    settings._classes_loaded(homework_classes)
     assert settings.saveBinding('551', 23), settings.notice
+    assert settings.saveBinding('564', 31, 9), settings.notice
+    # 从同一临时库重建 Backend，实际覆盖启动恢复。
+    backend = Backend(path)
+    settings = backend.settingsModule
 
     engine = QQmlApplicationEngine()
     warnings = []
@@ -54,6 +63,15 @@ with tempfile.TemporaryDirectory() as folder, \
 
     def item(name):
         found = window.findChild(QObject, name)
+        if found is None:
+            def visual(parent):
+                if parent.objectName() == name:
+                    return parent
+                for child in parent.childItems():
+                    match = visual(child)
+                    if match is not None:
+                        return match
+            found = visual(window.contentItem())
         assert found is not None, name
         return found
 
@@ -126,9 +144,13 @@ with tempfile.TemporaryDirectory() as folder, \
     output.mkdir(parents=True, exist_ok=True)
     assert window.grabWindow().save(str(output / 'wide.png'))
 
-    course = item('settingCourseBox')
-    assert not course.property('visible'), '单课程班级不应显示课程下拉框'
-    assert item('settingClassBox').property('currentIndex') == 0, '重启后没有带出已确认的作业班级'
+    assert item('bindingRows').property('count') == len(terms), '绑定行数应跟随完课平台班期数量'
+    assert window.findChild(QObject, 'settingTermBox') is None, '完课班期应固定展示'
+    course = item('settingCourseBox_551')
+    assert not course.isVisible(), '单课程班级不应显示课程下拉框'
+    assert item('settingClassBox_551').property('currentIndex') == 1, '重启后没有带出已确认的作业班级'
+    assert item('settingClassBox_578').property('currentIndex') == 0, '未绑定班期必须留空，不能默认选作业班级'
+    assert item('settingCourseBox_564').property('currentIndex') == 1, '多课程绑定没有恢复已保存课程'
     binding = settings.bindingFor('551')
     assert binding['class_id'] == 23 and binding['course_id'] == 2, binding
 
@@ -137,10 +159,68 @@ with tempfile.TemporaryDirectory() as folder, \
     QTest.qWait(50)
     window.switchModule(3)
     QTest.qWait(150)
-    assert item('settingClassBox').property('currentIndex') == 0, '重新进入设置页后没有带出对应关系'
+    assert item('settingClassBox_551').property('currentIndex') == 1, '重新进入设置页后没有带出对应关系'
     settings.refresh()
     QTest.qWait(100)
-    assert item('settingClassBox').property('currentIndex') == 0, '刷新状态后对应关系被清空'
+    assert item('settingClassBox_551').property('currentIndex') == 1, '刷新状态后对应关系被清空'
+
+    def choose(control, index):
+        click(control)
+        QTest.keyClick(window, Qt.Key_Home)
+        for _ in range(index):
+            QTest.keyClick(window, Qt.Key_Down)
+        QTest.keyClick(window, Qt.Key_Return)
+        QTest.qWait(50)
+        assert control.property('currentIndex') == index, (control.objectName(), control.property('currentIndex'), index)
+
+    # 使用真实下拉交互，选择后无需确认立即保存；清空仅作用于该行。
+    choose(item('settingClassBox_551'), 2)
+    assert settings.bindingFor('551')['class_id'] == 31
+    assert settings.bindingFor('551')['course_id'] == 5
+    choose(item('settingCourseBox_551'), 1)
+    assert settings.bindingFor('551')['course_id'] == 9
+    choose(item('settingClassBox_564'), 0)
+    assert not settings.bindingFor('564')
+    assert settings.bindingFor('551')['course_id'] == 9
+    choose(item('settingClassBox_578'), 1)
+    assert settings.bindingFor('578')['class_id'] == 23
+    choose(item('settingClassBox_578'), 0)
+    assert not settings.bindingFor('578')
+
+    # 不允许无课程班级覆盖已保存的绑定；错误贴在所属班期下。
+    settings._classes_loaded(homework_classes + [{'id': 40, 'name': '测试无课程班', 'course_ids': []}])
+    control = item('settingClassBox_551')
+    click(control)
+    QTest.keyClick(window, Qt.Key_End)
+    QTest.keyClick(window, Qt.Key_Return)
+    QTest.qWait(50)
+    assert settings.bindingFor('551')['course_id'] == 9
+    assert control.property('currentIndex') == 2, '保存失败必须恢复原绑定'
+    assert '课程' in item('bindingError_551').property('text')
+    choose(control, 2)
+    assert settings.bindingFor('551')['course_id'] == 9, '重复选择同一班级不应重置已保存课程'
+
+    # 目录暂缺仍显示旧绑定，并且可以在没有目录时清空。
+    settings._classes_loaded([])
+    QTest.qWait(50)
+    assert '已保存，目录暂缺' in item('settingClassBox_551').property('currentText')
+    assert settings.bindingFor('551')['course_id'] == 9
+    choose(item('settingClassBox_551'), 0)
+    assert not settings.bindingFor('551'), '目录缺失时也应允许清空旧绑定'
+    settings._classes_loaded(homework_classes)
+    QTest.qWait(50)
+    choose(item('settingClassBox_551'), 2)
+    choose(item('settingCourseBox_551'), 1)
+
+    # 平台列表刷新时增删行，历史绑定保留在数据库，不增加额外界面行。
+    backend.termsModule._accept('terms', terms[1:])
+    QTest.qWait(50)
+    assert item('bindingRows').property('count') == 2
+    assert settings.bindingFor('551')['course_id'] == 9
+    backend.termsModule._accept('terms', terms)
+    QTest.qWait(50)
+    assert item('bindingRows').property('count') == 3
+    assert item('settingCourseBox_551').property('currentIndex') == 1
 
     scroll = item('settingsScroll')
     assert scroll.property('contentHeight') > scroll.property('height'), \
@@ -154,9 +234,8 @@ with tempfile.TemporaryDirectory() as folder, \
         QTest.qWait(30)
     assert scroll.property('contentY') > 0, '滚轮没有滚动设置页'
 
-    # 下拉框只列出一个课程时滚轮也应滚动页面，而不是切换选项。
-    term = item('settingTermBox')
-    term.setProperty('currentIndex', 0)
+    # 光标停在作业班级下拉框上时滚轮滚动页面，不能改选项。
+    term = item('settingClassBox_551')
     # The sidebar and larger controls change the form's geometry. Bring the
     # actual combo into the viewport before sending wheel events over it.
     term_y = term.mapToScene(QPointF(0, 0)).y()
@@ -171,7 +250,17 @@ with tempfile.TemporaryDirectory() as folder, \
             QPoint(0, -120), Qt.NoButton, Qt.NoModifier, Qt.ScrollUpdate, False))
         QTest.qWait(30)
     assert scroll.property('contentY') > before_combo_scroll, '光标停在班期下拉框上时页面无法滚动'
-    assert term.property('currentIndex') == 0, '滚轮不应改动画期下拉框的选中项'
+    assert term.property('currentIndex') == 2, '滚轮不应改动作业班级下拉框的选中项'
+
+    window.resize(1280, 900)
+    QTest.qWait(100)
+    click(item('settingClassBox_551'))
+    QTest.keyClick(window, Qt.Key_Escape)
+    assert window.grabWindow().save(str(output / 'bindings-wide.png'))
+    settings.setAppearanceMode('dark')
+    QTest.qWait(80)
+    assert window.grabWindow().save(str(output / 'bindings-dark.png'))
+    settings.setAppearanceMode('light')
 
     # 窄窗口改为上下排列，内容依旧可以滚动。
     window.resize(760, 700)
@@ -179,7 +268,7 @@ with tempfile.TemporaryDirectory() as folder, \
     cards = [item('completionAccountCard'), item('homeworkAccountCard')]
     assert abs(cards[0].property('x') - cards[1].property('x')) < 1, '窄窗口没有改为上下排列'
     assert cards[1].property('y') > cards[0].property('y'), '窄窗口账号卡片重叠'
-    assert cards[0].property('width') > 600, '窄窗口账号卡片没有铺满'
+    assert abs(cards[0].property('width') - scroll.property('contentWidth')) < 1, '窄窗口账号卡片没有铺满'
     assert scroll.property('contentWidth') == cards[0].property('width') or cards[0].property('width') <= scroll.property('contentWidth') + 1
 
     # Narrow stacked cards still accept mouse focus and continuous keyboard input.
@@ -190,6 +279,33 @@ with tempfile.TemporaryDirectory() as folder, \
         QTest.qWait(50)
         enter(control, username)
     assert window.grabWindow().save(str(output / 'narrow.png'))
+    click(item('settingClassBox_551'))
+    QTest.keyClick(window, Qt.Key_Escape)
+    assert not item('bindingRow_551').property('sideBySide'), '窄窗口绑定行必须纵向排列'
+    assert window.grabWindow().save(str(output / 'bindings-narrow.png'))
+
+    # 新建引擎/后端模拟再次启动，界面也应恢复修改与留空。
+    assert not warnings, warnings
+    window.close()
+    engine.deleteLater()
+    app.processEvents()
+    backend = Backend(path)
+    settings = backend.settingsModule
+    engine = QQmlApplicationEngine()
+    engine.warnings.connect(lambda items: warnings.extend(i.toString() for i in items))
+    engine.rootContext().setContextProperty('backend', backend)
+    engine.rootContext().setContextProperty('studentModel', backend.studentModel)
+    engine.load(QUrl.fromLocalFile(str(Path('qml/Main.qml').resolve())))
+    assert engine.rootObjects(), warnings
+    window = engine.rootObjects()[0]
+    window.show()
+    window.switchModule(3)
+    QTest.qWait(100)
+    assert item('bindingRows').property('count') == 3
+    assert item('settingClassBox_551').property('currentIndex') == 2
+    assert item('settingCourseBox_551').property('currentIndex') == 1
+    assert item('settingClassBox_564').property('currentIndex') == 0
+    assert item('settingClassBox_578').property('currentIndex') == 0
 
     assert not warnings, warnings
     engine.deleteLater()

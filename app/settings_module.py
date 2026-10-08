@@ -14,6 +14,9 @@ HOMEWORK_CLASSES_KEY = 'homework_classes'
 class SettingsModule(QObject):
     changed = Signal()
     appearanceChanged = Signal()
+    termClassesChanged = Signal()
+    homeworkClassesChanged = Signal()
+    bindingsChanged = Signal()
 
     def __init__(self, owner):
         super().__init__(owner)
@@ -23,12 +26,15 @@ class SettingsModule(QObject):
         self._accounts={}
         self._homework_classes=[]
         self._homework_admin=''
+        self._term_classes=[]
         self._busy=False
         self._task=None
         self._verification={}
         self._verifying_platform=''
         self._notice='此页保存的账号写入本工具数据库，密码写入当前 Windows 用户的凭据管理器。'
         self._load_saved_classes()
+        self.owner.termsModule.changed.connect(self._refresh_term_classes)
+        self.owner.workflow.changed.connect(self._refresh_term_classes)
         app=QCoreApplication.instance()
         if app:app.aboutToQuit.connect(self.shutdown)
         self.refresh()
@@ -62,7 +68,7 @@ class SettingsModule(QObject):
     @Property(str,notify=changed)
     def notice(self):return self._notice
 
-    @Property('QVariantList',notify=changed)
+    @Property('QVariantList',notify=homeworkClassesChanged)
     def homeworkClasses(self):return self._homework_classes
 
     @Property(bool,notify=changed)
@@ -123,9 +129,23 @@ class SettingsModule(QObject):
     def _release_task(self):
         if self.sender() is self._task:self._task=None
 
-    @Property('QVariantList',notify=changed)
+    def _binding_terms(self):
+        # 平台缓存（包括明确的空列表）决定行数；旧库尚无缓存时兼容登记班期。
+        if self.owner.workflow.registry.get_setting('remote_terms', ''):
+            return [{'termId':str(r['termId']), 'name':f"{r['termName']} · {r['termNo']}"}
+                    for r in self.owner.termsModule._terms]
+        return [{'termId':str(r['term_id']), 'name':r['name']}
+                for r in self.owner.workflow._classes if r.get('term_id')]
+
+    def _refresh_term_classes(self):
+        rows = self._binding_terms()
+        if rows != self._term_classes:
+            self._term_classes = rows
+            self.termClassesChanged.emit()
+
+    @Property('QVariantList',notify=termClassesChanged)
     def termClasses(self):
-        return [{'termId':r.get('term_id') or '', 'name':r['name']} for r in self.owner.workflow._classes if r.get('term_id')]
+        return self._term_classes
 
     @Slot(str,result='QVariantMap')
     def bindingFor(self,term_id):
@@ -153,8 +173,9 @@ class SettingsModule(QObject):
     def _classes_loaded(self,classes):
         self._homework_classes=classes;self._busy=False
         self._homework_admin=self.owner.workflow.registry.get_setting(ACCOUNT_KEYS['homework'],'')
-        self._persist_classes()
-        self._notice=f'已获取 {len(classes)} 个作业平台班级；请选择并确认对应关系。'
+        if self._persist_classes():
+            self._notice=f'已获取 {len(classes)} 个作业平台班级；选择对应班级后自动保存，可留空。'
+        self.homeworkClassesChanged.emit()
         self.changed.emit()
 
     def _classes_failed(self,message):
@@ -162,10 +183,16 @@ class SettingsModule(QObject):
 
     @Slot(str,int,int,result=bool)
     def saveBinding(self,term_id,class_id,course_id=0):
-        """课程由平台主课程决定：调用方传 0 时自动绑定该班级的主课程。"""
+        """class_id=0 清空；course_id=0 自动绑定该班级的主课程。"""
         try:
-            if not term_id or not any(str(r.get('term_id'))==str(term_id) for r in self.owner.workflow._classes):
-                raise ValueError('请选择追光鲸鱼班期。')
+            if not term_id or not any(r['termId']==str(term_id) for r in self._binding_terms()):
+                raise ValueError('请选择有效的完课平台班期。')
+            if class_id == 0:
+                with self.owner.workflow.registry.db.connect() as conn:
+                    conn.execute('CREATE TABLE IF NOT EXISTS homework_bindings (term_id TEXT PRIMARY KEY, class_id INTEGER NOT NULL, course_id INTEGER NOT NULL, class_name TEXT NOT NULL)')
+                    conn.execute('DELETE FROM homework_bindings WHERE term_id=?', (str(term_id),))
+                self._notice='该班期已设为未绑定并保存。'
+                self.bindingsChanged.emit();self.changed.emit();return True
             entry=next((r for r in self._homework_classes if r['id']==class_id),None)
             if not entry:
                 raise ValueError('请选择有效的作业班级。')
@@ -180,12 +207,17 @@ class SettingsModule(QObject):
                 conn.execute('CREATE TABLE IF NOT EXISTS homework_bindings (term_id TEXT PRIMARY KEY, class_id INTEGER NOT NULL, course_id INTEGER NOT NULL, class_name TEXT NOT NULL)')
                 conn.execute('INSERT INTO homework_bindings(term_id,class_id,course_id,class_name) VALUES(?,?,?,?) ON CONFLICT(term_id) DO UPDATE SET class_id=excluded.class_id,course_id=excluded.course_id,class_name=excluded.class_name',
                              (str(term_id),class_id,course_id,entry['name']))
-            self._notice='班期对应关系已确认并保存。';self.changed.emit();return True
+            self._notice='班期对应关系已保存，重启后沿用。'
+            self.bindingsChanged.emit();self.changed.emit();return True
         except ValueError as exc:
             self._notice=str(exc);self.changed.emit();return False
+        except Exception:
+            self._notice='班期对应关系保存失败，请重试。'
+            self.changed.emit();return False
 
     @Slot()
     def refresh(self):
+        self._refresh_term_classes()
         accounts={}
         try:
             for platform,key in ACCOUNT_KEYS.items():
@@ -215,12 +247,13 @@ class SettingsModule(QObject):
             self._homework_classes=[]
 
     def _persist_classes(self):
-        if not self._homework_classes:return
         try:
             self.owner.workflow.registry.set_setting(HOMEWORK_CLASSES_KEY,
                 json.dumps({'admin':self._homework_admin,'classes':self._homework_classes},ensure_ascii=False))
+            return True
         except Exception:
             self._notice='作业班级目录已获取，但未能写入本地缓存；重启后需要重新获取。'
+            return False
 
     @Slot(str,str,str,result=bool)
     def saveAccount(self,platform,username,password):
@@ -238,6 +271,7 @@ class SettingsModule(QObject):
             self._notice='已保存。此页输入的密码已写入 Windows 凭据管理器，下次从界面获取数据时生效。'
             if platform=='homework' and username!=self._homework_admin:
                 self._load_saved_classes()
+                self.homeworkClassesChanged.emit()
             self.refresh()
             return True
         except Exception as exc:

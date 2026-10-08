@@ -23,7 +23,7 @@ Python、PySide6/Qt Quick QML（Fusion）、SQLite；requests/BeautifulSoup/lxml
 - 群发中心：独立名单、多条文字/文件、逐人/整列编辑、左侧参数自动保存、预览与显式启动、暂停/继续/结果核实；单个联系人发送失败不中止本轮，失败者留在待处理。
 - 备注批改：按班期把企微联系人备注批量改为「前缀＋姓名」；姓名搜索 + `Ctrl+O` 浮窗标题判定，已符合者跳过，其余交 `wecom_remark.py` 修改并回写备注对应表。
 - 未进直播间：按节次读取平台「直播观看时长」，把 `null`（没有观看记录）的在读、微信=是、非免催学员筛成名单，一键生成群发名单；每节课只提醒一次。
-- 设置：亮色／暗色外观切换（即时生效、全班共用、重启记忆）、两平台账号、登录验证、班期与作业班级/课程绑定。
+- 设置：亮色／暗色外观切换（即时生效、全班共用、重启记忆）、两平台账号、登录验证；按完课平台缓存班期逐行固定展示，选择对应作业班级（可留空），立即保存并重启恢复，单课程自动绑定。
 
 ## 4. 核心模块
 
@@ -73,7 +73,7 @@ Python ↔ QML 通过 Backend 暴露的 QObject、Property/Signal/Slot 和 DictT
 
 ## 7. 数据与持久化
 
-默认 Qt 本地应用目录中有 followup.db；原主库承担班级登记/平台设置/班期缓存，新班一般用同目录 class_term_<termId>.db，已有班沿用旧路径。group_messaging.db 独立保存群发。密码由 keyring 保存，登录缓存位于 platform_sessions/。作业平台班级目录按作业账号缓存在主库 settings.homework_classes，班期与作业班级的对应关系存 homework_bindings（课程 ID 由平台主课程自动写入）。
+默认 Qt 本地应用目录中有 followup.db；原主库承担班级登记/平台设置/班期缓存，新班一般用同目录 class_term_<termId>.db，已有班沿用旧路径。group_messaging.db 独立保存群发。密码由 keyring 保存，登录缓存位于 platform_sessions/。作业平台班级目录按作业账号缓存在主库 settings.homework_classes，空目录同样保存；班期与作业班级的对应关系存 homework_bindings（课程 ID 由平台主课程自动写入，多课程可选择）。选择和留空立即保存；留空删除该班期绑定，不影响其他班期，目录暂缺仍显示已保存名称。绑定行以 remote_terms 为准；只有旧库没有平台缓存时才兼容登记班期。
 
 每班主要表：class_roster、profiles、额外字段定义/值、exemptions、reminder_data、campaigns/campaign_students、campaign_feedback/campaign_drafts/campaign_dashboards/campaign_followup_status、student_contacts/wecom_remark_scan、live_reminders。students 等兼容表仍保留。构造 Database 会迁移，不是只读探针；变更格式须检查旧库兼容。未进直播间不缓存直播明细，只把「哪一节提醒过谁」写进本班库。
 
@@ -103,7 +103,7 @@ Python ↔ QML 通过 Backend 暴露的 QObject、Property/Signal/Slot 和 DictT
 - 旧业务审计 A01–A07 已修复，不是现存缺陷清单。请假分母的早期口径分歧未发现新的最终确认，当前代码/测试包含在读免催者；修改口径前再确认。
 - tests/smoke_term_ui.py 与 tests/smoke_profile_ui.py 仍断言已不存在的 showStudentId / showStudentIdToggle（HEAD 与当前 qml/ 均无该属性），会在这两步失败；属旧 UI 遗留的过期断言，与催办/刷新无关，本次未修。smoke_profile_ui 还依赖本机 C:/Users/AAA/Desktop/学员画像表.xlsx。
 - QML 初始化/销毁瞬间会打印 Cannot read property … of null（backend 尚未注入或已销毁时绑定求值），与既有行为一致，不影响加载，未顺手清理。
-- 设置页 ComboBox 的滚轮守卫（PageWheelScroll）只接在设置页三个下拉框上；其它页面需要滚动时复用同一组件，未做全局改造。
+- 设置页每个作业班级／多课程下拉框均接入 SettingsWheelGuard，滚轮滚动整页而不改选项；未做全局改造。
 - 筛选面板（ProfileFilterDialog）的选项只渲染“当前还有匹配行”的值：某个已勾选值在数据变化后 0 匹配时，该条目不再出现在面板里，但规则仍在生效（表头带标记、表格可能为 0 行），只能靠面板「重置」或「清除筛选」自救。ADR-007 未处理这一条。
 - 工作台隐藏列（「管理字段」取消勾选，列宽为 0）仍继续参与筛选，界面没有提示；画像表格相反，列被隐藏/删除时会清掉该列筛选。两个表格的列生命周期仍不一致。
 - 概览完课次数的「完成人数」「本周是否有退课」按要求留空；无退课日期/完成口径，不能猜测。可跟进按本批独立标记及覆盖展示，整批未填写为—，字段本身未填写为空。见ADR-012、ADR-013。

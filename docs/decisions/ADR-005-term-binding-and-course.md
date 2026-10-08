@@ -20,9 +20,11 @@ Accepted。2026-09-29 根据用户需求与本 Session 实现整理。
 
 ## Decision
 
-采用方案 3。`SettingsModule.saveBinding(term_id, class_id, course_id=0)`：`course_id` 为 0 时取该班级 `course_ids` 的第一个（平台主课程），显式传入时仍校验必须属于该班级；平台未返回课程时拒绝确认并提示重新获取。
+采用方案 3。`SettingsModule.saveBinding(term_id, class_id, course_id=0)`：`course_id` 为 0 时取该班级 `course_ids` 的第一个（平台主课程），显式传入时仍校验必须属于该班级；平台未返回课程时拒绝保存并提示重新获取。`class_id=0` 删除该班期绑定，表示留空。
 
-作业平台班级目录按作业账号缓存在主库 `settings.homework_classes`（`{"admin": ..., "classes": [...]}`），启动时载入；换账号后不沿用上一个账号的目录。打开设置页或切换追光鲸鱼班期时，用 `homework_bindings` 带出已确认的作业班级。
+作业平台班级目录按作业账号缓存在主库 `settings.homework_classes`（`{"admin": ..., "classes": [...]}`），包含空目录，启动时载入；换账号后不沿用上一个账号的目录。设置页用 `homework_bindings` 带出各班期已保存的作业班级和课程；目录暂缺时显示保存名称及目录暂缺提示，允许清空。
+
+2026-10-08 根据用户要求调整绑定流程：以完课平台 `remote_terms` 缓存（包括明确的空列表）决定固定行数，仅选择作业班级；选择、课程修改与留空立即写入主库，无需再次确认。旧库没有平台缓存时兼容已登记班期；平台列表刷新不删除已有绑定。保存失败保留原绑定并显示行内错误。
 
 ## Rationale
 
@@ -40,4 +42,4 @@ Accepted。2026-09-29 根据用户需求与本 Session 实现整理。
 
 ## Related Areas
 
-qml/SettingsModule.qml、qml/AccountSettingsCard.qml、qml/PageWheelScroll.qml；app/settings_module.py；tests/test_settings.py、tests/smoke_settings_ui.py。
+qml/SettingsModule.qml、qml/SettingsBindingRow.qml、qml/AccountSettingsCard.qml、qml/SettingsWheelGuard.qml；app/settings_module.py；tests/test_settings.py、tests/smoke_settings_ui.py。
