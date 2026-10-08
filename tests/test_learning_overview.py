@@ -234,6 +234,40 @@ class OverviewIntegrationTests(unittest.TestCase):
         self.o.selectLesson(1)
         self.assertEqual(self.o.view['homeworkCandidates']['rows'], [])
 
+    def test_first_lesson_candidates_include_students_with_later_courses_pending(self):
+        from app.campaigns import learning_snapshot
+        from app.dashboard import learning_dashboard
+        members, source = [], {}
+        for index in range(165):
+            sid = f'S{index+1:03d}'
+            flags = {f'{kind}{n}': 'T' for kind in ('c', 'z') for n in range(1, 6)}
+            if index < 20:
+                flags['z1'] = 'F'
+                if index >= 4:
+                    flags.update({f'c{n}': 'F' for n in range(2, 6)})
+            elif index >= 147:
+                flags.update(c1='F', z1='F')
+            source[sid] = flags
+            members.append((sid, dict(roster_status='在读', matched=True, **learning_snapshot(flags))))
+        data = learning_dashboard([dict(student_id=sid, **snap) for sid, snap in members], source)
+        with self.backend.db.connect() as conn:
+            seed(conn, 4, data, members)
+        self.o.reload(); self.o.selectTab(3); self.o.selectBatch('goal', 0)
+        cursor = (self.w._batch, self.w.editorKey)
+        self.o.selectLesson(1)
+        candidates = self.o.view['homeworkCandidates']
+        self.assertEqual([row['cells'][2:] for row in candidates['rows']],
+                         [[f'S{n:03d}', '1'] for n in range(1, 21)])
+        self.assertEqual(candidates['scope'], '第1节')
+        self.assertIn('排除第1节内仍有未完课程', candidates['filterText'])
+        self.assertIn('保留第1节内仍有欠交作业', candidates['filterText'])
+        self.assertEqual(self.o.view['metrics'][2]['value'], '12.12pp')
+        self.o.selectLesson(5)
+        self.assertEqual([row['cells'][2] for row in self.o.view['homeworkCandidates']['rows']],
+                         [f'S{n:03d}' for n in range(1, 5)])
+        self.assertEqual(self.o.view['homeworkCandidates']['scope'], '第1～5节')
+        self.assertEqual((self.w._batch, self.w.editorKey), cursor)
+
     def test_hidden_class_roundtrip_resets_choices_and_inspection_does_not_change_evaluation(self):
         self.o.selectTab(2)
         self.o.inspectLesson(1)

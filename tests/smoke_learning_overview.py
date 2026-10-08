@@ -54,6 +54,8 @@ def run():
                 snap.update(homework='1,2,3,4,5' if sid in ('A','B') else '',
                             completed_courses='5',
                             completed_homework='0' if sid in ('A','B') else '5')
+                if sid == 'C':
+                    snap.update(courses='2,3,4,5', completed_courses='1', homework='1', completed_homework='4')
             seed(conn, 3, dashboard(lessons=(1, 2, 3, 4, 5)), members,
                  marks={'A':'是', 'B':'否', 'C':'否', 'D':'否'})
         b.workflow.reload_batches()
@@ -156,7 +158,29 @@ def run():
                     if hasattr(table_rows, 'toVariant'): table_rows = table_rows.toVariant()
                     assert table_rows[0]['cells'] == ['1','虚构学员A','A','1、2、3、4、5']
                     assert table_rows[1]['cells'] == ['2','虚构学员B','B','1、2、3、4、5']
+                    assert len(table_rows) == 2
+                    assert dialog.property('title') == '第1～5节 · 补作业名单'
                     assert window.grabWindow().save(str(output/f'homework-candidates-{width}.png'))
+                    b.learningOverview.selectLesson(1); QTest.qWait(40)
+                    assert dialog.property('visible')
+                    assert dialog.property('title') == '第1节 · 补作业名单'
+                    filter_text = visual(window.contentItem(), 'overviewHomeworkFilter').property('text')
+                    assert '排除第1节内仍有未完课程' in filter_text
+                    assert '保留第1节内仍有欠交作业' in filter_text
+                    table_rows = table.property('rows')
+                    if hasattr(table_rows, 'toVariant'): table_rows = table_rows.toVariant()
+                    assert [row['cells'][2:] for row in table_rows] == [['A','1'],['B','1'],['C','1']]
+                    assert window.grabWindow().save(str(output/f'homework-first-lesson-{width}.png'))
+                    if width == 720:
+                        viewport = visual(window.contentItem(), 'overviewHomeworkScroll').property('contentItem')
+                        bottom = max(0, viewport.property('contentHeight')-viewport.property('height'))
+                        assert bottom > 0
+                        viewport.setProperty('contentY', bottom); QTest.qWait(40)
+                        assert viewport.property('contentY') > 0
+                        assert window.grabWindow().save(str(output/'homework-first-lesson-bottom-720.png'))
+                        viewport.setProperty('contentY', 0)
+                    b.learningOverview.selectLesson(5); QTest.qWait(40)
+                    assert len(b.learningOverview.view['homeworkCandidates']['rows']) == 2
                     QTest.keyClick(window, Qt.Key_Escape); QTest.qWait(30)
                     assert not dialog.property('visible')
                 if index==2:
@@ -171,6 +195,14 @@ def run():
                     viewport.setProperty('contentY', max(0,viewport.property('contentHeight')-viewport.property('height')))
                     QTest.qWait(70)
                     assert window.grabWindow().save(str(output/f'{name}-bottom-{width}.png'))
+        b.learningOverview.selectLesson(1)
+        b.settingsModule.setAppearanceMode('dark'); QTest.qWait(40)
+        click(window, visual(window.contentItem(), 'overviewHomeworkCandidatesButton'))
+        assert dialog.property('visible') and dialog.property('title') == '第1节 · 补作业名单'
+        assert len(b.learningOverview.view['homeworkCandidates']['rows']) == 3
+        assert window.grabWindow().save(str(output/'homework-first-lesson-dark-720.png'))
+        QTest.keyClick(window, Qt.Key_Escape); QTest.qWait(30)
+        b.settingsModule.setAppearanceMode('light')
         b.learningOverview.selectBatch('goal', 1); QTest.qWait(40)
         scroll.property('contentItem').setProperty('contentY', 0); QTest.qWait(40)
         assert b.learningOverview.view['homeworkCandidates']['rows'] == []

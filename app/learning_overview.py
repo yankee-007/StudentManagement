@@ -428,17 +428,22 @@ class LearningOverview(QObject):
                     candidates.append(dict(student_id=snap['student_id'], name=snap.get('name', ''),
                                            missing=missing))
         candidates.sort(key=lambda row: row['student_id'])
+        scope = '第1节' if lesson == 1 else f'第1～{lesson}节'
         need = cards[2]['need']
         note = (f'差值目标还需 {need}人补齐作业；符合条件的候选 {len(candidates)}人。'
                 if need is not None else '暂无有效累计节次或差值目标。')
         if need is not None and need > len(candidates):
             note += f' 候选人数比所需人数少 {need-len(candidates)}人。'
-        note += ' 每人须补齐第1～'+str(lesson)+'节全部欠交作业才计入累计作业完成人数；名单不代表已完成。'
+        note += f' 每人须补齐{scope}全部欠交作业才计入累计作业完成人数；名单不代表已完成。'
         if unknown:
             note += f' {unknown}名学员学习数据未知，未列入。'
         return dict(goalCards=cards, trends=trends, trendRows=trend_rows,
                     homeworkCandidates=dict(available=r is not None and need is not None,
-                                            title=b['label']+f' · 第1～{lesson}节', notice=note,
+                                            title=b['label']+f' · {scope}', scope=scope, notice=note,
+                                            filterText=(f'筛选条件（同时满足）：\n'
+                                                        f'1. 排除{scope}内仍有未完课程的人员。\n'
+                                                        f'2. 在剩下的人员中，保留{scope}内仍有欠交作业的人员。\n'
+                                                        '所选范围之后的欠课或欠作业不影响入选；不限制可跟进标记。'),
                                             rows=[dict(key=i, cells=[str(i+1), row['name'], row['student_id'],
                                                   '、'.join(map(str, row['missing']))])
                                                   for i, row in enumerate(candidates)]))

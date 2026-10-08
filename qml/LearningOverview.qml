@@ -19,20 +19,21 @@ Item {
     Dialog {
         id: homeworkDialog; objectName: "overviewHomeworkDialog"
         parent: Overlay.overlay; anchors.centerIn: parent; modal: true
-        title: "已完课学员 · 补作业名单"; standardButtons: Dialog.Close
+        title: (candidates.scope || "所选范围") + " · 补作业名单"; standardButtons: Dialog.Close
         width: Math.min(root.width - 24, 820); height: Math.min(root.height - 24, 560)
         readonly property var candidates: root.overview.homeworkCandidates || ({rows: [], notice: "", title: ""})
         contentItem: ScrollView {
-            id: candidateScroll; clip: true; contentWidth: availableWidth
+            id: candidateScroll; objectName: "overviewHomeworkScroll"; clip: true; contentWidth: availableWidth
             ColumnLayout {
                 width: candidateScroll.availableWidth; spacing: 12
                 Label { text: homeworkDialog.candidates.title || ""; Layout.fillWidth: true; wrapMode: Text.Wrap; font.bold: true; color: UiTheme.ink }
-                Label { text: "范围：所选第1～N节课程全部完成、但作业仍有欠交的在读非补位学员（该范围欠交合计为0/X），不限制可跟进标记。"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted }
+                Label { text: "人员范围：本批在读非补位学员。"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted }
+                Label { objectName: "overviewHomeworkFilter"; text: homeworkDialog.candidates.filterText || ""; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.ink }
                 Label { objectName: "overviewHomeworkNotice"; text: homeworkDialog.candidates.notice || ""; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.ink }
                 OverviewTable {
-                    objectName: "overviewHomeworkTable"; Layout.fillWidth: true; title: "补齐以下欠交节次"
+                    objectName: "overviewHomeworkTable"; Layout.fillWidth: true; title: "需补齐的作业（所选范围）"
                     headers: ["序号", "姓名", "学号", "欠交作业节次"]; rows: homeworkDialog.candidates.rows || []
-                    emptyMessage: "本批暂无所选节次课程全部完成、但仍有欠交作业的学员。"
+                    emptyMessage: "本批暂无同时满足上述两个条件的学员。"
                 }
             }
         }
