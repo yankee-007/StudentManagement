@@ -1,4 +1,4 @@
-"""Open an individual profile contact through the shared WeCom search adapter."""
+"""Open profile, campaign or overview contacts through the shared WeCom adapter."""
 import json
 from PySide6.QtCore import QObject, Property, Signal, Slot, QThread, QCoreApplication
 from .database import Database
@@ -116,18 +116,29 @@ class ContactOpener(QObject):
     def campaignPrefix(self, key):
         try:
             self._campaign_student(key)
-            return self.owner.repo.get_setting('campaign_contact_prefix', self.defaultPrefix)
+            return self.campaignContactPrefix
         except ValueError:
             return ''
 
+    @Property(str, notify=changed)
+    def campaignContactPrefix(self):
+        return self.owner.repo.get_setting('campaign_contact_prefix', self.defaultPrefix)
+
     @Slot(str, str, result=bool)
     def openCampaignContact(self, key, prefix):
+        return self._open_campaign_contact(key, prefix, self._campaign_student)
+
+    @Slot(str, str, result=bool)
+    def openOverviewContact(self, key, prefix):
+        return self._open_campaign_contact(key, prefix, self.owner.learningOverview.homeworkContact)
+
+    def _open_campaign_contact(self, key, prefix, resolve_student):
         if self.active:
             return False
         try:
             if self.owner.workflow.send_busy:
                 raise ValueError('群发正在运行，请结束群发后打开联系人')
-            row = self._campaign_student(key)
+            row = resolve_student(key)
             prefix = prefix.strip()
             contact = prefix + row['name'].strip()
             if any(ch in contact for ch in ('\r', '\n', '\0')):

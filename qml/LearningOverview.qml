@@ -22,6 +22,7 @@ Item {
         title: (candidates.scope || "所选范围") + " · 补作业名单"; standardButtons: Dialog.Close
         width: Math.min(root.width - 24, 820); height: Math.min(root.height - 24, 560)
         readonly property var candidates: root.overview.homeworkCandidates || ({rows: [], notice: "", title: ""})
+        onOpened: homeworkContactOptions.loadPrefix(backend.contactOpener.campaignContactPrefix)
         contentItem: ScrollView {
             id: candidateScroll; objectName: "overviewHomeworkScroll"; clip: true; contentWidth: availableWidth
             ColumnLayout {
@@ -30,9 +31,27 @@ Item {
                 Label { text: "人员范围：本批在读非补位学员。"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted }
                 Label { objectName: "overviewHomeworkFilter"; text: homeworkDialog.candidates.filterText || ""; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.ink }
                 Label { objectName: "overviewHomeworkNotice"; text: homeworkDialog.candidates.notice || ""; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.ink }
+                RowLayout {
+                    Layout.fillWidth: true
+                    Label { text: "联系人选项"; color: UiTheme.ink; Layout.fillWidth: true }
+                    ContactOptions { id: homeworkContactOptions; objectName: "overviewHomeworkContactOptions"; namePrefix: "overviewHomework" }
+                }
+                Label { visible: backend.contactOpener.active || backend.contactOpener.notice !== "按姓名包含匹配，可选择是否保留企微浮窗"; text: backend.contactOpener.notice; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted; font.pixelSize: 12 }
                 OverviewTable {
                     objectName: "overviewHomeworkTable"; Layout.fillWidth: true; title: "需补齐的作业（所选范围）"
-                    headers: ["序号", "姓名", "学号", "欠交作业节次"]; rows: homeworkDialog.candidates.rows || []
+                    headers: ["姓名", "学号", "欠交作业节次", "联系人"]; rows: homeworkDialog.candidates.rows || []
+                    minimumColumnWidth: 130
+                    actionDelegate: Component {
+                        Item {
+                            readonly property var rowData: parent.rowData
+                            CampaignContactButton {
+                                objectName: "overviewOpenContact" + parent.rowData.student_id
+                                anchors.centerIn: parent; width: Math.min(parent.width - 8, implicitWidth)
+                                contactKey: parent.rowData.contactKey; contactName: parent.rowData.name
+                                contactPrefix: homeworkContactOptions.effectivePrefix; fromOverview: true
+                            }
+                        }
+                    }
                     emptyMessage: "本批暂无同时满足上述两个条件的学员。"
                 }
             }

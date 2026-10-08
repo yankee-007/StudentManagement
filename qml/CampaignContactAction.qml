@@ -9,6 +9,7 @@ ColumnLayout {
     property var opener: backend.contactOpener
     Layout.fillWidth: true; spacing: 4
     onContactKeyChanged: options.loadPrefix(opener.campaignPrefix(contactKey))
+    onVisibleChanged: if (visible) options.loadPrefix(opener.campaignPrefix(contactKey))
     Component.onCompleted: options.loadPrefix(opener.campaignPrefix(contactKey))
     Connections { target: action.opener; function onDefaultPrefixChanged() { options.loadPrefix(action.opener.campaignPrefix(action.contactKey)) } }
     RowLayout {
@@ -21,11 +22,10 @@ ColumnLayout {
             ToolTip.visible: nameHover.hovered; ToolTip.text: text
             HoverHandler { id: nameHover }
         }
-        UiButton {
-            objectName: "openCampaignContact"; font.pixelSize: 12
-            text: action.opener.active ? "正在打开…" : "打开企微联系人"
-            enabled: !!action.service.selected.name && !action.service.selected.is_placeholder && !action.opener.active && !backend.groupCenter.active && !backend.workflow.sender.active
-            onClicked: action.opener.openCampaignContact(action.contactKey, options.effectivePrefix)
+        CampaignContactButton {
+            objectName: "openCampaignContact"; opener: action.opener
+            contactKey: action.contactKey; contactPrefix: options.effectivePrefix
+            contactName: action.service.selected.name || ""; isPlaceholder: !!action.service.selected.is_placeholder
         }
         ContactOptions { id: options; objectName: "campaignContactOptions"; namePrefix: "campaign"; opener: action.opener }
     }

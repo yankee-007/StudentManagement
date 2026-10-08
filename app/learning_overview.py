@@ -282,6 +282,19 @@ class LearningOverview(QObject):
     def _point(self, b, lesson):
         return next((r for r in b['lessons'] if r['lesson']==lesson), None) if b else None
 
+    def homeworkContact(self, key):
+        if not self._active or self._tab != 3 or self._path != Path(self.owner.db.path).resolve():
+            raise ValueError('班期或补作业名单已切换，请重新点击')
+        if self._dirty:
+            self.reload()
+        candidates = self.view.get('homeworkCandidates', {})
+        row = next((r for r in candidates.get('rows', []) if r['contactKey'] == key), None)
+        if not candidates.get('available') or not row:
+            raise ValueError('学员已不在当前补作业名单中，请重新点击')
+        if not row['name'].strip():
+            raise ValueError('空姓名无法打开联系人')
+        return row
+
     def _series(self, b, key, labels, dashed=False):
         names = dict(course='完课率', homework='作业率', gap='差值')
         return dict(name=f'第{b["id"]}次 {names[key]}' + ('（虚线）' if dashed else ''),
@@ -444,6 +457,8 @@ class LearningOverview(QObject):
                                                         f'1. 排除{scope}内仍有未完课程的人员。\n'
                                                         f'2. 在剩下的人员中，保留{scope}内仍有欠交作业的人员。\n'
                                                         '所选范围之后的欠课或欠作业不影响入选；不限制可跟进标记。'),
-                                            rows=[dict(key=i, cells=[str(i+1), row['name'], row['student_id'],
+                                            rows=[dict(key=i, name=row['name'], student_id=row['student_id'],
+                                                  contactKey=json.dumps([str(self.owner.db.path), b['id'], row['student_id']], ensure_ascii=False),
+                                                  cells=[row['name'], row['student_id'],
                                                   '、'.join(map(str, row['missing']))])
                                                   for i, row in enumerate(candidates)]))
