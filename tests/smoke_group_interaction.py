@@ -98,6 +98,12 @@ def run():
                 path.mkdir(parents=True, exist_ok=True)
                 QTest.mouseMove(window, QPoint(0, 0)); QTest.qWait(80)
                 assert window.grabWindow().save(str(path / name))
+                if name == 'group-list-copied.png' or name.startswith('group-input-'):
+                    grabbed = item('groupRecipientsPanel').grabToImage()
+                    for _ in range(5):
+                        if not grabbed.image().isNull(): break
+                        QTest.qWait(50)
+                    assert grabbed.image().save(str(path / ('roster-'+name)))
 
         def double_name(row):
             obj = item('groupName'+str(row))
@@ -625,7 +631,8 @@ def run():
         for name in ('手填甲', '手填乙', '手填丙'):
             invoke(add_cell, 'forceActiveFocus')
             add_cell.setProperty('text', name)
-            QTest.keyClick(window, Qt.Key_Return)
+            if name == '手填丙': click('groupAddNamesButton')
+            else: QTest.keyClick(window, Qt.Key_Return)
             QTest.qWait(110)
         assert [row['name'] for row in g.rows] == ['手填甲', '手填乙', '手填丙'], g.status
         assert add_cell.property('text') == '' and '已添加' in item('groupListNotice').property('text'), (add_cell.property('text'), item('groupListNotice').property('text'), g.status)
@@ -639,7 +646,7 @@ def run():
         row_item = item('groupName0')
         separators = [child for child in row_item.childItems()
                       if child.metaObject().className() == 'QQuickRectangle' and child.height() == 1]
-        assert separators and separators[0].width() == row_item.width(), [(c.metaObject().className(), c.height()) for c in row_item.childItems()]
+        assert separators and separators[0].width() == row_item.width()-24, [(c.metaObject().className(), c.height()) for c in row_item.childItems()]
         assert names_view.property('spacing') == 0
         # Ctrl+C 复制选中的姓名；Shift 连选、Ctrl 增删选择。
         modifier_click('groupName0')
