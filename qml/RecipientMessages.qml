@@ -78,6 +78,7 @@ Item {
     RowLayout {
         anchors.fill: parent; spacing: 10
         UiPanel {
+            objectName: "groupRecipientsPanel"
             Layout.preferredWidth: panel.width<750 ? 140 : 204
             Layout.fillHeight: true; padding: 10
             ColumnLayout {
@@ -141,9 +142,9 @@ Item {
                 anchors.fill: parent; spacing: 8
                 RowLayout {
                     Layout.fillWidth: true
-                    Label { text: "消息模板"; font.bold: true; font.pixelSize: 17; Layout.fillWidth: true }
-                    UiButton { objectName: "groupResetDefaults"; text: "重载"; visible: defaults.dirty; enabled: !center.active; implicitHeight: 28; onClicked: panel.loadDefaults(true) }
-                    UiButton { objectName: "groupRetryDefaults"; text: "重试保存"; visible: defaults.dirty; enabled: panel.canManage; implicitHeight: 28; onClicked: panel.saveDefaults() }
+                    Label { objectName: "groupTemplateTitle"; text: "消息模板"; font.bold: true; font.pixelSize: 17; Layout.fillWidth: true; Layout.minimumWidth: 0; elide: Text.ElideRight }
+                    UiButton { objectName: "groupResetDefaults"; text: "重载"; visible: defaults.dirty || (defaults.editingIndex>=0 && defaults.feedback.length>0); enabled: !center.active; implicitHeight: 28; onClicked: panel.loadDefaults(true) }
+                    UiButton { objectName: "groupRetryDefaults"; text: panel.width<500 ? "重试" : "重试保存"; visible: defaults.dirty || (defaults.editingIndex>=0 && defaults.feedback.length>0); enabled: panel.canManage; implicitHeight: 28; onClicked: panel.saveDefaults() }
                     ToolButton {
                         text: "更多"; font.pixelSize: 12; enabled: panel.canManage; implicitHeight: 28
                         Accessible.name: "模板更多操作"; onClicked: templateMenu.popup()
@@ -157,7 +158,8 @@ Item {
                     id: defaults; objectName: "groupMessageChat"
                     Layout.fillWidth: true; Layout.fillHeight: true
                     fileChooser: center; controlPrefix: "groupChat"; defaultTemplate: true; editable: panel.canManage
-                    onCommitted: panel.saveCommittedDefaults(false)
+                    onCommitted: commitAccepted=panel.saveCommittedDefaults(false)
+                    onEditCancelled: if(!dirty && panel.draftRevision!==center.contentRevision) panel.loadDefaults(true)
                 }
             }
         }
@@ -182,6 +184,7 @@ Item {
         id: editor; objectName: "recipientMessageEditor"
         parent: Overlay.overlay
         anchors.centerIn: parent; modal: true; closePolicy: Popup.NoAutoClose
+        onClosed: messages.cancelEdit()
         width: Math.min(parent.width-32,760); height: Math.min(parent.height-32,650)
         property int listId: 0
         property int recipientId: 0

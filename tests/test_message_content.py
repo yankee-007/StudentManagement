@@ -42,16 +42,18 @@ class MessageContentTests(unittest.TestCase):
 
     def test_original_defaults_and_legacy_options(self):
         defaults=normalize()
-        self.assertEqual([defaults[k] for k in ('wait','timeout','focus_delay','paste_delay','interval')],[.5,3,.5,.2,0])
+        self.assertEqual([defaults[k] for k in ('wait','timeout','focus_delay','paste_delay','interval')],[.5,3,.5,.5,0])
         self.assertTrue(defaults['single_send'])
         self.assertTrue(defaults['verify_contact'])
         self.assertNotIn('close_on_success',normalize({'close_on_success':False}))
+        self.assertEqual(normalize({'paste_delay':.2})['paste_delay'],.2)
+        self.assertEqual(normalize({'close_on_success':False,'paste_delay':.3})['paste_delay'],.5)
 
     def test_text_file_order_main_window_and_send_modes(self):
         with tempfile.TemporaryDirectory() as folder:
             file=Path(folder)/'作业笔记.png';file.write_bytes(b'fixture')
             content=[dict(type='text',text='第一条'),dict(type='file',path=str(file)),dict(type='text',text='第三条')]
-            for single,confirm,count in ((True,True,4),(False,True,2),(True,False,1)):
+            for single,confirm,count in ((True,True,4),(False,True,2),(True,False,1),(False,False,1)):
                 with self.subTest(single=single,confirm=confirm):
                     driver,state=fake_driver(dict(single_send=single,confirm_send=confirm))
                     with patch('app.wecom_sender.time.sleep'):
@@ -61,6 +63,8 @@ class MessageContentTests(unittest.TestCase):
                     self.assertTrue(all(hwnd==1 for keys,hwnd in state['events'] if keys in (('ctrl','v'),('enter',))))
                     closing=state['events'].index((('ctrl','w'),2))
                     self.assertEqual(sum(keys==('ctrl','v') for keys,_ in state['events'][closing+1:]),3)
+                    if not confirm:
+                        self.assertNotIn(('enter',),[keys for keys,_ in state['events'][closing+1:]])
                     calls=driver._clipboard.call_args_list
                     self.assertEqual(calls[1].args,(13,'第一条'))
                     self.assertEqual(calls[2].args[0],15)

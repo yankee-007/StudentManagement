@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
+import QtQuick.Window
 
 Item {
     id: chat
@@ -12,15 +13,22 @@ Item {
     property int editingIndex: -1
     property string editText: ""
     property string feedback: ""
+    property var activeEditor: null
+    property var activeEditViewport: null
+    property bool committing: false
+    property bool commitAccepted: true
+    property bool pendingOutsideCommit: false
     readonly property int messageCount: fields.count
     readonly property bool hasPending: editingIndex>=0 || composer.text.length>0
     readonly property bool compact: height<350
     signal committed()
+    signal editCancelled()
 
     function load(items, preserveComposer) {
         // Keep delegates and the scroll anchor when refreshing a committed draft.
         if(!preserveComposer) fields.clear()
         editingIndex=-1
+        pendingOutsideCommit=false
         editText=""
         for(var i=0;i<items.length;i++) {
             var item=items[i]
@@ -44,12 +52,23 @@ Item {
         }
         return result
     }
-    function changed() { dirty=true; feedback=""; committed() }
+    function changed() { dirty=true; feedback=""; commitAccepted=true; committed(); return commitAccepted }
     function revealEnd() { Qt.callLater(function() { thread.positionViewAtEnd() }) }
     function revealEditing() {
         var index=editingIndex
         Qt.callLater(function() {
-            if(index>=0 && index===editingIndex) { thread.forceLayout(); thread.positionViewAtIndex(index,ListView.Contain) }
+            if(index<0 || index!==editingIndex) return
+            thread.cancelFlick(); thread.forceLayout(); thread.positionViewAtIndex(index,ListView.Contain)
+            // Recheck after offscreen delegates have updated their measured height.
+            Qt.callLater(function() {
+                if(index!==editingIndex) return
+                thread.forceLayout(); thread.positionViewAtIndex(index,ListView.Contain)
+                var viewport=activeEditViewport
+                if(!viewport) return
+                var top=viewport.mapToItem(thread,0,0).y
+                if(top<0) thread.contentY+=top
+                else if(top+viewport.height>thread.height) thread.contentY+=top+viewport.height-thread.height
+            })
         })
     }
     function addText() {
@@ -67,25 +86,54 @@ Item {
         if(path) { fields.append({sourceIndex:-1,kind:"file",value:path,mixed:false}); changed(); revealEnd() }
     }
     function beginEdit(index) {
-        if(!editable || editingIndex>=0) return
+        if(!editable || (editingIndex>=0 && !finishEdit(true))) return
         var item=fields.get(index)
         if(item.kind==="file") {
             var path=fileChooser.chooseMessageFile()
             if(path) { fields.setProperty(index,"value",path); fields.setProperty(index,"mixed",false); changed() }
         } else {
+            activeEditor=null; activeEditViewport=null
             editText=item.value
             editingIndex=index
             revealEditing()
         }
     }
     function saveEdit() {
-        if(!editable || editingIndex<0 || !editText.trim()) return
+        if(!editable || editingIndex<0 || committing) return false
+        if(!editText.trim()) {
+            feedback="消息不能为空，请继续编辑或按 Esc 取消。"
+            if(activeEditor) Qt.callLater(function() { if(chat.visible && chat.editingIndex>=0 && chat.activeEditor) chat.activeEditor.forceActiveFocus() })
+            return false
+        }
+        committing=true
+        var index=editingIndex
+        var value=editText
+        var previousValue=fields.get(index).value
+        var previousMixed=fields.get(index).mixed
+        var previousDirty=dirty
         fields.setProperty(editingIndex,"value",editText)
         fields.setProperty(editingIndex,"mixed",false)
         editingIndex=-1
-        changed()
+        var saved=changed()
+        if(!saved) {
+            fields.setProperty(index,"value",previousValue)
+            fields.setProperty(index,"mixed",previousMixed)
+            dirty=previousDirty
+            editText=value; editingIndex=index; revealEditing()
+        }
+        committing=false
+        if(saved) pendingOutsideCommit=false
+        return saved
     }
-    function cancelEdit() { editingIndex=-1; editText=""; feedback="" }
+    function finishEdit(commitInput) {
+        if(editingIndex<0) return true
+        if(committing || !editable) return false
+        if(commitInput) Qt.inputMethod.commit()
+        if(activeEditor && activeEditor.inputMethodComposing) return false
+        if(activeEditor) editText=activeEditor.text
+        return saveEdit()
+    }
+    function cancelEdit() { editingIndex=-1; editText=""; feedback=""; pendingOutsideCommit=false; editCancelled() }
     function removeMessage(index) {
         if(!editable || editingIndex>=0) return
         fields.remove(index)
@@ -99,22 +147,38 @@ Item {
     }
     function checkPending() {
         Qt.inputMethod.commit()
+        if(!finishEdit(true)) return false
         if(!hasPending) return true
-        feedback=editingIndex>=0 ? "请先保存或取消正在编辑的消息。" : "输入框还有未加入的消息，请按回车加入或清空输入。"
+        feedback="输入框还有未加入的消息，请按回车加入或清空输入。"
         if(editingIndex<0) composer.forceActiveFocus()
         return false
     }
     function fileName(path) { return path.replace(/\\/g,"/").split("/").pop() }
 
     ListModel { id: fields }
+    MouseArea {
+        id: outsideGuard; parent: Overlay.overlay; anchors.fill: parent; z: 100000
+        enabled: chat.visible && chat.editable && chat.editingIndex>=0; acceptedButtons: Qt.LeftButton
+        onWheel: function(wheel) { wheel.accepted=false }
+        onPressed: function(mouse) {
+            var viewport=chat.activeEditViewport
+            var point=viewport ? viewport.mapFromItem(outsideGuard,mouse.x,mouse.y) : Qt.point(-1,-1)
+            var inside=viewport && point.x>=0 && point.y>=0 && point.x<viewport.width && point.y<viewport.height
+            if(!inside) chat.finishEdit(true)
+            var composing=!inside && chat.activeEditor && chat.activeEditor.inputMethodComposing
+            if(composing) chat.pendingOutsideCommit=true
+            mouse.accepted=!!composing
+        }
+    }
     ColumnLayout {
         anchors.fill: parent; spacing: 6
         ListView {
             id: thread; objectName: chat.controlPrefix+"Thread"
             Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumHeight: 35
             clip: true; spacing: 14; model: fields; boundsBehavior: Flickable.StopAtBounds
+            currentIndex: chat.editingIndex; highlightFollowsCurrentItem: false
             ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
-            delegate: Item {
+            delegate: FocusScope {
                 id: bubble
                 required property int index
                 required property string kind
@@ -130,7 +194,7 @@ Item {
                 }
                 ColumnLayout {
                     id: bubbleColumn; anchors.right: parent.right; anchors.rightMargin: 16
-                    width: Math.min(thread.width-24,Math.max(220,Math.min(660,thread.width*0.86)))
+                    width: Math.floor(Math.min(thread.width-24,Math.max(220,Math.min(660,thread.width*0.86))))
                     spacing: 4
                     RowLayout {
                         Layout.fillWidth: true; spacing: 6
@@ -172,6 +236,7 @@ Item {
                         Layout.preferredWidth: chat.editingIndex===bubble.index ? bubbleColumn.width : Math.min(bubbleColumn.width,naturalText.implicitWidth+24)
                         implicitHeight: body.implicitHeight+24
                         color: UiTheme.selection; radius: 12
+                        TapHandler { enabled: chat.editable && chat.editingIndex!==bubble.index; onDoubleTapped: chat.beginEdit(bubble.index) }
                         ColumnLayout {
                             id: body; anchors.fill: parent; anchors.margins: 12; spacing: 6
                             Label {
@@ -190,6 +255,14 @@ Item {
                                 Layout.fillWidth: true; Layout.preferredHeight: Math.max(50,Math.min(160,inlineText.implicitHeight,thread.height-100))
                                 contentWidth: availableWidth; clip: true
                                 onHeightChanged: if(visible) chat.revealEditing()
+                                function activateEditor() {
+                                    if(chat.editingIndex!==bubble.index) return
+                                    chat.activeEditor=inlineText; chat.activeEditViewport=inlineScroll
+                                    var owner=chat, control=inlineText, index=bubble.index
+                                    Qt.callLater(function() { if(owner && control && owner.visible && owner.editingIndex===index) control.forceActiveFocus() })
+                                }
+                                onVisibleChanged: if(visible) activateEditor()
+                                Component.onCompleted: if(visible) activateEditor()
                             TextArea {
                                 id: inlineText; objectName: chat.controlPrefix+"Inline"+bubble.index
                                 width: inlineScroll.availableWidth; readOnly: !chat.editable
@@ -197,21 +270,24 @@ Item {
                                 wrapMode: TextEdit.Wrap; selectByMouse: true; color: UiTheme.ink; font.pixelSize: 14
                                 placeholderText: bubble.mixed ? "填写消息后将统一此条内容" : "编辑消息"
                                 background: Rectangle { color: UiTheme.input; border.color: inlineText.activeFocus ? UiTheme.focus : UiTheme.line; radius: 6 }
-                                onVisibleChanged: if(visible && chat.editingIndex===bubble.index) Qt.callLater(function() { inlineText.forceActiveFocus() })
                                 onTextChanged: if(chat.editingIndex===bubble.index) chat.editText=text
+                                onActiveFocusChanged: if(!activeFocus && chat.editingIndex===bubble.index) {
+                                    var owner=chat, control=inlineText, index=bubble.index
+                                    Qt.callLater(function() { if(owner && control && owner.editingIndex===index && !control.activeFocus) owner.finishEdit(false) })
+                                }
+                                onInputMethodComposingChanged: if(!inputMethodComposing && chat.editingIndex===bubble.index && (!activeFocus || chat.pendingOutsideCommit)) {
+                                    var owner=chat, index=bubble.index
+                                    Qt.callLater(function() { if(owner && owner.editingIndex===index) owner.finishEdit(false) })
+                                }
                                 Keys.onPressed: function(event) {
                                     if((event.key===Qt.Key_Return || event.key===Qt.Key_Enter) && !(event.modifiers & Qt.ShiftModifier)) {
-                                        if(!inputMethodComposing && !event.isAutoRepeat) chat.saveEdit()
+                                        if(!inputMethodComposing && !event.isAutoRepeat) chat.finishEdit(true)
                                         event.accepted=true
                                     }
+                                    if(event.key===Qt.Key_Escape) { chat.cancelEdit(); event.accepted=true }
+                                    if(event.key===Qt.Key_Tab || event.key===Qt.Key_Backtab) event.accepted=!chat.finishEdit(true)
                                 }
                             }
-                            }
-                            RowLayout {
-                                visible: chat.editingIndex===bubble.index; Layout.fillWidth: true
-                                Label { text: "Shift＋回车换行"; color: UiTheme.muted; font.pixelSize: 11; Layout.fillWidth: true }
-                                UiButton { objectName: chat.editingIndex===bubble.index ? chat.controlPrefix+"CancelEdit" : ""; text: "取消"; implicitHeight: 28; onClicked: chat.cancelEdit() }
-                                UiButton { objectName: chat.editingIndex===bubble.index ? chat.controlPrefix+"SaveEdit" : ""; text: "保存"; implicitHeight: 28; highlighted: true; enabled: chat.editable && chat.editText.trim().length>0; onClicked: { Qt.inputMethod.commit(); chat.saveEdit() } }
                             }
                         }
                     }

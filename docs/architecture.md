@@ -29,7 +29,7 @@ Backend / TermModule / SettingsModule / LiveAbsence → AcquisitionTask（QThrea
 
 ## Python ↔ QML 与状态
 
-- QML 展示层共用 UiTheme、UiButton、UiTextField、UiComboBox、UiPanel；本地 qmldir 注册主题单例。左侧导航调用原 switchModule，群发中心位于最后。班期学员／画像／催办等共用顶部 classSelector，班期页通过 Workflow.selectClass → TermModule.alignTerm/activate 跟随当前班级；activate 和班期目录刷新均按当前班级 term_id 选择缓存，未关联平台的旧导入班级显示空名单及选择提示，避免显示另一班期的缓存。调试重启保留原保护条件。工作台／画像窄窗口切换列表与详情的可见性，不销毁编辑组件、不改保存和业务接口。群发左侧姓名列表仅展示前缀＋姓名，右侧常驻纵向模板气泡，移除逐人消息表和统计卡片；双击姓名打开个人消息弹窗。MessageChatEditor 复用于公共模板和个人消息，支持 Enter 加入、Shift＋Enter 换行、组合输入保护、气泡内联编辑、文件及顺序；消息线程与姓名列表独立滚动，长消息内联编辑单独滚动。发送参数由配置弹窗自动保存。
+- QML 展示层共用 UiTheme、UiButton、UiTextField、UiComboBox、UiPanel；本地 qmldir 注册主题单例。左侧导航调用原 switchModule，群发中心位于最后。班期学员／画像／催办等共用顶部 classSelector，班期页通过 Workflow.selectClass → TermModule.alignTerm/activate 跟随当前班级；activate 和班期目录刷新均按当前班级 term_id 选择缓存，未关联平台的旧导入班级显示空名单及选择提示，避免显示另一班期的缓存。调试重启保留原保护条件。工作台／画像窄窗口切换列表与详情的可见性，不销毁编辑组件、不改保存和业务接口。群发按发送配置／姓名列表／模板三栏排列，姓名仅展示前缀＋姓名，模板常驻纵向气泡，移除逐人消息表和统计卡片；双击姓名打开个人消息弹窗。MessageChatEditor 复用于公共模板和个人消息，支持 Enter 加入、Shift＋Enter 换行、组合输入保护、双击气泡内联编辑并以回车或点击外部提交、文件及顺序；消息线程与姓名列表独立滚动，长消息内联编辑单独滚动，当前编辑委托在移出视口时保留。发送参数在左侧自动保存；粘贴等待默认 0.5 秒，关闭回车发送时单条发送禁用并置灰。
 - SettingsModule.appearanceMode 读取主 registry 的 settings.appearance_mode（light/dark，旧库或无效值默认 light），保存成功后只发 appearanceChanged，不广播账号/绑定 changed。UiTheme 绑定该属性，统一语义颜色与 Fusion Palette；主窗口和两个独立 Window 共享此 Palette。OverviewChart 将既有业务颜色映射为主题颜色并延迟重绘，保留当前选择/缩放。Backend 日期弹窗和 LeaveCalendar 使用对应 QWidget Palette，包含自绘日期格与星期标题；文件选择器仍由 Windows 原生界面承载。
 
 - Backend 以常量 QObject Property 暴露模块；QML 使用 QVariantMap/List 读取行、字段、参数，调用 Slot，以 notify signal 更新绑定。
@@ -44,7 +44,7 @@ Backend / TermModule / SettingsModule / LiveAbsence → AcquisitionTask（QThrea
 - 长耗时提示必须提前决定：同步刷新会冻结事件循环，定时器只能在刷新结束后才触发，事后补提示必然晚于工作完成。因此由 Workflow.classRosterSize / TermModule.termRosterSize 在切换前读取缓存人数（只读连接，不构造 Database、不触发迁移，结果按班期缓存），≥300 人或未知时首帧即显示“数据较多，加载时间稍长”。
 - 切班时同一次统计只取一遍名单：selectClass 把 owner.refresh() 返回的 students 分别传给 reload_batches/reload_rows/live_roster 和 _refresh_statistics。list_students 在 900 人班约 30–45ms，重复调用是切班的主要可消除开销。
 
-- 群发模板捕获list_id与contentRevision；defaultFields由选中名单原始缓存计算。MessageChatEditor 用 sourceIndex 关联原始槽位，新条目为 -1，排序不重编号。每次气泡操作经 saveDefaultRow / GroupStore.save_default_row 同一事务校验并写入可编辑人员内容及模板；成功后在原模型更新修订和槽位，保持滚动与待加入输入，失败保留整稿。未编辑的混合槽位与个人覆盖保持原值，删除槽位同时删除对应个人改动；显式覆盖个人需确认，受保护记录保留。预览/切换/关闭检查未提交输入和内联编辑，不能隐式把输入加入模板；失败稿阻止操作，名单选择器恢复真实选择。个人消息使用捕获的名单/人员身份整稿保存，待核实动作在个人弹窗中。发送仍由预览窗口显式开始。
+- 群发模板捕获list_id与contentRevision；defaultFields由选中名单原始缓存计算。MessageChatEditor 用 sourceIndex 关联原始槽位，新条目为 -1，排序不重编号。每次气泡操作经 saveDefaultRow / GroupStore.save_default_row 同一事务校验并写入可编辑人员内容及模板；成功后在原模型更新修订和槽位，保持滚动与待加入输入，失败保留草稿。内联失败恢复字段旧值及原 dirty 状态，仅保留 editText 供修正；Esc 取消该编辑，已有其他失败操作稿保留，干净稿遇修订变化时重载。未编辑的混合槽位与个人覆盖保持原值，删除槽位同时删除对应个人改动；显式覆盖个人需确认，受保护记录保留。预览/切换/关闭前提交有效内联编辑并检查待加入输入，不能隐式把输入框正文加入模板；空白或失败稿阻止操作，名单选择器恢复真实选择。个人消息使用捕获的名单/人员身份整稿保存，弹窗关闭清理内联状态，待核实动作在个人弹窗中。发送仍由预览窗口显式开始。
 
 ## 关键调用链
 

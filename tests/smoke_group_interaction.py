@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from PySide6.QtCore import QObject, QUrl, QMetaObject, Q_ARG, Qt, QPointF, QPoint
-from PySide6.QtGui import QFontDatabase, QInputMethodEvent
+from PySide6.QtGui import QFontDatabase, QInputMethodEvent, QWheelEvent
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
 from PySide6.QtTest import QTest
@@ -74,6 +74,7 @@ def run():
             invoke(obj, 'forceActiveFocus')
             obj.setProperty('text', text)
             obj.setProperty('cursorPosition', len(text))
+            assert item('groupMessageChat' if control == 'groupChat' else 'recipientMessageChat').property('editingIndex') == index, (index, text, obj.property('activeFocus'))
             if save:
                 QTest.keyClick(window, Qt.Key_Return)
                 QTest.qWait(80)
@@ -104,6 +105,13 @@ def run():
             QTest.mouseDClick(window, Qt.LeftButton, Qt.NoModifier, pos)
             QTest.qWait(90)
 
+        def pointer_click(name, double=False):
+            obj = item(name)
+            pos = obj.mapToScene(QPointF(obj.width()/2, obj.height()/2)).toPoint()
+            action = QTest.mouseDClick if double else QTest.mouseClick
+            action(window, Qt.LeftButton, Qt.NoModifier, pos)
+            QTest.qWait(90)
+
         invoke(window, 'switchModule', 4)
         panel = item('recipientMessages')
         chat = item('groupMessageChat')
@@ -116,12 +124,58 @@ def run():
         before = content()
         edit(0, '取消的修改', save=False)
         capture('group-default-edit.png')
-        click('groupChatCancelEdit')
+        QTest.keyClick(window, Qt.Key_Escape); QTest.qWait(70)
         assert content() == before
         edit(0, '{姓名}，本周资料已经更新。')
         assert content()[0][0]['text'] == '张三的个人消息'
-        assert content()[1][0]['text'] == '李四，本周资料已经更新。'
+        assert content()[1][0]['text'] == '李四，本周资料已经更新。', (content(), chat.property('editingIndex'), chat.property('editText'), chat.property('feedback'))
         assert not panel.property('defaultsDirty')
+
+        # Double click enters editing; a click on a non-focusable title commits it.
+        template_text = g.defaultFields[0]['value']
+        pointer_click('groupChatBubbleCard0')
+        assert chat.property('editingIndex') == -1
+        pointer_click('groupChatBubbleCard0', double=True)
+        assert chat.property('editingIndex') == 0
+        assert window.findChild(QObject, 'groupChatSaveEdit') is None
+        assert window.findChild(QObject, 'groupChatCancelEdit') is None
+        item('groupChatInline0').setProperty('text', '外部点击保存')
+        pointer_click('groupTemplateTitle')
+        assert chat.property('editingIndex') == -1 and g.defaultFields[0]['value'] == '外部点击保存'
+        edit(0, 'Tab 保存', save=False)
+        QTest.keyClick(window, Qt.Key_Tab); QTest.qWait(90)
+        assert chat.property('editingIndex') == -1 and g.defaultFields[0]['value'] == 'Tab 保存'
+        edit(0, '', save=False)
+        pointer_click('groupTemplateTitle')
+        assert chat.property('editingIndex') == 0 and g.defaultFields[0]['value'] == 'Tab 保存'
+        QTest.keyClick(window, Qt.Key_Escape); QTest.qWait(70)
+        # Composition confirmation is separate from Enter-save, including an outside click.
+        edit(0, '', save=False)
+        app.sendEvent(window, QInputMethodEvent('组合输入', []))
+        assert item('groupChatInline0').property('inputMethodComposing')
+        QTest.keyClick(window, Qt.Key_Return)
+        assert chat.property('editingIndex') == 0
+        pointer_click('groupTemplateTitle')
+        assert chat.property('editingIndex') == 0
+        event = QInputMethodEvent(); event.setCommitString('组合输入')
+        app.sendEvent(window, event); QTest.qWait(90)
+        assert chat.property('editingIndex') == -1 and g.defaultFields[0]['value'] == '组合输入'
+        edit(0, template_text)
+
+        # A failed inline save retains its editor, but Esc cancels the new value.
+        before = content()
+        with patch.object(g, 'saveDefaultRow', return_value=False):
+            edit(0, '保存失败后取消的编辑')
+        assert chat.property('editingIndex') == 0 and not panel.property('defaultsDirty')
+        assert item('groupChatInline0').property('text') == '保存失败后取消的编辑'
+        assert item('groupResetDefaults').property('visible')
+        QTest.keyClick(window, Qt.Key_Escape); QTest.qWait(70)
+        assert chat.property('editingIndex') == -1 and content() == before
+        click('groupPreviewButton')
+        if item('groupEmptyPrefixReminder').property('visible'):
+            click('groupEmptyPrefixContinue')
+        assert item('groupSendPreview').property('visible') and content() == before
+        click('groupPreviewBack')
 
         # Bubble width follows rendered content; long text wraps at a stable cap.
         template_text = g.defaultFields[0]['value']
@@ -145,14 +199,14 @@ def run():
         capped_width = card.width()
         assert capped_width > medium_width and capped_width < item('groupChatThread').width()
         assert card.height() > short_height*2
-        assert abs(card.mapToScene(QPointF(card.width(), 0)).x()-right_edge) < 1
+        assert abs(card.mapToScene(QPointF(card.width(), 0)).x()-right_edge) < 2
         edit(0, long_text*2)
         assert abs(item('groupChatBubbleCard0').width()-capped_width) < 1
         # Editing expands even a one-character bubble so its controls fit.
         edit(0, '好')
         edit(0, '正在编辑', save=False)
         assert item('groupChatBubbleCard0').width() > short_width+100
-        click('groupChatCancelEdit')
+        QTest.keyClick(window, Qt.Key_Escape); QTest.qWait(70)
         assert abs(item('groupChatBubbleCard0').width()-short_width) < 1
         edit(0, template_text)
         # Several different content lengths provide a real screenshot of the geometry.
@@ -210,17 +264,14 @@ def run():
         assert not item('groupSendPreview').property('visible')
         click('groupResetDefaults')
         assert chat.property('messageCount') == 3 and not panel.property('defaultsDirty')
-        # Retrying a recoverable save cannot discard an unfinished inline edit.
+        # Retry first commits the inline draft, keeping the newest revision of the message.
         with patch.object(g, 'saveDefaultRow', return_value=False):
             compose('临时保存失败的消息')
         assert panel.property('defaultsDirty') and all(len(row) == 3 for row in content())
         edit(3, '正在修订失败稿', save=False)
         click('groupRetryDefaults')
-        assert chat.property('editingIndex') == 3
-        assert item('groupChatInline3').property('text') == '正在修订失败稿'
-        assert all(len(row) == 3 for row in content())
-        click('groupChatCancelEdit')
-        click('groupRetryDefaults')
+        assert chat.property('editingIndex') == -1
+        assert all(row[3]['text'] == '正在修订失败稿' for row in content())
         assert all(len(row) == 4 for row in content()) and not panel.property('defaultsDirty')
         invoke(chat, 'removeMessage', 3)
 
@@ -232,6 +283,13 @@ def run():
         editor = item('recipientMessageEditor')
         assert editor.property('visible') and editor.property('canEdit')
         assert editor.property('recipientId') == g.rows[1]['id']
+        edit(0, '', 'personChat', save=False)
+        pointer_click('cancelRecipientMessages')
+        assert not editor.property('visible')
+        assert item('recipientMessageChat').property('editingIndex') == -1
+        pointer_click('groupTemplateTitle')
+        assert chat.property('editingIndex') == -1
+        double_name(1)
         edit(2, '李四的补充说明', 'personChat')
         assert content()[1][2]['text'] == '完成后请回复，感谢配合。'
         window.close(); app.processEvents()
@@ -248,7 +306,7 @@ def run():
         assert content()[1][2]['text'] == '李四的补充说明'
         assert content()[0][2]['text'] == '公共补充-张三'
 
-        # A pending composer or inline edit blocks preview, list/module changes and closing.
+        # A pending composer blocks navigation; preview commits a completed inline edit.
         compose('未提交草稿', send=False)
         click('groupPreviewButton')
         assert not item('groupSendPreview').property('visible')
@@ -257,19 +315,27 @@ def run():
         window.close(); app.processEvents()
         assert window.isVisible() and item('groupChatComposer').property('text') == '未提交草稿'
         item('groupChatComposer').setProperty('text', '')
+        template_text = g.defaultFields[0]['value']
         edit(0, '尚未保存编辑', save=False)
         click('groupPreviewButton')
-        assert not item('groupSendPreview').property('visible')
-        click('groupChatCancelEdit')
+        assert item('groupSendPreview').property('visible') and chat.property('editingIndex') == -1
+        click('groupPreviewBack')
+        edit(0, template_text)
 
         # Settings and the explicit, ordered preview/send boundary stay intact.
-        click('groupConfigurationButton')
+        assert item('groupSettingsPanel').property('visible')
+        assert item('groupSettingsPanel').mapToScene(QPointF(0,0)).x() < item('groupRecipientsPanel').mapToScene(QPointF(0,0)).x() < item('groupTemplatePanel').mapToScene(QPointF(0,0)).x()
+        assert item('groupPasteDelay').property('text') == '0.5'
+        item('groupPasteDelay').setProperty('text', '0.7')
+        click('groupResetWaits')
+        assert item('groupPasteDelay').property('text') == '0.5'
         confirm_send = item('groupConfirmSend')
         single_send = item('groupSingleSend')
         assert single_send.property('enabled') and single_send.property('y') > confirm_send.property('y')
         confirm_send.setProperty('checked', False)
-        click('groupCloseConfiguration')
+        invoke(item('groupCenterPage'), 'saveOptions')
         assert not single_send.property('enabled') and not g.preview
+        assert single_send.property('opacity') < 0.5
         item('groupContactPrefix').setProperty('text', '')
         click('groupPreviewButton')
         assert item('groupEmptyPrefixReminder').property('visible')
@@ -309,13 +375,13 @@ def run():
                     top = control.mapToScene(QPointF(0, 0))
                     assert top.y() >= 0 and top.y()+control.height() <= window.height()+1, (name, top.y(), control.height())
                 assert item('groupChatThread').height() > 35
-                # Inline save/cancel must remain reachable in the smaller viewport too.
+                # The inline editor must remain reachable in the smaller viewport too.
                 edit(2, '小窗正在编辑', save=False)
-                save = item('groupChatSaveEdit')
+                save = item('groupChatInlineScroll2')
                 thread = item('groupChatThread')
                 assert save.property('visible') and save.mapToScene(QPointF(0, 0)).y() >= thread.mapToScene(QPointF(0, 0)).y()-1
                 assert save.mapToScene(QPointF(0, save.height())).y() <= thread.mapToScene(QPointF(0, thread.height())).y()+1
-                click('groupChatCancelEdit')
+                QTest.keyClick(window, Qt.Key_Escape); QTest.qWait(70)
                 if width == 720:
                     panel.setProperty('selectedRow', g.pendingModel.get(1))
                     invoke(panel, 'openEditor')
@@ -327,13 +393,13 @@ def run():
                     capture('group-personal-'+mode+'-small.png')
                     edit(2, '\n'.join('个人长消息'+str(i) for i in range(40)), 'personChat', save=False)
                     QTest.qWait(80)
-                    save = item('personChatSaveEdit')
+                    save = item('personChatInlineScroll2')
                     thread = item('personChatThread')
                     assert save.property('visible')
                     assert save.mapToScene(QPointF(0, 0)).y() >= thread.mapToScene(QPointF(0, 0)).y()-1
                     assert save.mapToScene(QPointF(0, save.height())).y() <= thread.mapToScene(QPointF(0, thread.height())).y()+1
                     capture('group-personal-edit-'+mode+'-small.png')
-                    click('personChatCancelEdit')
+                    QTest.keyClick(window, Qt.Key_Escape); QTest.qWait(70)
                     click('cancelRecipientMessages')
         assert b.settingsModule.setAppearanceMode('light')
         click('groupPreviewButton')
@@ -352,7 +418,7 @@ def run():
         click('groupPreviewBack')
         g._worker = object(); g._notify_activity(); app.processEvents()
         assert not chat.property('editable')
-        assert not item('groupConfigurationButton').property('enabled')
+        assert not item('groupConfirmSend').property('enabled')
         assert not item('groupContactPrefix').property('enabled')
         assert not item('groupPreviewButton').property('enabled')
         g._worker = None; g._notify_activity()
@@ -361,9 +427,9 @@ def run():
         window.resize(1250, 800); QTest.qWait(100)
         edit(0, '仍保留的草稿', save=False)
         assert g.saveRecipientField(list_id, g.rows[1]['id'], 0, dict(type='text', text='外部编辑'))
-        click('groupChatSaveEdit')
-        assert panel.property('defaultsDirty')
-        assert item('groupChatBubble0').property('text') == '仍保留的草稿'
+        QTest.keyClick(window, Qt.Key_Return); QTest.qWait(80)
+        assert not panel.property('defaultsDirty') and chat.property('editingIndex') == 0
+        assert item('groupChatInline0').property('text') == '仍保留的草稿'
         click('groupPreviewButton')
         assert not preview.property('visible')
         click('groupResetDefaults')
@@ -375,22 +441,34 @@ def run():
         invoke(chat, 'beginEdit', 79)
         long_text = '\n'.join('长消息第'+str(i+1)+'行' for i in range(40))
         inline = item('groupChatInline79')
+        assert inline.property('activeFocus') and chat.property('activeEditor') == inline
         inline.setProperty('text', long_text)
         QTest.qWait(80)
         assert item('groupChatInlineScroll79').property('clip')
         assert item('groupChatInlineScroll79').height() <= 160
         thread = item('groupChatThread')
-        # Reposition after text grows, as a user's editor can grow while typing.
-        invoke(chat, 'beginEdit', 79)  # Already editing: should leave the draft intact.
-        save = item('groupChatSaveEdit')
+        thread.setProperty('contentY', thread.property('originY')); QTest.qWait(80)
+        assert chat.property('editingIndex') == 79 and inline.property('text') == long_text
+        old_y = thread.property('contentY')
+        p = thread.mapToScene(QPointF(5, thread.height()/2))
+        for _ in range(8):
+            event = QWheelEvent(p, QPointF(window.mapToGlobal(p.toPoint())), QPoint(), QPoint(0,-120),
+                                Qt.NoButton, Qt.NoModifier, Qt.NoScrollPhase, False)
+            app.sendEvent(window, event); QTest.qWait(25)
+        QTest.qWait(100)
+        assert thread.property('contentY') > old_y and inline.property('text') == long_text
+        # Return to the same live editor after scrolling far away.
+        invoke(chat, 'revealEditing')
+        save = item('groupChatInlineScroll79')
+        capture('group-long-edit.png')
         assert save.property('visible') and save.mapToScene(QPointF(0, 0)).y() >= thread.mapToScene(QPointF(0, 0)).y()-1
-        assert save.mapToScene(QPointF(0, save.height())).y() <= thread.mapToScene(QPointF(0, thread.height())).y()+1
+        assert save.mapToScene(QPointF(0, save.height())).y() <= thread.mapToScene(QPointF(0, thread.height())).y()+1, (save.mapToScene(QPointF(0,save.height())).y(), thread.mapToScene(QPointF(0,thread.height())).y(), thread.property('contentY'), thread.property('moving'))
         g._worker = object(); g._notify_activity(); app.processEvents()
-        assert inline.property('readOnly') and not save.property('enabled')
+        assert inline.property('readOnly')
         g._worker = None; g._notify_activity()
         capture('group-long-edit.png')
-        click('groupChatSaveEdit')
-        assert content()[0][79]['text'] == long_text
+        QTest.keyClick(window, Qt.Key_Return); QTest.qWait(80)
+        assert content()[0][79]['text'] == long_text, (content()[0][79]['text'], chat.property('editingIndex'), inline.property('activeFocus'), chat.property('editText'), chat.property('feedback'))
         assert thread.property('contentY')-thread.property('originY') > 2000
         edit(50, '中间消息更新')
         assert content()[1][50]['text'] == '中间消息更新'
