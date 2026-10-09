@@ -139,6 +139,7 @@ Item {
                 }
                 Label { id: contactDefaultStatus; objectName: "contactDefaultStatus"; text: ""; visible: text.length > 0; color: UiTheme.muted; font.pixelSize: 12; Layout.fillWidth: true; wrapMode: Text.Wrap }
             }
+            AiSettingsCard { Layout.fillWidth: true; pageScroll: pageScroll }
             SettingsCard {
                 objectName: "credentialNotesCard"
                 Layout.fillWidth: true

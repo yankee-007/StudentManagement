@@ -4,6 +4,7 @@
 
 | ADR | 主题 | 状态 | 相关区域 |
 | --- | --- | --- | --- |
+| [ADR-015](ADR-015-ai-campaign-current-lesson.md) | AI 催交按当前课程节次选模板，生成结果写独立名单 | Accepted | AI设置、当前筛选／快照、异步生成／重试、个人消息保护 |
 | [ADR-014](ADR-014-daily-goals-and-commitments.md) | 正式目标与跨批次承诺独立于催办快照 | Accepted | 今日工作台、手动采集核验、共用编辑器、独立名单 |
 | [ADR-001](ADR-001-independent-lists-feedback.md) | 筛选名单与反馈独立于发送，兼容旧来源名单 | Accepted | 工作台、群发、反馈 |
 | [ADR-002](ADR-002-editor-identity-lifecycle.md) | 编辑身份与稳定 QML 委托 | Accepted | 自动保存、浮窗、模型/界面测试 |

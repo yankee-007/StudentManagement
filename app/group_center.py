@@ -209,11 +209,15 @@ class GroupCenter(QObject):
 
     def _refresh_tables(self):
         source_rows=self._rows_cache
-        signature=(self._id,tuple((r['id'],r['state'],r['content'],r['message'],r['detail'],r['sync_pending']) for r in source_rows))
+        signature=(self._id,tuple((r['id'],r['state'],r['content'],r['message'],r['detail'],r['sync_pending'],r['learning_data']) for r in source_rows))
         if signature==self._table_signature:return
         self._table_signature=signature
         rows=[]
         for source_row in source_rows:
+            source_row = dict(source_row)
+            ai_error = json.loads(source_row['learning_data']).get('ai_generation', {}).get('error')
+            if ai_error and not json.loads(source_row['content']):
+                source_row['detail'] = 'AI 生成失败（话术留空）：' + ai_error
             content=json.loads(source_row['content'])
             if not content and source_row['message']:content=[dict(type='text',text=source_row['message'])]
             row=dict(source_row,items=content,editable=source_row['state'] not in receipts.PROTECTED,
@@ -352,6 +356,78 @@ class GroupCenter(QObject):
     @Slot()
     def refresh(self):
         self._reload_snapshot(lists=True);self._notify_status()
+
+    def createFromAiCampaign(self, title, students, results, failures, template_index):
+        if self.active or self.owner.workflow.send_busy or self.owner.busy:
+            return False
+        try:
+            from .ai_campaign import validate_text
+            captured, _ = self.owner.aiCampaign._capture(self.owner.workflow.recipientKeys)
+            if captured != students:
+                raise ValueError('名单或学习数据已变化，请重新生成')
+            ids = {s['student_id'] for s in students}
+            if set(results) | set(failures) != ids or set(results) & set(failures):
+                raise ValueError('AI 结果不完整，请重新生成')
+            people = []
+            for student in students:
+                sid = student['student_id']
+                text = validate_text(results[sid], student['diagnostic']) if sid in results else ''
+                people.append(dict(name=student['name'],
+                    content=[dict(type='text', text=text, personal_override=True)] if text else [],
+                    learning_data=dict(student_id=sid, class_name=self.owner.workflow.className,
+                        profile_path=str(self.owner.db.path),
+                        ai_generation=dict(student=student, template_index=template_index,
+                                           error=failures.get(sid, '')))))
+            self._id = self.store.create(title, people)
+            self._preview = []; self._confirmation = None
+            self._notice = f'已创建 {len(people)} 人 AI 话术名单；{len(failures)} 人话术留空，请补齐后预览。尚未发送。'
+            self._reload_snapshot(lists=True); self._notify_preview(); self._notify_status()
+            return True
+        except Exception as exc:
+            self._notice = '生成名单失败：' + str(exc)
+            self._notify_status()
+            return False
+
+    def applyAiRetries(self, list_id, results, failures):
+        """Only fill still-empty failed rows; edits and protected send states win."""
+        if self.active:
+            self._notice = '正在发送，未应用 AI 重试结果；请稍后重新重试。'
+            self._notify_status()
+            return
+        from .ai_campaign import validate_text
+        from .message_content import describe
+        changed = 0
+        try:
+            with self.store.connect() as conn:
+                rows = conn.execute('SELECT * FROM recipients WHERE list_id=?', (list_id,)).fetchall()
+                for row in rows:
+                    if json.loads(row['content']) or row['message'] or row['state'] in receipts.PROTECTED:
+                        continue
+                    learning = json.loads(row['learning_data'])
+                    metadata = learning.get('ai_generation', {})
+                    if not metadata.get('error'):
+                        continue
+                    sid = learning.get('student_id')
+                    if sid in results:
+                        text = validate_text(results[sid], metadata['student']['diagnostic'])
+                        content = [dict(type='text', text=text, personal_override=True)]
+                        metadata['error'] = ''
+                        conn.execute('UPDATE recipients SET content=?,message=?,learning_data=? WHERE id=?',
+                            (json.dumps(content, ensure_ascii=False), describe(content),
+                             json.dumps(learning, ensure_ascii=False), row['id']))
+                        changed += 1
+                    elif sid in failures:
+                        metadata['error'] = failures[sid]
+                        conn.execute('UPDATE recipients SET learning_data=? WHERE id=?',
+                                     (json.dumps(learning, ensure_ascii=False), row['id']))
+            if list_id == self._id:
+                if changed:
+                    self._preview = []; self._confirmation = None; self._notify_preview()
+                self._reload_snapshot()
+            self._notice = f'AI 重试已补齐 {changed} 人；已有消息及发送记录保留。'
+        except Exception:
+            self._notice = 'AI 重试结果未能保存，请重试或在个人消息中补写。'
+        self._notify_status()
     @Slot(int)
     def selectList(self,index):
         if self.active:return

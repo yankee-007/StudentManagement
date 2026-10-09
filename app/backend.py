@@ -28,6 +28,9 @@ STUDENT_COLUMNS = [
 
 class Backend(QObject):
     @Property(QObject, constant=True)
+    def aiCampaign(self):return self._ai_campaign
+
+    @Property(QObject, constant=True)
     def contactOpener(self):return self._contact_opener
     @Property(QObject, constant=True)
     def campaignCompanion(self):return self._campaign_companion
@@ -263,6 +266,8 @@ class Backend(QObject):
         self._settings_module = SettingsModule(self)
         from .group_center import GroupCenter
         self._group_center = GroupCenter(self)
+        from .ai_campaign_module import AiCampaignModule
+        self._ai_campaign = AiCampaignModule(self)
         from .wecom_renamer import RemarkRenamer
         self._remark_renamer = RemarkRenamer(self)
         from .live_absence import LiveAbsence

@@ -19,6 +19,10 @@ ApplicationWindow {
     property var restartService: typeof restartController !== "undefined" ? restartController : null
     onClosing: function(close) {
         Qt.inputMethod.commit()
+        if (backend.aiCampaign.busy) {
+            close.accepted=false; backend.aiCampaign.cancel()
+            snack.text="正在停止 AI 生成，请等待当前请求返回后关闭"; snack.open(); return
+        }
         if (!backend.dailyWorkspace.flushEditor()) { close.accepted=false; return }
         if (!wf.flushFeedback()) { close.accepted=false; return }
         if (root.moduleIndex === 4 && !backend.groupCenter.active && !groupCenterPage.saveSettings()) { close.accepted=false; return }
@@ -285,34 +289,42 @@ ApplicationWindow {
         }
     }
     Dialog {
-        id: templateDialog; objectName: "campaignListDialog"; anchors.centerIn: parent; modal: true
-        title: "从当前筛选生成群发名单"; width: Math.min(root.width-40,650); height: Math.min(root.height-40,590)
+        id: templateDialog; objectName: "campaignListDialog"; parent: Overlay.overlay; anchors.centerIn: parent; modal: true
+        title: "从当前筛选生成群发名单"; width: Math.min(root.width-40,650); height: Math.min(root.height-20,590)
         property var recordKeys: []
+        closePolicy: backend.aiCampaign.busy ? Popup.NoAutoClose : Popup.CloseOnEscape | Popup.CloseOnPressOutside
         onOpened: {
             recordKeys=wf.recipientKeys.slice()
             groupTitle.text=wf.className + " · 催办筛选名单"
             messageFields.load([{type:"text",text:"{姓名}同学，你好！"}])
             namesOnly.checked=false
+            aiMode.checked=false
+            aiPanel.reset()
         }
         ColumnLayout {
             anchors.fill: parent
             UiTextField { id: groupTitle; objectName: "campaignListTitle"; placeholderText: "名单名称"; Layout.fillWidth: true }
-            Label { text: "当前筛选中 " + templateDialog.recordKeys.length + " 位有姓名的学员。可添加多条文字或文件；创建后在群发中心检查名单。"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted }
-            Label { text: "可用变量：{姓名}、{学号}、{班期}、{状态}、{免催日期}、{欠课}、{欠作业}、{" + backend.profilesModule.messagePlaceholders.join("}、{") + "}"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted }
-            CheckBox { id: namesOnly; objectName: "campaignNamesOnly"; text: "只生成姓名名单，稍后配置消息" }
+            Label { visible: !aiMode.checked; text: "当前筛选中 " + templateDialog.recordKeys.length + " 位有姓名的学员。可添加多条文字或文件；创建后在群发中心检查名单。"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted }
+            Label { visible: !aiMode.checked; text: "可用变量：{姓名}、{学号}、{班期}、{状态}、{免催日期}、{欠课}、{欠作业}、{" + backend.profilesModule.messagePlaceholders.join("}、{") + "}"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted }
+            RowLayout {
+                Layout.fillWidth: true
+                CheckBox { id: namesOnly; objectName: "campaignNamesOnly"; text: "只生成姓名名单"; enabled: !backend.aiCampaign.busy; onToggled: if(checked) aiMode.checked=false }
+                CheckBox { id: aiMode; objectName: "campaignAiMode"; text: "AI 催交话术"; enabled: !backend.aiCampaign.busy; onToggled: if(checked) namesOnly.checked=false }
+            }
             ScrollView {
                 id: messageScroll
-                visible: !namesOnly.checked; Layout.fillWidth: true; Layout.fillHeight: true; contentWidth: availableWidth; clip: true
+                visible: !namesOnly.checked && !aiMode.checked; Layout.fillWidth: true; Layout.fillHeight: true; contentWidth: availableWidth; clip: true
                 MessageFields { id: messageFields; objectName: "campaignMessageFields"; width: messageScroll.availableWidth }
             }
-            Label { text: sender.status; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.warning }
+            AiCampaignPanel { id: aiPanel; objectName: "aiCampaignPanel"; visible: aiMode.checked; recordKeys: templateDialog.recordKeys; Layout.fillWidth: true; Layout.fillHeight: true }
+            Label { visible: !aiMode.checked; text: sender.status; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.warning }
             RowLayout {
-                UiButton { objectName: "createCampaignSelection"; text: "创建并打开群发中心"; enabled: templateDialog.recordKeys.length > 0; onClicked: {
-                    if(sender.createFromCampaignSelection(groupTitle.text,messageFields.values(),templateDialog.recordKeys,namesOnly.checked)) {
+                UiButton { objectName: "createCampaignSelection"; text: "创建并打开群发中心"; enabled: templateDialog.recordKeys.length > 0 && !backend.aiCampaign.busy && (!aiMode.checked || backend.aiCampaign.ready); onClicked: {
+                    if(aiMode.checked ? backend.aiCampaign.createList(groupTitle.text,templateDialog.recordKeys) : sender.createFromCampaignSelection(groupTitle.text,messageFields.values(),templateDialog.recordKeys,namesOnly.checked)) {
                         templateDialog.close(); root.switchModule(4)
                     }
                 } }
-                UiButton { text: "取消"; onClicked: templateDialog.close() }
+                UiButton { text: "取消"; enabled: !backend.aiCampaign.busy; onClicked: templateDialog.close() }
             }
         }
     }

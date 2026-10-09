@@ -89,6 +89,11 @@ Item {
             UiButton { objectName: "groupCreateList"; text: "新建群发"; enabled: !center.active; onClicked: if(page.saveSettings()) customDialog.open() }
         }
         RowLayout {
+            Layout.fillWidth: true; visible: backend.aiCampaign.listFailureCount>0 || backend.aiCampaign.busy
+            Label { Layout.fillWidth: true; wrapMode: Text.Wrap; text: backend.aiCampaign.busy ? backend.aiCampaign.notice : "AI 话术留空 " + backend.aiCampaign.listFailureCount + " 人，可双击姓名补写或重试。"; color: UiTheme.warning }
+            UiButton { objectName: "groupRetryAiFailures"; text: "重试失败项"; enabled: !backend.aiCampaign.busy && !center.active && backend.aiCampaign.listFailureCount>0; onClicked: if(page.saveSettings()) backend.aiCampaign.retryList(center.selected.id) }
+        }
+        RowLayout {
             Layout.fillWidth: true; Layout.fillHeight: true; spacing: 10
             RecipientMessages {
                 id: recipientPanel; Layout.fillWidth: true; Layout.fillHeight: true; center: page.center

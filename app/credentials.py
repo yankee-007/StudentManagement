@@ -2,6 +2,7 @@
 import keyring
 
 SERVICES = {
+    'ai_campaign': 'LocalTools/学员催办维护名单/AI催交话术',
     'completion': 'LocalTools/学员催办维护名单/追光鲸鱼',
     'homework': 'LocalTools/学员催办维护名单/作业平台',
 }
