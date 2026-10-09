@@ -78,6 +78,33 @@ Item {
     RowLayout {
         anchors.fill: parent; spacing: 10
         UiPanel {
+            objectName: "groupTemplatePanel"; Layout.fillWidth: true; Layout.fillHeight: true; padding: panel.height<350 ? 8 : 16
+            ColumnLayout {
+                anchors.fill: parent; spacing: 8
+                RowLayout {
+                    Layout.fillWidth: true
+                    Label { objectName: "groupTemplateTitle"; text: "消息模板"; font.bold: true; font.pixelSize: 17; Layout.fillWidth: true; Layout.minimumWidth: 0; elide: Text.ElideRight }
+                    UiButton { objectName: "groupResetDefaults"; text: "重载"; visible: defaults.dirty || (defaults.editingIndex>=0 && defaults.feedback.length>0); enabled: !center.active; implicitHeight: 28; onClicked: panel.loadDefaults(true) }
+                    UiButton { objectName: "groupRetryDefaults"; text: panel.width<500 ? "重试" : "重试保存"; visible: defaults.dirty || (defaults.editingIndex>=0 && defaults.feedback.length>0); enabled: panel.canManage; implicitHeight: 28; onClicked: panel.saveDefaults() }
+                    ToolButton {
+                        text: "更多"; font.pixelSize: 12; enabled: panel.canManage; implicitHeight: 28
+                        Accessible.name: "模板更多操作"; onClicked: templateMenu.popup()
+                    }
+                }
+                Label {
+                    text: center.selectedIndex<0 ? "先新建或生成名单" : center.active ? "发送中，消息模板暂不可编辑" : "加入后自动保存 · 保留个人改动 · 预览后开始群发"
+                    Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted; font.pixelSize: 12
+                }
+                MessageChatEditor {
+                    id: defaults; objectName: "groupMessageChat"
+                    Layout.fillWidth: true; Layout.fillHeight: true
+                    fileChooser: center; controlPrefix: "groupChat"; defaultTemplate: true; editable: panel.canManage
+                    onCommitted: commitAccepted=panel.saveCommittedDefaults(false)
+                    onEditCancelled: if(!dirty && panel.draftRevision!==center.contentRevision) panel.loadDefaults(true)
+                }
+            }
+        }
+        UiPanel {
             objectName: "groupRecipientsPanel"
             Layout.preferredWidth: panel.width<750 ? 140 : 204
             Layout.fillHeight: true; padding: 10
@@ -134,33 +161,6 @@ Item {
                 }
                 Label { text: "双击姓名 · 单独编辑"; color: UiTheme.muted; font.pixelSize: 11; Layout.fillWidth: true; elide: Text.ElideRight }
                 UiButton { objectName: "groupEditPersonButton"; text: "查看个人消息"; Layout.fillWidth: true; visible: !!panel.selectedRow.id; enabled: !center.active; onClicked: panel.openEditor() }
-            }
-        }
-        UiPanel {
-            objectName: "groupTemplatePanel"; Layout.fillWidth: true; Layout.fillHeight: true; padding: panel.height<350 ? 8 : 16
-            ColumnLayout {
-                anchors.fill: parent; spacing: 8
-                RowLayout {
-                    Layout.fillWidth: true
-                    Label { objectName: "groupTemplateTitle"; text: "消息模板"; font.bold: true; font.pixelSize: 17; Layout.fillWidth: true; Layout.minimumWidth: 0; elide: Text.ElideRight }
-                    UiButton { objectName: "groupResetDefaults"; text: "重载"; visible: defaults.dirty || (defaults.editingIndex>=0 && defaults.feedback.length>0); enabled: !center.active; implicitHeight: 28; onClicked: panel.loadDefaults(true) }
-                    UiButton { objectName: "groupRetryDefaults"; text: panel.width<500 ? "重试" : "重试保存"; visible: defaults.dirty || (defaults.editingIndex>=0 && defaults.feedback.length>0); enabled: panel.canManage; implicitHeight: 28; onClicked: panel.saveDefaults() }
-                    ToolButton {
-                        text: "更多"; font.pixelSize: 12; enabled: panel.canManage; implicitHeight: 28
-                        Accessible.name: "模板更多操作"; onClicked: templateMenu.popup()
-                    }
-                }
-                Label {
-                    text: center.selectedIndex<0 ? "先新建或生成名单" : center.active ? "发送中，消息模板暂不可编辑" : "加入后自动保存 · 保留个人改动 · 预览后开始群发"
-                    Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted; font.pixelSize: 12
-                }
-                MessageChatEditor {
-                    id: defaults; objectName: "groupMessageChat"
-                    Layout.fillWidth: true; Layout.fillHeight: true
-                    fileChooser: center; controlPrefix: "groupChat"; defaultTemplate: true; editable: panel.canManage
-                    onCommitted: commitAccepted=panel.saveCommittedDefaults(false)
-                    onEditCancelled: if(!dirty && panel.draftRevision!==center.contentRevision) panel.loadDefaults(true)
-                }
             }
         }
     }
