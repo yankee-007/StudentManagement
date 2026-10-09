@@ -1,8 +1,9 @@
 # TASK-20261006-76ec258f174b：班期切换与学员操作界面细化
 
 ## Identity
-- 工作状态：awaiting_acceptance
-- 更新时间：2026-10-06（Asia/Shanghai）
+- 工作状态：done
+- 更新时间：2026-10-09 22:50 +08:00
+- 验收：用户于 2026-10-09 确认「已全部验收」；实现版本为 commit b24c0a4 的 main，观感与操作习惯按验收人确认。
 - 关联：TASK-20261006-3d2ba861e904
 
 ## Requirement

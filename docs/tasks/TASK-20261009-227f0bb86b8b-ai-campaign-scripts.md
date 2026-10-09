@@ -1,7 +1,8 @@
 # TASK-20261009-227f0bb86b8b：AI 催交话术生成
 
-- 状态：awaiting_acceptance
-- 更新时间：2026-10-09（Asia/Shanghai）
+- 状态：done
+- 更新时间：2026-10-09 22:50 +08:00
+- 验收：用户于 2026-10-09 确认「已全部验收」；实现版本为 commit b24c0a4 的 main。真实 AI 服务可用性、话术效果与费用口径为验收人确认，未新增自动证据。
 - 分支：codex/daily-workspace
 
 ## 需求与验收

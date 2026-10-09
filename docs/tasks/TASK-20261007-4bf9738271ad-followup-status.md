@@ -2,8 +2,8 @@
 
 ## Identity / Workspace
 
-- ID：TASK-20261007-4bf9738271ad；状态：awaiting_acceptance。
-- 更新时间：2026-10-07T19:46:50+08:00；main，本轮起点f27ba95，工作区干净；正式字段新增空状态，预览沿用全班在读。
+- ID：TASK-20261007-4bf9738271ad；状态：done（用户于 2026-10-09 确认「已全部验收」，实现版本为 commit b24c0a4 的 main）。
+- 更新时间：2026-10-09 22:50 +08:00；本轮分支 codex/daily-workspace 与 main 同一提交。
 - 起点：0815686，工作区干净；单Agent写入。关联[独立概览任务](TASK-20261007-19754d1a822f-dashboard-history-comparison.md)，无远端上传授权。
 
 ## Requirement / 最终口径

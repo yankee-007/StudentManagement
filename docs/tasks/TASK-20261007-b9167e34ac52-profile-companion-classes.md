@@ -1,6 +1,6 @@
 # 学员画像浮窗跨班识别
 
-- Identity: TASK-20261007-b9167e34ac52；awaiting_acceptance；2026-10-07（Asia/Shanghai）。
+- Identity: TASK-20261007-b9167e34ac52；done；2026-10-09 22:50 +08:00。用户于 2026-10-09 确认「已全部验收」；实现版本为 commit b24c0a4 的 main，真实企微兼容性按验收人确认。
 - Requirement: 自动识别已登记班级的聊天学员；优先备注/前缀，姓名唯一时兜底；下拉含自动识别及固定班级；只切浮窗；显示前缀 姓名；移除姓名拖动与重试按钮。
 - Baseline: main / 23f123d994836a7d57131c091145cc1704af7275；起点工作区干净。
 - Workspace: 当前单 Agent，未授权本轮远端上传。
