@@ -193,6 +193,31 @@ def run():
         edit(0, '短\n第二行比较长一些')
         card = item('groupChatBubbleCard0')
         assert abs(card.width()-one_line_width) < 1 and card.height() > short_height+10
+        # A message that fits the column is never wrapped, not even when its widest line is the
+        # last one: a card rounded below the exact text width used to push 「业}」 onto its own line.
+        edit(0, '未完作业节次：{姓名}')
+        widest_width = item('groupChatBubbleCard0').width()
+        edit(0, '未完课程节次：{姓名}\n未完作业节次：{姓名}')
+        card = item('groupChatBubbleCard0')
+        label = item('groupChatBubble0')
+        assert label.property('lineCount') == 2, (card.width(), card.height())
+        assert abs(card.width()-widest_width) < 1, (card.width(), widest_width)
+        # The text keeps at least a pixel of slack, so device pixel rounding cannot wrap it.
+        assert label.property('width') >= label.property('implicitWidth')+1, \
+            (label.property('width'), label.property('implicitWidth'))
+        # A {变量} placeholder stays whole when a message does wrap, and joins add no width.
+        edit(0, '第一节{姓名}')
+        token_text = label.property('text')
+        assert token_text == '第一节{\u2060姓\u2060名\u2060}', repr(token_text)
+        assert g.defaultFields[0]['value'] == '第一节{姓名}', g.defaultFields[0]['value']
+        token_width = item('groupChatBubbleCard0').width()
+        edit(0, '第一节{姓名')
+        unclosed_width = item('groupChatBubbleCard0').width()
+        edit(0, '第一节}}')
+        braces_width = item('groupChatBubbleCard0').width()
+        edit(0, '第一节}')
+        assert abs((token_width-unclosed_width)-(braces_width-item('groupChatBubbleCard0').width())) <= 2, \
+            (token_width, unclosed_width, braces_width, item('groupChatBubbleCard0').width())
         long_text = '这是一条用于验证自动换行和最大宽度的消息。'*18
         edit(0, long_text)
         card = item('groupChatBubbleCard0')

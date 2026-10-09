@@ -18,6 +18,9 @@ Item {
     property bool committing: false
     property bool commitAccepted: true
     property bool pendingOutsideCommit: false
+    // Text inset inside a bubble; the cap keeps long messages readable at the thread width.
+    readonly property int bubblePadding: 12
+    readonly property int bubbleSlack: 2
     readonly property int messageCount: fields.count
     readonly property bool hasPending: editingIndex>=0 || composer.text.length>0
     readonly property bool compact: height<350
@@ -154,6 +157,12 @@ Item {
         return false
     }
     function fileName(path) { return path.replace(/\\/g,"/").split("/").pop() }
+    // A {变量} placeholder stays in one piece when a long message wraps; word joiners add no width.
+    function keepTokens(text) {
+        return String(text).replace(/\{[^{}\s\n]{1,12}\}/g,function (token) {
+            return token.split("").join("\u2060")
+        })
+    }
 
     ListModel { id: fields }
     MouseArea {
@@ -185,11 +194,16 @@ Item {
                 required property string value
                 required property bool mixed
                 readonly property string displayText: mixed ? "各人内容不同 · 编辑后统一" : kind==="file" ? "附件  ·  "+chat.fileName(value) : value
+                readonly property string bubbleText: chat.keepTokens(displayText)
+                // Hug the widest line instead of letting a rounded card wrap the last glyph:
+                // only a message that really is wider than the column is wrapped.
+                readonly property real hugWidth: Math.ceil(naturalText.implicitWidth)+2*chat.bubblePadding+chat.bubbleSlack
+                readonly property bool hugContent: chat.editingIndex!==bubble.index && hugWidth<=bubbleColumn.width
                 width: thread.width
                 height: bubbleColumn.implicitHeight+4
                 Text {
                     id: naturalText; visible: false
-                    text: bubble.displayText; textFormat: Text.PlainText
+                    text: bubble.bubbleText; textFormat: Text.PlainText
                     font: messageText.font; wrapMode: Text.NoWrap
                 }
                 ColumnLayout {
@@ -233,18 +247,18 @@ Item {
                         Layout.alignment: Qt.AlignRight
                         Layout.minimumWidth: Math.min(44,bubbleColumn.width)
                         Layout.maximumWidth: bubbleColumn.width
-                        Layout.preferredWidth: chat.editingIndex===bubble.index ? bubbleColumn.width : Math.min(bubbleColumn.width,naturalText.implicitWidth+24)
-                        implicitHeight: body.implicitHeight+24
+                        Layout.preferredWidth: bubble.hugContent ? bubble.hugWidth : bubbleColumn.width
+                        implicitHeight: body.implicitHeight+2*chat.bubblePadding
                         color: UiTheme.selection; radius: 12
                         TapHandler { enabled: chat.editable && chat.editingIndex!==bubble.index; onDoubleTapped: chat.beginEdit(bubble.index) }
                         ColumnLayout {
-                            id: body; anchors.fill: parent; anchors.margins: 12; spacing: 6
+                            id: body; anchors.fill: parent; anchors.margins: chat.bubblePadding; spacing: 6
                             Label {
                                 id: messageText
                                 objectName: chat.controlPrefix+"Bubble"+bubble.index
                                 visible: chat.editingIndex!==bubble.index
-                                Layout.fillWidth: true; wrapMode: Text.Wrap; textFormat: Text.PlainText
-                                text: bubble.displayText
+                                Layout.fillWidth: true; wrapMode: bubble.hugContent ? Text.NoWrap : Text.Wrap; textFormat: Text.PlainText
+                                text: bubble.bubbleText
                                 color: bubble.mixed ? UiTheme.muted : UiTheme.ink; font.pixelSize: 14
                                 ToolTip.visible: fileHover.hovered && bubble.kind==="file"
                                 ToolTip.text: bubble.value
