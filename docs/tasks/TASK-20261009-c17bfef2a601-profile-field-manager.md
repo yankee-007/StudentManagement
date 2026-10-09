@@ -56,6 +56,6 @@
 - 最终smoke_profile_editor_layout、smoke_workbench_revision通过（后者100次反馈输入仍合并1次写入），同步字段契约／浮窗及共享工作台组件正常。代表截图已复核：wide-light、narrow-dark、drag-between-light，中文可读、间隙与紧凑卡片正确；未操作正式应用或真实企微。
 - 本轮新增后端profile_module改动与tests/test_profile_field_layout.py、tests/smoke_profile_field_manager_performance.py；共享排序仍保留workflow既有note及同步moveField。README／PROJECT_CONTEXT／architecture／任务索引只更新本需求；未改schema或新增ADR。最终差异、调用链与git diff --check通过；最后补充的重置失败提示测试和最终界面冒烟也通过，主观体感待用户查看。
 
-成果保存在本地工作区。ProfileFieldOrder和项目文档与既有任务内容混合，本轮未提交、未推送；按Git协议保护归属。没有本任务远端上传授权。跨电脑恢复需另行取得这次修改及新增ProfileFieldCard.qml、smoke_profile_field_manager.py、smoke_profile_field_manager_performance.py、test_profile_field_layout.py和任务文件；当前commit不包含本任务实现。起点文件及截图位于忽略目录，不保证其他电脑可取得。
+成果已提交并推送。2026-10-09 用户明确要求「将项目提交至GitHub」，据此把本轮修改（含新增ProfileFieldCard.qml、smoke_profile_field_manager.py、smoke_profile_field_manager_performance.py、test_profile_field_layout.py和本任务文件）提交为 commit 52a7d14 并推送 codex/daily-workspace。同一提交内的qml/CampaignFieldDialog.qml、qml/Main.qml、qml/ProfileFieldOrder.qml共享改动和app/workflow.py「以往反馈情况」列属工作区其他在改内容，未单独拆分，随本提交一并上传。截图与性能结果仍位于忽略目录output/，不随仓库分发。
 
 用户可点击「调试重启」，进入「学员画像 → 管理字段」查看卡片拾取、1／2字段间插入、滚动和窄窗新增表单；运行时证据通过，审美与真实鼠标体感仍需用户自行评估。无需接触正式学员值、删除字段或真实企微即可查看视觉行为。

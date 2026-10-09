@@ -27,7 +27,7 @@ Python、PySide6/Qt Quick QML（Fusion）、SQLite；requests/BeautifulSoup/lxml
 
 ## 4. 核心模块
 
-AI 催交使用 app/ai_campaign.py（诊断／接口／校验／重试）、app/ai_campaign_module.py 与 AiCampaignPanel.qml／AiSettingsCard.qml。仅当前催办筛选可生成，模板按本批 dashboard.opened 课程节次选择，可手选；不计催办历史、不使用反馈记忆。配置存主库 settings，API Key仅在keyring；请求传姓名、学号和当前欠账。冻结名单／欠账并复核后创建独立群发名单，失败项为空，在既有learning_data保留重试所需诊断／模板索引／错误；成功内容为个人消息，不改发送协议或群发库结构。当前根目录32次催交话术库为未跟踪只读运行依赖，移机需另行携带。真实AI服务与效果待用户验收，见TASK-20261009-227f0bb86b8b、ADR-015。
+AI 催交使用 app/ai_campaign.py（诊断／接口／校验／重试）、app/ai_campaign_module.py 与 AiCampaignPanel.qml／AiSettingsCard.qml。仅当前催办筛选可生成，模板按本批 dashboard.opened 课程节次选择，可手选；不计催办历史、不使用反馈记忆。配置存主库 settings，API Key仅在keyring；请求传姓名、学号和当前欠账。冻结名单／欠账并复核后创建独立群发名单，失败项为空，在既有learning_data保留重试所需诊断／模板索引／错误；成功内容为个人消息，不改发送协议或群发库结构。当前根目录32次催交话术库为只读运行依赖，已随仓库提交（commit 15f99dd），克隆后可直接运行，不再需要移机另行携带。真实AI服务与效果待用户验收，见TASK-20261009-227f0bb86b8b、ADR-015。
 
 | 位置 | 职责 |
 | --- | --- |
