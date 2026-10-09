@@ -355,7 +355,7 @@ def run():
 
         # Settings and the explicit, ordered preview/send boundary stay intact.
         assert item('groupSettingsPanel').property('visible')
-        assert item('groupSettingsPanel').mapToScene(QPointF(0,0)).x() < item('groupTemplatePanel').mapToScene(QPointF(0,0)).x() < item('groupRecipientsPanel').mapToScene(QPointF(0,0)).x()
+        assert item('groupRecipientsPanel').mapToScene(QPointF(0,0)).x() < item('groupTemplatePanel').mapToScene(QPointF(0,0)).x() < item('groupSettingsPanel').mapToScene(QPointF(0,0)).x()
         assert item('groupPasteDelay').property('text') == '0.5'
         item('groupPasteDelay').setProperty('text', '0.7')
         click('groupResetWaits')

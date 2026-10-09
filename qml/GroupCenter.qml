@@ -90,6 +90,14 @@ Item {
         }
         RowLayout {
             Layout.fillWidth: true; Layout.fillHeight: true; spacing: 10
+            RecipientMessages {
+                id: recipientPanel; Layout.fillWidth: true; Layout.fillHeight: true; center: page.center
+                onPrefixEdited: page.scheduleSave()
+                onResolveRequested: function(recipientId,wasSent) {
+                    resolveDialog.listId=center.selected.id; resolveDialog.recipientId=recipientId
+                    resolveDialog.wasSent=wasSent; resolveDialog.open()
+                }
+            }
             UiPanel {
                 id: settingsPanel; objectName: "groupSettingsPanel"; property int listId: 0
                 Layout.preferredWidth: page.width<750 ? 170 : 238
@@ -127,14 +135,6 @@ Item {
                             UiButton { objectName: "groupResetWaits"; text: "恢复默认等待"; Layout.fillWidth: true; onClicked: { searchWait.text="0.5"; timeout.text="3"; focusDelay.text="0.5"; pasteDelay.text="0.5"; gap.text="0" } }
                         }
                     }
-                }
-            }
-            RecipientMessages {
-                id: recipientPanel; Layout.fillWidth: true; Layout.fillHeight: true; center: page.center
-                onPrefixEdited: page.scheduleSave()
-                onResolveRequested: function(recipientId,wasSent) {
-                    resolveDialog.listId=center.selected.id; resolveDialog.recipientId=recipientId
-                    resolveDialog.wasSent=wasSent; resolveDialog.open()
                 }
             }
         }
@@ -189,7 +189,7 @@ Item {
             anchors.fill: parent
             UiTextField { id: customTitle; objectName: "groupCustomTitle"; placeholderText: "群发方案名称"; Layout.fillWidth: true }
             Label {
-                text: "只创建空的群发方案；创建后在右侧「群发名单」逐个填写姓名（也可用 Ctrl+V 粘贴多个），再到「消息模板」配置消息。"
+                text: "只创建空的群发方案；创建后在左侧「群发名单」逐个填写姓名（也可用 Ctrl+V 粘贴多个），再到「消息模板」配置消息。"
                 wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.muted
             }
             Label { text: center.status; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.warning }
