@@ -10,12 +10,57 @@ Item {
     property var selectedRow: ({})
     property int currentListId: -1
     property var currentModel: tabs.currentIndex===0 ? center.pendingModel : center.sentModel
-    property bool canManage: !center.active && center.editableCount>0
+    property bool canManage: !center.active && center.selectedIndex>=0 && (center.editableCount>0 || center.pendingCount+center.sentCount===0)
     readonly property bool defaultsDirty: defaults.dirty
     property string draftRevision: ""
     property var pickedKeys: ({})
     property int lastPickedIndex: -1
     property string actionNotice: ""
+    property bool listMode: false
+    property bool syncingLists: false
+    property int rowsRevision: 0
+    readonly property real sharedHeaderHeight: Math.max(namesHeader.implicitHeight, templateHeader.implicitHeight)
+    function setListMode(value) {
+        if(value===listMode || !saveDefaults()) return
+        templateDialog.close()
+        listMode=value
+        Qt.callLater(refreshListGeometry)
+    }
+    function syncLists(source, target) {
+        if(!listMode || syncingLists) return
+        syncingLists=true
+        var offset=source.contentY-source.originY
+        if(Math.abs(target.contentY-target.originY-offset)>0.1) {
+            target.cancelFlick()
+            target.contentY=target.originY+offset
+        }
+        syncingLists=false
+    }
+    function refreshListGeometry() {
+        if(!listMode) return
+        namesTable.forceLayout(); messageList.forceLayout()
+        syncLists(namesTable,messageList)
+    }
+    function scrollRows(view,wheel,allowHorizontal) {
+        view.cancelFlick()
+        var horizontal=allowHorizontal && ((wheel.modifiers & Qt.ShiftModifier) || wheel.angleDelta.x!==0 || wheel.pixelDelta.x!==0)
+        if(horizontal) {
+            var dx=wheel.pixelDelta.x || wheel.pixelDelta.y || (wheel.angleDelta.x || wheel.angleDelta.y)/2
+            view.contentX=Math.max(0,Math.min(view.contentX-dx,view.contentWidth-view.width))
+        } else {
+            var dy=wheel.pixelDelta.y || wheel.angleDelta.y/2
+            view.contentY=Math.max(view.originY,Math.min(view.contentY-dy,view.originY+Math.max(0,view.contentHeight-view.height)))
+        }
+        wheel.accepted=true
+    }
+    function messageText(row) {
+        var values=[]
+        for(var i=0;i<(row.items || []).length;i++) {
+            var item=row.items[i]
+            values.push((i+1)+". "+(item.type==="file" ? "附件："+String(item.path).replace(/\\/g,"/").split("/").pop() : item.text))
+        }
+        return values.length ? values.join("    |    ").replace(/[\r\n]+/g," ↵ ") : "暂无消息"
+    }
     signal prefixEdited()
     signal resolveRequested(int recipientId, bool wasSent)
     function isPicked(key) { return pickedKeys[String(key)] === true }
@@ -155,12 +200,15 @@ Item {
                 panel.selectedRow=({})
                 panel.clearPicked()
                 panel.actionNotice=""
+                templateDialog.close()
                 panel.loadDefaults(false)
             }
         }
         function onRowsChanged() {
+            panel.rowsRevision++
             panel.restoreSelection()
             if(!defaults.dirty && defaults.editingIndex<0) panel.loadDefaults(true)
+            Qt.callLater(panel.refreshListGeometry)
         }
     }
     Component.onCompleted: { currentListId=center.selected.id || 0; loadDefaults(false) }
@@ -172,37 +220,43 @@ Item {
             Layout.fillHeight: true; padding: 10
             ColumnLayout {
                 anchors.fill: parent; spacing: 6
-                Label { objectName: "groupListTitle"; text: "群发名单"; font.bold: true; font.pixelSize: 15 }
-                UiTextField {
-                    id: prefix; objectName: "groupContactPrefix"; Layout.fillWidth: true
-                    enabled: !center.active && center.selectedIndex>=0
-                    placeholderText: "姓名前缀（可选）"; Accessible.name: "姓名前缀"
-                    onTextChanged: panel.prefixEdited()
-                }
-                TabBar {
-                    id: tabs; objectName: "groupMessageTabs"; Layout.fillWidth: true
-                    spacing: 8; padding: 0; implicitHeight: 36
-                    background: Rectangle {
-                        color: "transparent"
-                        Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: UiTheme.line; opacity: 0.55 }
+                ColumnLayout {
+                    id: namesHeader; Layout.fillWidth: true; spacing: 6
+                    Layout.preferredHeight: panel.listMode ? panel.sharedHeaderHeight : implicitHeight
+                    Layout.maximumHeight: Layout.preferredHeight
+                    Label { objectName: "groupListTitle"; text: "群发名单"; font.bold: true; font.pixelSize: 15 }
+                    UiTextField {
+                        id: prefix; objectName: "groupContactPrefix"; Layout.fillWidth: true
+                        enabled: !center.active && center.selectedIndex>=0
+                        placeholderText: "姓名前缀（可选）"; Accessible.name: "姓名前缀"
+                        onTextChanged: panel.prefixEdited()
                     }
-                    onCurrentIndexChanged: { panel.selectedRow=({}); panel.clearPicked(); panel.actionNotice="" }
-                    TabButton {
-                        id: pendingTab; objectName: "groupPendingTab"; text: "待处理 "+center.pendingCount; implicitHeight: 36; leftPadding: 0; rightPadding: 0
-                        contentItem: Text { text: pendingTab.text; font.pixelSize: 12; font.weight: pendingTab.checked ? Font.DemiBold : Font.Normal; color: pendingTab.checked ? UiTheme.accent : UiTheme.muted; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
+                    Item { Layout.fillHeight: true; visible: panel.listMode }
+                    TabBar {
+                        id: tabs; objectName: "groupMessageTabs"; Layout.fillWidth: true
+                        spacing: 8; padding: 0; implicitHeight: 36
                         background: Rectangle {
-                            color: pendingTab.hovered ? UiTheme.hover : "transparent"; radius: 4
-                            border.width: pendingTab.visualFocus ? 1 : 0; border.color: UiTheme.focus
-                            Rectangle { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; width: parent.width-16; height: 2; radius: 1; color: UiTheme.accentFill; visible: pendingTab.checked }
+                            color: "transparent"
+                            Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: UiTheme.line; opacity: 0.55 }
                         }
-                    }
-                    TabButton {
-                        id: sentTab; objectName: "groupSentTab"; text: "已发送 "+center.sentCount; implicitHeight: 36; leftPadding: 0; rightPadding: 0
-                        contentItem: Text { text: sentTab.text; font.pixelSize: 12; font.weight: sentTab.checked ? Font.DemiBold : Font.Normal; color: sentTab.checked ? UiTheme.accent : UiTheme.muted; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
-                        background: Rectangle {
-                            color: sentTab.hovered ? UiTheme.hover : "transparent"; radius: 4
-                            border.width: sentTab.visualFocus ? 1 : 0; border.color: UiTheme.focus
-                            Rectangle { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; width: parent.width-16; height: 2; radius: 1; color: UiTheme.accentFill; visible: sentTab.checked }
+                        onCurrentIndexChanged: { panel.selectedRow=({}); panel.clearPicked(); panel.actionNotice=""; Qt.callLater(panel.refreshListGeometry) }
+                        TabButton {
+                            id: pendingTab; objectName: "groupPendingTab"; text: "待处理 "+center.pendingCount; implicitHeight: 36; leftPadding: 0; rightPadding: 0
+                            contentItem: Text { text: pendingTab.text; font.pixelSize: 12; font.weight: pendingTab.checked ? Font.DemiBold : Font.Normal; color: pendingTab.checked ? UiTheme.accent : UiTheme.muted; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
+                            background: Rectangle {
+                                color: pendingTab.hovered ? UiTheme.hover : "transparent"; radius: 4
+                                border.width: pendingTab.visualFocus ? 1 : 0; border.color: UiTheme.focus
+                                Rectangle { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; width: parent.width-16; height: 2; radius: 1; color: UiTheme.accentFill; visible: pendingTab.checked }
+                            }
+                        }
+                        TabButton {
+                            id: sentTab; objectName: "groupSentTab"; text: "已发送 "+center.sentCount; implicitHeight: 36; leftPadding: 0; rightPadding: 0
+                            contentItem: Text { text: sentTab.text; font.pixelSize: 12; font.weight: sentTab.checked ? Font.DemiBold : Font.Normal; color: sentTab.checked ? UiTheme.accent : UiTheme.muted; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
+                            background: Rectangle {
+                                color: sentTab.hovered ? UiTheme.hover : "transparent"; radius: 4
+                                border.width: sentTab.visualFocus ? 1 : 0; border.color: UiTheme.focus
+                                Rectangle { anchors.horizontalCenter: parent.horizontalCenter; anchors.bottom: parent.bottom; width: parent.width-16; height: 2; radius: 1; color: UiTheme.accentFill; visible: sentTab.checked }
+                            }
                         }
                     }
                 }
@@ -210,6 +264,9 @@ Item {
                     id: namesTable; objectName: "groupNamesTable"
                     Layout.fillWidth: true; Layout.fillHeight: true
                     model: panel.currentModel; clip: true; reuseItems: true; spacing: 0
+                    boundsBehavior: panel.listMode ? Flickable.StopAtBounds : Flickable.DragAndOvershootBounds
+                    onContentYChanged: panel.syncLists(namesTable,messageList)
+                    onHeightChanged: Qt.callLater(panel.refreshListGeometry)
                     ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
                     footer: Item {
                         id: addCell
@@ -272,6 +329,7 @@ Item {
                             background: Rectangle { radius: 4; color: addNamesButton.down ? UiTheme.pressed : addNamesButton.hovered ? UiTheme.hover : "transparent" }
                             onClicked: { if(newName.text.trim().length) newName.submitInput(); else newName.forceActiveFocus() }
                         }
+                        MouseArea { anchors.fill: parent; acceptedButtons: Qt.NoButton; onWheel: function(wheel) { if(panel.listMode) panel.scrollRows(namesTable,wheel,false); else wheel.accepted=false } }
                     }
                     delegate: Rectangle {
                         id: nameCell
@@ -304,6 +362,7 @@ Item {
                         MouseArea {
                             id: nameMouse
                             anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.LeftButton
+                            onWheel: function(wheel) { if(panel.listMode) panel.scrollRows(namesTable,wheel,false); else wheel.accepted=false }
                             onClicked: function(mouse) {
                                 panel.selectedRow=panel.currentModel.get(nameCell.index)
                                 panel.pickIndex(nameCell.index,mouse.modifiers,nameCell.recordKey)
@@ -322,7 +381,7 @@ Item {
                     }
                 }
                 Label {
-                    objectName: "groupListNotice"
+                    id: listNotice; objectName: "groupListNotice"
                     text: panel.actionNotice; visible: text.length>0
                     color: UiTheme.warning
                     font.pixelSize: 11; Layout.fillWidth: true; wrapMode: Text.Wrap; maximumLineCount: 2; elide: Text.ElideRight
@@ -330,30 +389,119 @@ Item {
             }
         }
         UiPanel {
-            objectName: "groupTemplatePanel"; Layout.fillWidth: true; Layout.fillHeight: true; padding: panel.height<350 ? 8 : 16
+            id: templatePanel; objectName: "groupTemplatePanel"; Layout.fillWidth: true; Layout.fillHeight: true; padding: panel.listMode ? 10 : panel.height<350 ? 8 : 16
             ColumnLayout {
-                anchors.fill: parent; spacing: 8
-                RowLayout {
-                    Layout.fillWidth: true
-                    Label { objectName: "groupTemplateTitle"; text: "消息模板"; font.bold: true; font.pixelSize: 17; Layout.fillWidth: true; Layout.minimumWidth: 0; elide: Text.ElideRight }
-                    UiButton { objectName: "groupResetDefaults"; text: "重载"; visible: defaults.dirty || (defaults.editingIndex>=0 && defaults.feedback.length>0); enabled: !center.active; implicitHeight: 28; onClicked: panel.loadDefaults(true) }
-                    UiButton { objectName: "groupRetryDefaults"; text: panel.width<500 ? "重试" : "重试保存"; visible: defaults.dirty || (defaults.editingIndex>=0 && defaults.feedback.length>0); enabled: panel.canManage; implicitHeight: 28; onClicked: panel.saveDefaults() }
-                    ToolButton {
-                        text: "更多"; font.pixelSize: 12; enabled: panel.canManage; implicitHeight: 28
-                        Accessible.name: "模板更多操作"; onClicked: templateMenu.popup()
+                anchors.fill: parent; spacing: panel.listMode ? 6 : 8
+                ColumnLayout {
+                    id: templateHeader; Layout.fillWidth: true; spacing: 6
+                    Layout.preferredHeight: panel.listMode ? panel.sharedHeaderHeight : implicitHeight
+                    Layout.maximumHeight: Layout.preferredHeight
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Label { objectName: "groupTemplateTitle"; text: "消息模板"; font.bold: true; font.pixelSize: 17; Layout.fillWidth: true; Layout.minimumWidth: 0; elide: Text.ElideRight }
+                        ToolButton {
+                            objectName: "groupToggleMessageView"; font.pixelSize: 12; implicitHeight: 28; leftPadding: 4; rightPadding: 4
+                            text: panel.listMode ? (templatePanel.width<350 ? "聊天查看" : "切换为聊天查看") : (templatePanel.width<350 ? "列表查看" : "切换为列表查看")
+                            Accessible.name: panel.listMode ? "切换为聊天查看" : "切换为列表查看"
+                            onClicked: panel.setListMode(!panel.listMode)
+                        }
+                        UiButton { objectName: "groupResetDefaults"; text: "重载"; visible: defaults.dirty || (defaults.editingIndex>=0 && defaults.feedback.length>0); enabled: !center.active; implicitHeight: 28; onClicked: panel.loadDefaults(true) }
+                        UiButton { objectName: "groupRetryDefaults"; text: panel.width<500 ? "重试" : "重试保存"; visible: defaults.dirty || (defaults.editingIndex>=0 && defaults.feedback.length>0); enabled: panel.canManage; implicitHeight: 28; onClicked: panel.saveDefaults() }
+                        ToolButton {
+                            text: "更多"; font.pixelSize: 12; enabled: panel.canManage; implicitHeight: 28
+                            Accessible.name: "模板更多操作"; onClicked: templateMenu.popup()
+                        }
+                    }
+                    Label {
+                        objectName: "groupTemplateHint"
+                        text: center.selectedIndex<0 ? "先新建或生成名单" : center.active ? "发送中，消息模板暂不可编辑" : "加入后自动保存 · 保留个人改动 · 预览后开始群发"
+                        Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted; font.pixelSize: 12
+                    }
+                    Item { Layout.fillHeight: true; visible: panel.listMode }
+                    UiButton {
+                        objectName: "groupUnifiedTemplateCell"; visible: panel.listMode
+                        Layout.fillWidth: true; Layout.preferredHeight: tabs.height; Layout.minimumHeight: tabs.height; Layout.maximumHeight: tabs.height
+                        text: "统一配置消息模板"; enabled: center.selectedIndex>=0 && !center.active
+                        onClicked: templateDialog.open()
                     }
                 }
-                Label {
-                    text: center.selectedIndex<0 ? "先新建或生成名单" : center.active ? "发送中，消息模板暂不可编辑" : "加入后自动保存 · 保留个人改动 · 预览后开始群发"
-                    Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted; font.pixelSize: 12
-                }
+                Item { id: chatHost; visible: !panel.listMode; Layout.fillWidth: true; Layout.fillHeight: true }
                 MessageChatEditor {
                     id: defaults; objectName: "groupMessageChat"
-                    Layout.fillWidth: true; Layout.fillHeight: true
+                    parent: panel.listMode ? unifiedHost : chatHost
+                    anchors.fill: parent
                     fileChooser: center; controlPrefix: "groupChat"; defaultTemplate: true; editable: panel.canManage
                     onCommitted: commitAccepted=panel.saveCommittedDefaults(false)
                     onEditCancelled: if(!dirty && panel.draftRevision!==center.contentRevision) panel.loadDefaults(true)
                 }
+                ListView {
+                    id: messageList; objectName: "groupRecipientMessageList"; visible: panel.listMode
+                    Layout.fillWidth: true; Layout.fillHeight: true
+                    model: panel.currentModel; clip: true; reuseItems: true; spacing: 0
+                    boundsBehavior: Flickable.StopAtBounds
+                    flickableDirection: Flickable.AutoFlickIfNeeded
+                    property real widestMessage: {
+                        var revision=panel.rowsRevision, widest=width
+                        for(var i=0;i<panel.currentModel.rowCount();i++) widest=Math.max(widest,messageMetrics.advanceWidth(panel.messageText(panel.currentModel.get(i)))+24)
+                        return widest
+                    }
+                    contentWidth: widestMessage
+                    onContentYChanged: panel.syncLists(messageList,namesTable)
+                    onHeightChanged: Qt.callLater(panel.refreshListGeometry)
+                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                    ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded }
+                    footer: Item {
+                        width: messageList.width; height: namesTable.footerItem ? namesTable.footerItem.height : 0
+                        MouseArea { anchors.fill: parent; acceptedButtons: Qt.NoButton; onWheel: function(wheel) { panel.scrollRows(messageList,wheel,true) } }
+                    }
+                    delegate: Rectangle {
+                        id: messageCell
+                        required property int index
+                        required property string recordKey
+                        property var rowData: { var revision=panel.rowsRevision; return panel.currentModel.get(index) }
+                        objectName: "groupMessageRow"+index
+                        width: messageList.contentWidth; height: 40; color: "transparent"
+                        activeFocusOnTab: true
+                        Accessible.role: Accessible.Button
+                        Accessible.name: (rowData.name || "")+"："+panel.messageText(rowData)
+                        Accessible.description: "双击查看或编辑个人消息"
+                        Keys.onReturnPressed: { panel.selectedRow=panel.currentModel.get(index); panel.openEditor() }
+                        Keys.onEnterPressed: { panel.selectedRow=panel.currentModel.get(index); panel.openEditor() }
+                        Rectangle { anchors.fill: parent; anchors.topMargin: 2; anchors.bottomMargin: 2; radius: 6; color: panel.isPicked(messageCell.recordKey) ? UiTheme.selection : messageMouse.containsMouse ? UiTheme.hover : "transparent"; border.width: messageCell.activeFocus ? 1 : 0; border.color: UiTheme.focus }
+                        Text {
+                            objectName: "groupMessageText"+messageCell.index
+                            anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
+                            text: panel.messageText(messageCell.rowData); textFormat: Text.PlainText; wrapMode: Text.NoWrap
+                            font.pixelSize: 13; color: panel.isPicked(messageCell.recordKey) ? UiTheme.accent : UiTheme.ink; verticalAlignment: Text.AlignVCenter
+                        }
+                        Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.leftMargin: 12; anchors.rightMargin: 12; anchors.bottom: parent.bottom; height: 1; color: UiTheme.line; opacity: 0.45; visible: !panel.isPicked(messageCell.recordKey) }
+                        MouseArea {
+                            id: messageMouse; anchors.fill: parent; hoverEnabled: true
+                            onWheel: function(wheel) { panel.scrollRows(messageList,wheel,true) }
+                            onClicked: function(mouse) { panel.selectedRow=panel.currentModel.get(messageCell.index); panel.pickIndex(messageCell.index,mouse.modifiers,messageCell.recordKey); messageCell.forceActiveFocus() }
+                            onDoubleClicked: { panel.selectedRow=panel.currentModel.get(messageCell.index); panel.openEditor() }
+                        }
+                        ToolTip.visible: messageMouse.containsMouse
+                        ToolTip.delay: 600
+                        ToolTip.text: panel.messageText(rowData)
+                    }
+                }
+                Item { visible: panel.listMode && listNotice.visible; Layout.fillWidth: true; Layout.preferredHeight: listNotice.height; Layout.minimumHeight: listNotice.height; Layout.maximumHeight: listNotice.height }
+            }
+        }
+    }
+    FontMetrics { id: messageMetrics; font.pixelSize: 13 }
+    Dialog {
+        id: templateDialog; objectName: "groupUnifiedTemplateDialog"; parent: Overlay.overlay
+        anchors.centerIn: parent; modal: true; closePolicy: Popup.NoAutoClose; title: "统一配置消息模板"
+        width: Math.min(parent.width-32,760); height: Math.min(parent.height-32,650)
+        ColumnLayout {
+            anchors.fill: parent; spacing: 8
+            Label { text: "加入后自动保存 · 保留个人改动 · 预览后开始群发"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted; font.pixelSize: 12 }
+            Item { id: unifiedHost; Layout.fillWidth: true; Layout.fillHeight: true }
+            RowLayout {
+                Layout.fillWidth: true; Item { Layout.fillWidth: true }
+                UiButton { objectName: "groupCloseUnifiedTemplate"; text: "完成"; onClicked: if(panel.saveDefaults()) templateDialog.close() }
             }
         }
     }
