@@ -29,7 +29,7 @@ def run():
             dict(type='text', text='第二段\n下一行')])
         list_id = g.selected['id']
         personal_id = g.rows[12]['id']
-        assert g.saveRecipientContent(list_id, personal_id, [dict(type='text', text='个人消息'+('很长的消息内容'*40))])
+        assert g.saveRecipientContent(list_id, personal_id, [dict(type='text', text='个人消息'+('很长的消息内容'*120))])
         engine = QQmlApplicationEngine(); warnings = []
         engine.warnings.connect(lambda values: warnings.extend(v.toString() for v in values))
         engine.rootContext().setContextProperty('backend', b)
@@ -59,29 +59,40 @@ def run():
         chat=item('groupMessageChat')
 
         def top(obj): return obj.mapToScene(QPointF(0,0)).y()
+        def geometry():
+            result=[]
+            for name in ('groupRecipientsPanel','groupTemplatePanel','groupSettingsPanel','groupNamesTable','groupTemplateTitle','groupTemplateHint'):
+                obj=item(name); point=obj.mapToScene(QPointF(0,0))
+                result.extend((point.x(),point.y(),obj.width(),obj.height()))
+            return result
         def aligned():
-            assert names.property('count')==messages.property('count')
+            assert names.property('count')==messages.property('rows')
             assert abs(top(names)-top(messages))<1, (top(names),top(messages))
             assert abs(names.height()-messages.height())<1, (names.height(),messages.height())
             assert abs((names.property('contentY')-names.property('originY'))-(messages.property('contentY')-messages.property('originY')))<1
-            tabs=item('groupMessageTabs'); cell=item('groupUnifiedTemplateCell')
+            tabs=item('groupMessageTabs'); cell=item('groupMessageHeader')
             assert abs(top(tabs)-top(cell))<1 and abs(tabs.height()-cell.height())<1
 
         def row_aligned():
             index=min(names.property('count')-1,max(0,int((names.property('contentY')-names.property('originY'))/40)+1))
             if index<0: return
-            left=item('groupName'+str(index)); right=item('groupMessageRow'+str(index))
+            left=item('groupName'+str(index)); right=item('groupMessageCell'+str(index)+'_0')
             assert abs(top(left)-top(right))<1, (index,top(left),top(right))
             assert left.property('recordKey')==right.property('recordKey')
-            text=item('groupMessageText'+str(index)).property('text')
+            text=item('groupMessageText'+str(index)+'_0').property('text')
             row=g.pendingModel.get(index) if item('groupMessageTabs').property('currentIndex')==0 else g.sentModel.get(index)
-            if row['id']==personal_id: assert text.startswith('1. 个人消息')
+            if row['id']==personal_id: assert text.startswith('个人消息')
             else: assert row['name'] in text, (row['name'],text)
 
         def capture(name):
             path=Path('output/group-message-list'); path.mkdir(parents=True,exist_ok=True)
             QTest.mouseMove(window,QPoint(0,0)); QTest.qWait(80)
             assert window.grabWindow().save(str(path/name))
+
+        def configure_template():
+            header=item('groupMessageHeader0')
+            QTest.mouseClick(window,Qt.LeftButton,Qt.NoModifier,header.mapToScene(QPointF(40,18)).toPoint())
+            QTest.qWait(80)
 
         # A mode change respects the existing unsubmitted composer protection.
         item('groupChatComposer').setProperty('text','未加入的模板稿')
@@ -92,6 +103,11 @@ def run():
         assert item('groupTemplateTitle').property('text')=='消息模板'
         assert '加入后自动保存' in item('groupTemplateHint').property('text')
         aligned(); row_aligned()
+        assert messages.property('columns')==3
+        assert [item('groupMessageHeaderLabel'+str(i)).property('text') for i in range(3)]==['消息1','消息2','消息3']
+        assert item('groupMessageText0_0').property('text')=='验证学员00，第一条消息'
+        assert item('groupMessageText0_1').property('text')=='学习资料.txt'
+        assert item('groupMessageText0_2').property('text')=='第二段 下一行'
         assert messages.property('contentWidth')>messages.width()
         messages.setProperty('contentX',120); QTest.qWait(80)
         assert names.property('contentX')==0
@@ -99,11 +115,17 @@ def run():
         position=messages.mapToScene(QPointF(40,messages.height()/2))
         app.sendEvent(window,QWheelEvent(position,position,QPoint(0,0),QPoint(0,-120),Qt.NoButton,Qt.ShiftModifier,Qt.NoScrollPhase,False))
         QTest.qWait(80); assert messages.property('contentX')>0 and names.property('contentX')==0
+        assert item('groupMessageHeader').property('contentX')==messages.property('contentX')
         aligned(); messages.setProperty('contentX',0)
         for mode in ('light','dark'):
             assert b.settingsModule.setAppearanceMode(mode)
             for width,height in ((1250,800),(720,480)):
                 window.resize(width,height); QTest.qWait(100)
+                before_geometry=geometry()
+                click('groupToggleMessageView'); assert not panel.property('listMode')
+                assert all(abs(a-b)<1 for a,b in zip(before_geometry,geometry())), (mode,width,before_geometry,geometry())
+                click('groupToggleMessageView'); aligned()
+                assert all(abs(a-b)<1 for a,b in zip(before_geometry,geometry()))
                 names.setProperty('contentY',names.property('originY')+400); QTest.qWait(80)
                 aligned(); row_aligned()
                 position=messages.mapToScene(QPointF(40,messages.height()/2))
@@ -140,8 +162,24 @@ def run():
             assert view.property('contentY')>view.property('originY'), view.objectName()
             aligned(); row_aligned()
         invoke(names,'positionViewAtBeginning')
+        # Long text remains within its column and opens a genuinely scrollable hover preview.
+        names.setProperty('contentY',names.property('originY')+12*40); QTest.qWait(100)
+        target=item('groupMessageCell12_0')
+        assert target.width()<=messages.width() or target.width()==220
+        position=target.mapToScene(QPointF(40,20)).toPoint()
+        QTest.mouseMove(window,position); QTest.qWait(550)
+        preview=item('groupMessagePreview'); assert preview.property('visible')
+        assert item('groupMessagePreviewText').property('text').startswith('个人消息')
+        text=item('groupMessagePreviewText')
+        QTest.mouseMove(window,text.mapToScene(QPointF(40,40)).toPoint()); QTest.qWait(100)
+        scroll=item('groupMessagePreviewScroll').property('contentItem')
+        before=scroll.property('contentY'); position=text.mapToScene(QPointF(40,40))
+        app.sendEvent(window,QWheelEvent(position,position,QPoint(0,0),QPoint(0,-480),Qt.NoButton,Qt.NoModifier,Qt.NoScrollPhase,False))
+        QTest.qWait(100); assert scroll.property('contentY')>before, (preview.property('visible'),before,scroll.property('contentY'),scroll.property('contentHeight'),scroll.height(),warnings)
+        capture('table-hover-preview.png'); invoke(preview,'close')
+        invoke(names,'positionViewAtBeginning')
         # Right-hand selection highlights the same person, and double click edits only that person.
-        target=item('groupMessageRow1'); position=target.mapToScene(QPointF(40,20)).toPoint()
+        target=item('groupMessageCell1_0'); position=target.mapToScene(QPointF(40,20)).toPoint()
         QTest.mouseClick(window,Qt.LeftButton,Qt.NoModifier,position); QTest.qWait(80)
         assert panel.property('selectedRow').toVariant()['id']==g.pendingModel.get(1)['id']
         QTest.mouseDClick(window,Qt.LeftButton,Qt.NoModifier,position); QTest.qWait(80)
@@ -150,7 +188,7 @@ def run():
         click('cancelRecipientMessages')
 
         # The original editor is retained and reused for global template configuration.
-        click('groupUnifiedTemplateCell'); assert item('groupUnifiedTemplateDialog').property('visible')
+        configure_template(); assert item('groupUnifiedTemplateDialog').property('visible')
         assert item('groupMessageChat')==chat
         capture('unified-template.png')
         window.resize(720,480); QTest.qWait(100)
@@ -161,6 +199,7 @@ def run():
         composer=item('groupChatComposer'); invoke(composer,'forceActiveFocus'); composer.setProperty('text','新模板 {姓名}')
         composer.setProperty('cursorPosition',len('新模板 {姓名}'))
         QTest.keyClick(window,Qt.Key_Return); QTest.qWait(100)
+        assert g.pendingMessageModel.columnCount()==4
         assert len(g.defaultFields)==4 and '新模板' in g.defaultFields[-1]['value']
         assert g.recipientForView(personal_id,False)['items'][0]['text'].startswith('个人消息')
         composer.setProperty('text','还未加入'); click('groupCloseUnifiedTemplate')
@@ -181,7 +220,7 @@ def run():
         g._reload_snapshot(); QTest.qWait(100); aligned()
         item('groupMessageTabs').setProperty('currentIndex',1); QTest.qWait(100); aligned(); row_aligned()
         assert names.property('count')==1
-        target=item('groupMessageRow0'); position=target.mapToScene(QPointF(40,20)).toPoint()
+        target=item('groupMessageCell0_0'); position=target.mapToScene(QPointF(40,20)).toPoint()
         QTest.mouseDClick(window,Qt.LeftButton,Qt.NoModifier,position); QTest.qWait(80)
         assert not item('recipientMessageEditor').property('canEdit')
         click('cancelRecipientMessages')
@@ -189,19 +228,23 @@ def run():
         # An empty plan can configure its template first, then add names in list mode.
         assert g.createEmptyList('空名单配置'); QTest.qWait(100); aligned()
         assert names.property('count')==0
-        click('groupUnifiedTemplateCell'); assert chat.property('editable')
+        configure_template(); assert chat.property('editable')
         composer=item('groupChatComposer'); invoke(composer,'forceActiveFocus'); composer.setProperty('text','你好 {姓名}')
         composer.setProperty('cursorPosition',len('你好 {姓名}'))
         QTest.keyClick(window,Qt.Key_Return); QTest.qWait(100)
+        assert g.pendingMessageModel.columnCount()==1
+        composer.setProperty('text','第二条提醒'); composer.setProperty('cursorPosition',len('第二条提醒'))
+        QTest.keyClick(window,Qt.Key_Return); QTest.qWait(100)
+        assert g.pendingMessageModel.columnCount()==2
         click('groupCloseUnifiedTemplate')
         add=item('groupAddNameInput'); invoke(add,'forceActiveFocus'); add.setProperty('text','空名单甲\n空名单乙')
         QTest.qWait(100); aligned(); row_aligned()
-        assert g.rows[0]['message']=='你好 空名单甲'
+        assert g.pendingModel.rows[0]['items'][0]['text']=='你好 空名单甲' and messages.property('columns')==2
         assert not warnings,warnings
         driver.assert_not_called()
         import shiboken6
         shiboken6.delete(engine); shiboken6.delete(b)
-        print('Message list smoke OK: row/header alignment, bidirectional scroll, model/tabs, editing/drafts, light/dark/small; no sending')
+        print('Message table smoke OK: stable mode geometry, fields/headers, scrollable hover, bidirectional scroll, model/tabs, editing/drafts, light/dark/small; no sending')
 
 
 if __name__=='__main__': run()

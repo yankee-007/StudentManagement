@@ -3,7 +3,8 @@ from pathlib import Path
 import csv
 import json
 import hashlib
-from PySide6.QtCore import QObject, Property, Signal, Slot, QCoreApplication
+from PySide6.QtCore import QObject, Property, Signal, Slot, QCoreApplication, QUrl
+from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QFileDialog
 from .group_dispatch import GroupStore
 from . import group_dispatch as adapter
@@ -44,6 +45,8 @@ class GroupCenter(QObject):
         self._hotkey=F11Hotkey(self.pause)
         self._pending_model=DictTableModel([],self)
         self._sent_model=DictTableModel([],self)
+        self._pending_messages=DictTableModel([],self)
+        self._sent_messages=DictTableModel([],self)
         self._table_signature=None
         self.rowsChanged.connect(self._refresh_tables)
         self._reload_snapshot(notify=False)
@@ -77,6 +80,10 @@ class GroupCenter(QObject):
     def pendingModel(self):return self._pending_model
     @Property(QObject,constant=True)
     def sentModel(self):return self._sent_model
+    @Property(QObject,constant=True)
+    def pendingMessageModel(self):return self._pending_messages
+    @Property(QObject,constant=True)
+    def sentMessageModel(self):return self._sent_messages
     @Property(int,notify=modelInfoChanged)
     def pendingCount(self):return self._pending_model.rowCount()
     @Property(int,notify=modelInfoChanged)
@@ -209,7 +216,7 @@ class GroupCenter(QObject):
 
     def _refresh_tables(self):
         source_rows=self._rows_cache
-        signature=(self._id,tuple((r['id'],r['state'],r['content'],r['message'],r['detail'],r['sync_pending'],r['learning_data']) for r in source_rows))
+        signature=(self._id,len(self._default_fields_cache),tuple((r['id'],r['state'],r['content'],r['message'],r['detail'],r['sync_pending'],r['learning_data']) for r in source_rows))
         if signature==self._table_signature:return
         self._table_signature=signature
         rows=[]
@@ -236,15 +243,19 @@ class GroupCenter(QObject):
                 else:label=f'消息{i+1}（文字/文件）'
                 columns.append(('message_'+str(i),label))
             columns.extend([('state','状态'),('detail','处理说明')])
-            same_shape=(model.columns==columns and len(model.rows)==len(members)
-                        and all(a['id']==b['id'] for a,b in zip(model.rows,members)))
-            if same_shape:
-                for i,row in enumerate(members):
-                    if model.rows[i]!=row:
-                        model.rows[i]=row
-                        model.dataChanged.emit(model.index(i,0),model.index(i,len(columns)-1))
-            else:
-                model.beginResetModel();model.columns=columns;model.rows=members;model.endResetModel()
+            message_model=self._sent_messages if sent else self._pending_messages
+            field_count=max(1,len(columns)-3,0 if sent else len(self._default_fields_cache))
+            message_columns=[('message_'+str(i),'消息'+str(i+1)) for i in range(field_count)]
+            for target,target_columns in ((model,columns),(message_model,message_columns)):
+                same_shape=(target.columns==target_columns and len(target.rows)==len(members)
+                            and all(a['id']==b['id'] for a,b in zip(target.rows,members)))
+                if same_shape:
+                    for i,row in enumerate(members):
+                        if target.rows[i]!=row:
+                            target.rows[i]=row
+                            target.dataChanged.emit(target.index(i,0),target.index(i,len(target_columns)-1))
+                else:
+                    target.beginResetModel();target.columns=target_columns;target.rows=members;target.endResetModel()
         self.modelInfoChanged.emit()
 
     @Slot(int,int,'QVariantList',result=bool)
@@ -625,6 +636,26 @@ class GroupCenter(QObject):
     def chooseMessageFile(self):
         path,_=QFileDialog.getOpenFileName(None,'选择要群发的文件','','所有文件 (*)')
         return path
+
+    @Slot('QVariantList',result='QVariantMap')
+    def messageFiles(self,urls):
+        """Validate a complete dropped/copied file batch before changing the draft."""
+        try:
+            paths=[]
+            for value in urls:
+                url=value if isinstance(value,QUrl) else QUrl(str(value))
+                if not url.isLocalFile():raise ValueError('请粘贴或拖入本地文件')
+                paths.append(dict(type='file',path=url.toLocalFile()))
+            if not paths:return dict(files=[],error='没有可添加的文件')
+            return dict(files=[item['path'] for item in prepare_content(paths)],error='')
+        except (ValueError,OSError) as exc:return dict(files=[],error=str(exc))
+
+    @Slot(result='QVariantMap')
+    def clipboardMessageFiles(self):
+        mime=QGuiApplication.clipboard().mimeData()
+        urls=mime.urls() if mime and mime.hasUrls() else []
+        if not any(url.isLocalFile() for url in urls):return dict(handled=False,files=[],error='')
+        return dict(self.messageFiles(urls),handled=True)
 
     @Slot(result=str)
     def importNames(self):

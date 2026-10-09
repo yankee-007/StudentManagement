@@ -88,6 +88,21 @@ Item {
         var path=fileChooser.chooseMessageFile()
         if(path) { fields.append({sourceIndex:-1,kind:"file",value:path,mixed:false}); changed(); revealEnd() }
     }
+    function appendFiles(result) {
+        if(!editable || editingIndex>=0) return false
+        if(result.error) { feedback=result.error; return false }
+        if(!result.files.length) return false
+        for(var i=0;i<result.files.length;i++) fields.append({sourceIndex:-1,kind:"file",value:result.files[i],mixed:false})
+        changed(); revealEnd(); composer.forceActiveFocus()
+        return true
+    }
+    function pasteFiles() {
+        var result=fileChooser.clipboardMessageFiles()
+        if(!result.handled) return false
+        appendFiles(result)
+        return true
+    }
+    function dropFiles(urls) { return appendFiles(fileChooser.messageFiles(urls)) }
     function beginEdit(index) {
         if(!editable || (editingIndex>=0 && !finishEdit(true))) return
         var item=fields.get(index)
@@ -128,12 +143,15 @@ Item {
         if(saved) pendingOutsideCommit=false
         return saved
     }
-    function finishEdit(commitInput) {
+    function finishEdit(commitInput) { return resolveEdit(commitInput,false) }
+    function finishOutsideEdit(commitInput) { return resolveEdit(commitInput,true) }
+    function resolveEdit(commitInput, cancelEmpty) {
         if(editingIndex<0) return true
         if(committing || !editable) return false
         if(commitInput) Qt.inputMethod.commit()
         if(activeEditor && activeEditor.inputMethodComposing) return false
         if(activeEditor) editText=activeEditor.text
+        if(cancelEmpty && !editText.trim()) { cancelEdit(); return true }
         return saveEdit()
     }
     function cancelEdit() { editingIndex=-1; editText=""; feedback=""; pendingOutsideCommit=false; editCancelled() }
@@ -173,7 +191,7 @@ Item {
             var viewport=chat.activeEditViewport
             var point=viewport ? viewport.mapFromItem(outsideGuard,mouse.x,mouse.y) : Qt.point(-1,-1)
             var inside=viewport && point.x>=0 && point.y>=0 && point.x<viewport.width && point.y<viewport.height
-            if(!inside) chat.finishEdit(true)
+            if(!inside) chat.finishOutsideEdit(true)
             var composing=!inside && chat.activeEditor && chat.activeEditor.inputMethodComposing
             if(composing) chat.pendingOutsideCommit=true
             mouse.accepted=!!composing
@@ -210,11 +228,15 @@ Item {
                     id: bubbleColumn; anchors.right: parent.right; anchors.rightMargin: 16
                     width: Math.floor(Math.min(thread.width-24,Math.max(220,Math.min(660,thread.width*0.86))))
                     spacing: 4
+                    HoverHandler { id: bubbleHover }
                     RowLayout {
+                        id: bubbleActions; objectName: chat.controlPrefix+"Actions"+bubble.index
                         Layout.fillWidth: true; spacing: 6
+                        opacity: bubbleHover.hovered || editButton.activeFocus || deleteButton.activeFocus || orderButton.activeFocus || orderMenu.visible ? 1 : 0
                         Item { Layout.fillWidth: true }
                         Label { text: "消息 "+(bubble.index+1); color: UiTheme.muted; font.pixelSize: 11 }
                         ToolButton {
+                            id: editButton
                             objectName: chat.controlPrefix+"Edit"+bubble.index
                             visible: chat.editable; enabled: chat.editingIndex<0
                             text: "编辑"; font.pixelSize: 12; implicitHeight: 24
@@ -222,6 +244,7 @@ Item {
                             onClicked: chat.beginEdit(bubble.index)
                         }
                         ToolButton {
+                            id: deleteButton
                             objectName: chat.controlPrefix+"Delete"+bubble.index
                             visible: chat.editable; enabled: chat.editingIndex<0
                             text: "删除"; font.pixelSize: 12; implicitHeight: 24
@@ -231,6 +254,7 @@ Item {
                             onClicked: chat.removeMessage(bubble.index)
                         }
                         ToolButton {
+                            id: orderButton
                             visible: chat.editable; enabled: chat.editingIndex<0
                             text: "顺序"; font.pixelSize: 12; implicitHeight: 24
                             Accessible.name: "调整消息"+(bubble.index+1)+"顺序"
@@ -287,11 +311,11 @@ Item {
                                 onTextChanged: if(chat.editingIndex===bubble.index) chat.editText=text
                                 onActiveFocusChanged: if(!activeFocus && chat.editingIndex===bubble.index) {
                                     var owner=chat, control=inlineText, index=bubble.index
-                                    Qt.callLater(function() { if(owner && control && owner.editingIndex===index && !control.activeFocus) owner.finishEdit(false) })
+                                    Qt.callLater(function() { if(owner && control && owner.editingIndex===index && !control.activeFocus) owner.finishOutsideEdit(false) })
                                 }
                                 onInputMethodComposingChanged: if(!inputMethodComposing && chat.editingIndex===bubble.index && (!activeFocus || chat.pendingOutsideCommit)) {
                                     var owner=chat, index=bubble.index
-                                    Qt.callLater(function() { if(owner && owner.editingIndex===index) owner.finishEdit(false) })
+                                    Qt.callLater(function() { if(owner && owner.editingIndex===index) owner.finishOutsideEdit(false) })
                                 }
                                 Keys.onPressed: function(event) {
                                     if((event.key===Qt.Key_Return || event.key===Qt.Key_Enter) && !(event.modifiers & Qt.ShiftModifier)) {
@@ -315,13 +339,20 @@ Item {
         }
         Label { objectName: chat.controlPrefix+"Feedback"; visible: text.length>0; text: chat.feedback; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.warning; font.pixelSize: 12 }
         Rectangle {
+            id: composerBox; objectName: chat.controlPrefix+"ComposerBox"
             visible: chat.editable && chat.editingIndex<0; Layout.fillWidth: true
             implicitHeight: composerColumn.implicitHeight+16
-            color: UiTheme.input; radius: 10; border.color: composer.activeFocus ? UiTheme.focus : UiTheme.line
+            color: fileDrop.containsDrag ? UiTheme.selection : UiTheme.input; radius: 10; border.color: fileDrop.containsDrag || composer.activeFocus ? UiTheme.focus : UiTheme.line
+            DropArea {
+                id: fileDrop; objectName: chat.controlPrefix+"FileDrop"; anchors.fill: parent; z: 2
+                enabled: chat.editable && chat.editingIndex<0
+                onEntered: function(drag) { drag.accepted=drag.hasUrls }
+                onDropped: function(drop) { if(drop.hasUrls) { chat.dropFiles(drop.urls); drop.accept(Qt.CopyAction) } }
+            }
             ColumnLayout {
                 id: composerColumn; anchors.fill: parent; anchors.margins: 8; spacing: 4
                 ScrollView {
-                    id: inputScroll; Layout.fillWidth: true; Layout.preferredHeight: chat.compact ? 50 : 76
+                    id: inputScroll; Layout.fillWidth: true; Layout.preferredHeight: chat.height<200 ? 32 : chat.compact ? 50 : 76
                     contentWidth: availableWidth; clip: true
                     TextArea {
                         id: composer; objectName: chat.controlPrefix+"Composer"; width: inputScroll.availableWidth
@@ -330,6 +361,7 @@ Item {
                         background: null; Accessible.name: "待加入的消息"
                         onTextChanged: chat.feedback=""
                         Keys.onPressed: function(event) {
+                            if(event.matches(StandardKey.Paste) && chat.pasteFiles()) { event.accepted=true; return }
                             if((event.key===Qt.Key_Return || event.key===Qt.Key_Enter) && !(event.modifiers & Qt.ShiftModifier)) {
                                 if(!inputMethodComposing && !event.isAutoRepeat) chat.addText()
                                 event.accepted=true

@@ -159,8 +159,7 @@ def run():
         assert chat.property('editingIndex') == -1 and g.defaultFields[0]['value'] == 'Tab 保存'
         edit(0, '', save=False)
         pointer_click('groupTemplateTitle')
-        assert chat.property('editingIndex') == 0 and g.defaultFields[0]['value'] == 'Tab 保存'
-        QTest.keyClick(window, Qt.Key_Escape); QTest.qWait(70)
+        assert chat.property('editingIndex') == -1 and g.defaultFields[0]['value'] == 'Tab 保存'
         # Composition confirmation is separate from Enter-save, including an outside click.
         edit(0, '', save=False)
         app.sendEvent(window, QInputMethodEvent('组合输入', []))
