@@ -13,8 +13,98 @@ Item {
     property bool canManage: !center.active && center.editableCount>0
     readonly property bool defaultsDirty: defaults.dirty
     property string draftRevision: ""
+    property var pickedKeys: ({})
+    property int lastPickedIndex: -1
+    property string actionNotice: ""
     signal prefixEdited()
     signal resolveRequested(int recipientId, bool wasSent)
+    function isPicked(key) { return pickedKeys[String(key)] === true }
+    function clearPicked() { pickedKeys=({}); lastPickedIndex=-1 }
+    function pickedRows() {
+        var picked=[]
+        for (var i=0;i<currentModel.rowCount();i++) {
+            var row=currentModel.get(i)
+            if (row && row['_record_key']!==undefined && isPicked(row['_record_key'])) picked.push(row)
+        }
+        return picked
+    }
+    // 像文件列表一样：单击选中一个，Ctrl 逐个增删，Shift 连选一段。
+    function pickIndex(index, modifiers, key) {
+        if ((modifiers & Qt.ShiftModifier) && lastPickedIndex>=0) {
+            var lo=Math.min(lastPickedIndex,index), hi=Math.max(lastPickedIndex,index), picked={}
+            for (var i=lo;i<=hi;i++) {
+                var row=currentModel.get(i)
+                if (row && row['_record_key']!==undefined) picked[String(row['_record_key'])]=true
+            }
+            pickedKeys=picked
+            return
+        }
+        if (modifiers & Qt.ControlModifier) {
+            var next={}
+            for (var existing in pickedKeys) next[existing]=pickedKeys[existing]
+            if (next[String(key)]===true) delete next[String(key)]
+            else next[String(key)]=true
+            pickedKeys=next
+            lastPickedIndex=index
+            return
+        }
+        var single={}
+        single[String(key)]=true
+        pickedKeys=single
+        lastPickedIndex=index
+    }
+    function writeClipboard(text) { clipboard.text=text; clipboard.selectAll(); clipboard.copy() }
+    function readClipboard() { clipboard.text=""; clipboard.paste(); var value=clipboard.text; clipboard.text=""; return value }
+    function copyPicked() {
+        var rows=pickedRows()
+        if (!rows.length) { actionNotice="请先点选姓名（Ctrl 或 Shift 可多选）"; return }
+        var names=[]
+        for (var i=0;i<rows.length;i++) names.push(rows[i]['name'])
+        writeClipboard(names.join("\n"))
+        actionNotice="已复制 "+names.length+" 个姓名"
+    }
+    function pasteFromClipboard() {
+        var text=String(readClipboard())
+        if (!text.trim().length) { actionNotice="剪贴板里没有可粘贴的姓名"; return }
+        addNamesFromText(text)
+    }
+    function addNamesFromText(text) {
+        var lines=String(text).split(/[\r\n]+/), names=[]
+        for (var i=0;i<lines.length;i++) {
+            var value=lines[i].trim()
+            if (value.length) names.push(value)
+        }
+        if (!names.length) { actionNotice="没有可添加的姓名"; return }
+        submitNames(names)
+    }
+    function submitNames(names) {
+        var result=center.addNames(center.selected.id,names)
+        if (!result || result.added===undefined) { actionNotice=center.status; return 0 }
+        var parts=[]
+        if (result.added.length) parts.push("已添加 "+result.added.length+" 人")
+        if (result.skipped.length) parts.push("跳过名单内同名 "+result.skipped.length+" 人")
+        if (result.no_message.length) parts.push(result.no_message.length+" 人还没有消息，请双击单独填写")
+        actionNotice=parts.length ? parts.join("；") : "没有可添加的姓名"
+        if (result.added.length) { tabs.currentIndex=0; clearPicked() }
+        return result.added.length
+    }
+    function addTypedName(text) {
+        var name=String(text).trim()
+        if (!name.length) return 0
+        return submitNames([name])
+    }
+    function removePicked() {
+        var rows=pickedRows()
+        if (!rows.length) { actionNotice="请先点选要删除的姓名"; return }
+        var ids=[]
+        for (var i=0;i<rows.length;i++) ids.push(rows[i]['id'])
+        removeDialog.ids=ids
+        removeDialog.open()
+    }
+    function applyRemove(ids) {
+        if (center.removeNames(center.selected.id,ids)) { clearPicked(); actionNotice="已删除 "+ids.length+" 人" }
+        else actionNotice=center.status
+    }
     function loadDefaults(preserveComposer) {
         defaults.load(center.defaultFields,!!preserveComposer)
         draftRevision=center.contentRevision
@@ -65,6 +155,8 @@ Item {
                 panel.currentListId=listId
                 tabs.currentIndex=0
                 panel.selectedRow=({})
+                panel.clearPicked()
+                panel.actionNotice=""
                 panel.loadDefaults(false)
             }
         }
@@ -72,7 +164,6 @@ Item {
             panel.restoreSelection()
             if(!defaults.dirty && defaults.editingIndex<0) panel.loadDefaults(true)
         }
-        function onModelInfoChanged() { namesTable.forceLayout() }
     }
     Component.onCompleted: { currentListId=center.selected.id || 0; loadDefaults(false) }
     RowLayout {
@@ -106,11 +197,18 @@ Item {
         }
         UiPanel {
             objectName: "groupRecipientsPanel"
-            Layout.preferredWidth: panel.width<750 ? 140 : 204
+            Layout.preferredWidth: panel.width<750 ? 150 : 216
             Layout.fillHeight: true; padding: 10
             ColumnLayout {
-                anchors.fill: parent; spacing: 8
-                Label { text: "收件人"; font.bold: true; font.pixelSize: 15 }
+                anchors.fill: parent; spacing: 6
+                Label { text: "群发名单"; font.bold: true; font.pixelSize: 15 }
+                Label {
+                    objectName: "groupListHint"
+                    text: tabs.currentIndex===0
+                        ? "单击选中 · Ctrl/Shift 多选 · Ctrl+C/V 复制粘贴 · Delete 删除"
+                        : "已发送记录只读；Ctrl+C 可复制姓名"
+                    color: UiTheme.muted; font.pixelSize: 11; wrapMode: Text.Wrap; Layout.fillWidth: true
+                }
                 UiTextField {
                     id: prefix; objectName: "groupContactPrefix"; Layout.fillWidth: true
                     enabled: !center.active && center.selectedIndex>=0
@@ -119,48 +217,95 @@ Item {
                 }
                 TabBar {
                     id: tabs; objectName: "groupMessageTabs"; Layout.fillWidth: true
-                    onCurrentIndexChanged: panel.selectedRow=({})
+                    onCurrentIndexChanged: { panel.selectedRow=({}); panel.clearPicked(); panel.actionNotice="" }
                     TabButton { text: "待处理 "+center.pendingCount; font.pixelSize: 12 }
                     TabButton { text: "已发送 "+center.sentCount; font.pixelSize: 12 }
                 }
-                TableView {
+                ListView {
                     id: namesTable; objectName: "groupNamesTable"
                     Layout.fillWidth: true; Layout.fillHeight: true
-                    model: panel.currentModel; clip: true; reuseItems: true; rowSpacing: 2
-                    columnWidthProvider: function(c) { return c===0 ? namesTable.width : 0 }
-                    rowHeightProvider: function(r) { return 42 }
+                    model: panel.currentModel; clip: true; reuseItems: true; spacing: 0
                     ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                    footer: Item {
+                        id: addCell
+                        width: namesTable.width
+                        height: visible ? 44 : 0
+                        visible: tabs.currentIndex===0 && center.selectedIndex>=0
+                        Rectangle { anchors.fill: parent; color: UiTheme.surface }
+                        UiTextField {
+                            id: newName; objectName: "groupAddNameInput"
+                            anchors.fill: parent; anchors.margins: 5
+                            placeholderText: "填写姓名，回车添加"; enabled: !center.active
+                            Accessible.name: "添加群发名单姓名"
+                            // 页脚是独立组件作用域：清空和重新聚焦只能在这里做。
+                            onAccepted: if (panel.addTypedName(text)>0) { newName.text=""; newName.forceActiveFocus() }
+                        }
+                        Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: UiTheme.line }
+                    }
                     delegate: Rectangle {
                         id: nameCell
-                        required property int row
+                        required property int index
                         required property string display
                         required property string recordKey
-                        objectName: "groupName"+row
-                        implicitWidth: 160; implicitHeight: 42; radius: 5
-                        color: recordKey===String(panel.selectedRow.id || "") ? UiTheme.selection : nameHover.hovered ? UiTheme.stripe : UiTheme.surface
+                        objectName: "groupName"+index
+                        width: namesTable.width; height: 42
+                        color: panel.isPicked(recordKey) ? UiTheme.selection : nameMouse.containsMouse ? UiTheme.stripe : UiTheme.surface
                         activeFocusOnTab: true
                         Accessible.role: Accessible.Button
                         Accessible.name: panel.contactPrefix+display
-                        Accessible.description: "双击查看或编辑个人消息"
+                        Accessible.description: "双击查看或编辑个人消息；Ctrl 或 Shift 可多选"
                         Text {
-                            objectName: "groupNameLabel"+nameCell.row
-                            anchors.fill: parent; anchors.margins: 7
+                            objectName: "groupNameLabel"+nameCell.index
+                            anchors.fill: parent; anchors.leftMargin: 7; anchors.rightMargin: 7
                             text: panel.contactPrefix+nameCell.display; textFormat: Text.PlainText
                             verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight; color: UiTheme.ink; font.pixelSize: 14
                         }
-                        TapHandler {
-                            onTapped: { panel.selectedRow=panel.currentModel.get(nameCell.row); nameCell.forceActiveFocus() }
-                            onDoubleTapped: { panel.selectedRow=panel.currentModel.get(nameCell.row); panel.openEditor() }
+                        // 表格式横线：每行底边一条分隔线。
+                        Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: UiTheme.line }
+                        MouseArea {
+                            id: nameMouse
+                            anchors.fill: parent; hoverEnabled: true; acceptedButtons: Qt.LeftButton
+                            onClicked: function(mouse) {
+                                panel.selectedRow=panel.currentModel.get(nameCell.index)
+                                panel.pickIndex(nameCell.index,mouse.modifiers,nameCell.recordKey)
+                                nameCell.forceActiveFocus()
+                            }
+                            onDoubleClicked: { panel.selectedRow=panel.currentModel.get(nameCell.index); panel.openEditor() }
                         }
-                        Keys.onReturnPressed: { panel.selectedRow=panel.currentModel.get(row); panel.openEditor() }
-                        Keys.onEnterPressed: { panel.selectedRow=panel.currentModel.get(row); panel.openEditor() }
-                        HoverHandler { id: nameHover }
-                        ToolTip.visible: nameHover.hovered
+                        Keys.onPressed: function(event) {
+                            if (event.modifiers & Qt.ControlModifier && event.key===Qt.Key_C) { panel.copyPicked(); event.accepted=true }
+                            else if (event.modifiers & Qt.ControlModifier && event.key===Qt.Key_V) { panel.pasteFromClipboard(); event.accepted=true }
+                            else if (event.key===Qt.Key_Delete) { panel.removePicked(); event.accepted=true }
+                            else if (event.key===Qt.Key_Return || event.key===Qt.Key_Enter) { panel.openEditor(); event.accepted=true }
+                        }
+                        ToolTip.visible: nameMouse.containsMouse
                         ToolTip.text: panel.contactPrefix+display+" · 双击查看或编辑"
                     }
                 }
-                Label { text: "双击姓名 · 单独编辑"; color: UiTheme.muted; font.pixelSize: 11; Layout.fillWidth: true; elide: Text.ElideRight }
-                UiButton { objectName: "groupEditPersonButton"; text: "查看个人消息"; Layout.fillWidth: true; visible: !!panel.selectedRow.id; enabled: !center.active; onClicked: panel.openEditor() }
+                Label {
+                    objectName: "groupListNotice"
+                    text: panel.actionNotice.length ? panel.actionNotice : "双击姓名查看或编辑个人消息"
+                    color: panel.actionNotice.length ? UiTheme.warning : UiTheme.muted
+                    font.pixelSize: 11; Layout.fillWidth: true; wrapMode: Text.Wrap; maximumLineCount: 2; elide: Text.ElideRight
+                }
+            }
+        }
+    }
+    // QML 侧的系统剪贴板桥：与 TextField 自带的复制粘贴共用同一份文本。
+    TextEdit { id: clipboard; objectName: "groupClipboardBridge"; visible: false; width: 0; height: 0 }
+    Dialog {
+        id: removeDialog; objectName: "groupRemoveNamesDialog"; anchors.centerIn: parent; modal: true; title: "从群发名单删除"
+        property var ids: []
+        width: Math.min(panel.width-20,430)
+        ColumnLayout {
+            anchors.fill: parent
+            Label {
+                text: "将从当前群发方案的待处理名单里删除选中的 "+removeDialog.ids.length+" 人。已发送、待核实以及已有发送记录的姓名不会被删除。"
+                wrapMode: Text.Wrap; Layout.fillWidth: true
+            }
+            RowLayout {
+                UiButton { objectName: "cancelRemoveNames"; text: "取消"; onClicked: removeDialog.close() }
+                UiButton { objectName: "confirmRemoveNames"; text: "删除"; highlighted: true; onClicked: { removeDialog.close(); panel.applyRemove(removeDialog.ids) } }
             }
         }
     }

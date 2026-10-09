@@ -183,28 +183,21 @@ Item {
         }
     }
     Dialog {
-        id: customDialog; objectName: "customGroupDialog"; anchors.centerIn: parent; modal: true; title: "新建群发名单与消息"
-        width: Math.min(page.width-30,700); height: Math.min(page.height-30,620)
-        onOpened: { if(newFields.values().length===0) newFields.load([{type:"text",text:""}]) }
+        id: customDialog; objectName: "customGroupDialog"; anchors.centerIn: parent; modal: true; title: "新建群发方案"
+        width: Math.min(page.width-30,520)
         ColumnLayout {
             anchors.fill: parent
-            UiTextField { id: customTitle; objectName: "groupCustomTitle"; placeholderText: "名单名称"; Layout.fillWidth: true }
-            ScrollView {
-                id: newScroll; Layout.fillWidth: true; Layout.fillHeight: true; contentWidth: availableWidth; clip: true
-                ColumnLayout {
-                    width: newScroll.availableWidth
-                    RowLayout {
-                        Label { text: "人员名单（一行一个姓名，不含前缀）"; Layout.fillWidth: true }
-                        UiButton { text: "导入 CSV／TXT"; onClicked: { var names=center.importNames(); if(names) customNames.text=names } }
-                    }
-                    TextArea { id: customNames; objectName: "groupCustomNames"; Layout.fillWidth: true; implicitHeight: 90; placeholderText: "姓名1\n姓名2"; wrapMode: TextEdit.Wrap; selectByMouse: true }
-                    Label { text: "按字段顺序发送文字和文件。文字支持变量：画像名单可用 {" + backend.profilesModule.messagePlaceholders.join("}、{") + "}；普通名单支持 {姓名}。保存后名单中分别保存每位收件人的实际消息。"; wrapMode: Text.Wrap; Layout.fillWidth: true }
-                    MessageFields { id: newFields; objectName: "newMessageFields"; Layout.fillWidth: true }
-                }
+            UiTextField { id: customTitle; objectName: "groupCustomTitle"; placeholderText: "群发方案名称"; Layout.fillWidth: true }
+            Label {
+                text: "只创建空的群发方案；创建后在右侧「群发名单」逐个填写姓名（也可用 Ctrl+V 粘贴多个），再到「消息模板」配置消息。"
+                wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.muted
             }
             Label { text: center.status; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.warning }
             RowLayout {
-                UiButton { objectName: "saveStructuredGroup"; text: "保存名单和内容"; onClicked: { if(center.createStructured(customTitle.text,customNames.text,newFields.values())) { customDialog.close(); customTitle.text=""; customNames.text=""; newFields.load([{type:"text",text:""}]) } } }
+                UiButton {
+                    objectName: "createGroupPlan"; text: "创建方案"; highlighted: true
+                    onClicked: if(center.createEmptyList(customTitle.text)) { customDialog.close(); customTitle.text="" }
+                }
                 UiButton { text: "取消"; onClicked: customDialog.close() }
             }
         }

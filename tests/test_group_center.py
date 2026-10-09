@@ -1,3 +1,4 @@
+import json
 import unittest
 from unittest.mock import Mock, patch
 from PySide6.QtCore import QCoreApplication
@@ -49,6 +50,72 @@ class GroupCenterTests(unittest.TestCase):
             finally:
                 g._worker=None
             self.assertEqual(g.store.get(list_id)['title'],'重命名后')
+
+    def test_new_plan_starts_empty_and_takes_typed_or_pasted_names(self):
+        with seeded(1) as b:
+            g=b.groupCenter
+            self.assertTrue(g.createEmptyList('  空方案  '),g.status)
+            list_id=g.selected['id']
+            self.assertEqual(g.selected['title'],'空方案')
+            self.assertEqual(g.rows,[]);self.assertEqual(g.pendingCount,0)
+            self.assertEqual([row['label'].split(' · ')[0] for row in g.lists],['空方案'])
+            # 空方案允许先存模板：保存 0 人成功，添加姓名时按模板生成消息。
+            draft=[dict(sourceIndex=-1,type='text',value='{姓名}同学，请查收')]
+            self.assertTrue(g.saveDefaultRow(list_id,g.contentRevision,draft,False),g.status)
+            self.assertIn('模板已保存',g.status)
+            result=g.addNames(list_id,['甲','甲','','乙'])
+            self.assertEqual(result['added'],['甲','乙'])
+            self.assertEqual(result['skipped'],['甲'])
+            self.assertEqual(result['no_message'],[])
+            self.assertEqual([row['name'] for row in g.rows],['甲','乙'])
+            self.assertEqual([json.loads(row['content'])[0]['text'] for row in g.rows],['甲同学，请查收','乙同学，请查收'])
+            self.assertEqual(g.pendingCount,2)
+            self.assertTrue(g.prepare('',{}),g.status)
+            self.assertEqual([row['name'] for row in g.preview],['甲','乙'])
+            self.assertFalse(g.createEmptyList('   '))
+            self.assertIn('创建失败',g.status)
+
+    def test_typed_names_that_cannot_use_the_template_stay_empty(self):
+        with seeded(1) as b:
+            g=b.groupCenter
+            # 画像名单的模板含画像变量：手动添加的姓名无法解析，留空而不是写占位提示。
+            list_id=g.store.create('变量名单',[dict(name='甲',content=[dict(type='text',text='甲欠第3节')],
+                learning_data=dict(profile_fields={'欠课':'第3节'}),message='欠课{欠课}')],
+                content_template=[dict(type='text',text='欠课{欠课}')])
+            g.refresh()
+            g.selectList(next(i for i,row in enumerate(g.lists) if row['id']==list_id))
+            result=g.addNames(list_id,['乙'])
+            self.assertEqual(result['added'],['乙'])
+            self.assertEqual(result['no_message'],['乙'])
+            self.assertEqual(json.loads(g.rows[1]['content']),[])
+            self.assertIn('还没有套用上模板消息',g.status)
+            # 没有消息的人不能进入预览，避免空消息误发。
+            self.assertFalse(g.prepare('',{}),g.status)
+            self.assertIn('尚未配置消息字段',g.status)
+
+    def test_remove_names_keeps_send_records(self):
+        with seeded(1) as b:
+            g=b.groupCenter
+            self.assertTrue(g.createCustom('删除测试','甲|话术\n乙|话术'))
+            list_id=g.selected['id']
+            ids={row['name']:row['id'] for row in g.rows}
+            self.assertTrue(g.removeNames(list_id,[ids['乙']]),g.status)
+            self.assertEqual([row['name'] for row in g.rows],['甲'])
+            self.assertFalse(g.removeNames(list_id,[ids['乙']]))
+            self.assertIn('不在当前名单',g.status)
+            # 有发送记录（含失败后重试）和受保护状态都不能删除。
+            task=g.store.plan(list_id)[0]
+            attempt=g.store.claim(list_id,task)
+            g.store.finish(list_id,task,attempt,source.FAILED,'未发送失败')
+            self.assertFalse(g.removeNames(list_id,[g.rows[0]['id']]))
+            self.assertIn('有发送记录的姓名不能删除',g.status)
+            self.assertEqual(len(g.rows),1)
+            g._worker=object()
+            try:
+                self.assertFalse(g.removeNames(list_id,[g.rows[0]['id']]))
+                self.assertIn('发送运行中',g.status)
+            finally:
+                g._worker=None
 
     def test_v2_options_apply_and_paste_only_never_sends_enter(self):
         driver=WeComSender.__new__(WeComSender)

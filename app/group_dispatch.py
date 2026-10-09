@@ -64,10 +64,10 @@ class GroupStore:
         with self.connect() as conn:
             return [dict(r) for r in conn.execute('SELECT * FROM recipients WHERE list_id=? ORDER BY id',(list_id,))]
 
-    def create(self,title,people,source_store=None,batch=None,*,content_template=None):
+    def create(self,title,people,source_store=None,batch=None,*,content_template=None,allow_empty=False):
         title=title.strip()
         if not title:raise ValueError('请填写名单名称')
-        if not people:raise ValueError('名单为空')
+        if not people and not allow_empty:raise ValueError('名单为空')
         template=prepare_content(content_template) if content_template else []
         names=[];contents=[]
         for r in people:
@@ -134,6 +134,59 @@ class GroupStore:
             if conn.execute("SELECT 1 FROM recipients WHERE list_id=? AND state='发送中'",(list_id,)).fetchone():raise ValueError('名单正在发送，不能修改参数')
             conn.execute('UPDATE lists SET prefix=?,options=? WHERE id=?',(prefix,json.dumps(options),list_id))
 
+    def add_recipients(self,list_id,names):
+        """Append hand-written names; same names in the list are skipped, send records stay."""
+        cleaned=[]
+        for raw in names:
+            name=str(raw).strip()
+            if not name:continue
+            if any(c in name for c in '\r\n\0'):raise ValueError('姓名不能包含换行或空字符')
+            cleaned.append(name)
+        if not cleaned:raise ValueError('请填写姓名')
+        added=[];skipped=[];no_message=[]
+        with self.connect() as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            job=conn.execute('SELECT * FROM lists WHERE id=?',(list_id,)).fetchone()
+            if not job:raise ValueError('群发名单已不存在，请重新选择')
+            if conn.execute("SELECT 1 FROM recipients WHERE list_id=? AND state='发送中'",(list_id,)).fetchone():
+                raise ValueError('名单正在发送，不能添加人员')
+            existing={str(row[0]).strip() for row in conn.execute('SELECT name FROM recipients WHERE list_id=?',(list_id,))}
+            template=json.loads(job['content_template'] or '[]')
+            for name in cleaned:
+                if name in existing:skipped.append(name);continue
+                content=[]
+                if template:
+                    # 套用当前模板，让新名字和名单里其他人拿到同一份消息；
+                    # 含无法解析的画像变量或失效文件时留空，由操作者单独填写。
+                    try:
+                        rendered=render_content(template,name)
+                        for item in rendered:
+                            if item['type']=='text':_ensure_resolved(item['text'],{},name)
+                    except ValueError:no_message.append(name)
+                    else:content=rendered
+                conn.execute('INSERT INTO recipients(list_id,name,message,source_sid,learning_data,content,base_message) VALUES(?,?,?,?,?,?,?)',
+                    (list_id,name,describe(content),None,'{}',json.dumps(content,ensure_ascii=False),''))
+                existing.add(name);added.append(name)
+        return dict(added=added,skipped=skipped,no_message=no_message)
+
+    def remove_recipients(self,list_id,recipient_ids):
+        """Drop pending rows by hand; anything with a send record is kept."""
+        ids=[int(value) for value in recipient_ids]
+        if not ids:raise ValueError('请先选择要删除的姓名')
+        placeholders=','.join('?'*len(ids))
+        with self.connect() as conn:
+            rows=list(conn.execute(f'SELECT id,name,state FROM recipients WHERE list_id=? AND id IN ({placeholders})',(list_id,*ids)))
+            if not rows:raise ValueError('所选姓名不在当前名单')
+            if conn.execute("SELECT 1 FROM recipients WHERE list_id=? AND state='发送中'",(list_id,)).fetchone():
+                raise ValueError('名单正在发送，不能删除人员')
+            protected=[row['name'] for row in rows if row['state'] in source.PROTECTED]
+            if protected:raise ValueError('已发送、发送中或待核实的记录不能删除：'+'、'.join(protected))
+            recorded=[row[0] for row in conn.execute(
+                f'SELECT DISTINCT r.name FROM recipients r JOIN attempts a ON a.recipient_id=r.id WHERE r.list_id=? AND r.id IN ({placeholders})',(list_id,*ids))]
+            if recorded:raise ValueError('有发送记录的姓名不能删除：'+'、'.join(recorded))
+            conn.executemany('DELETE FROM recipients WHERE id=? AND list_id=?',[(row['id'],list_id) for row in rows])
+        return dict(removed=[row['name'] for row in rows])
+
     def save_default_row(self,list_id,fields,template,override_personal=False):
         """Apply a complete draft in one transaction, retaining unchanged variants."""
         with self.connect() as conn:
@@ -141,7 +194,8 @@ class GroupStore:
             rows=list(conn.execute('SELECT * FROM recipients WHERE list_id=? ORDER BY id',(list_id,)))
             if any(row['state']==source.RUNNING for row in rows):raise ValueError('发送期间不能修改消息')
             editable=[row for row in rows if row['state'] not in source.PROTECTED]
-            if not editable:raise ValueError('当前没有可修改的待发送人员')
+            # 空的群发方案允许先存好模板（0 人更新）；成员都在但都不可编辑时才拒绝。
+            if rows and not editable:raise ValueError('当前没有可修改的待发送人员')
             updates=[]
             for row in editable:
                 old=json.loads(row['content']) or []

@@ -153,7 +153,7 @@ class GroupCenter(QObject):
                 else:complete=False
             count=self.store.save_default_row(list_id,fields,template if complete else [],override_personal)
             self._preview=[];self._confirmation=None
-            self._notice=f'默认消息已应用到 {count} 位待处理人员；个人改动'+('已覆盖' if override_personal else '已保留')+'，请重新预览'
+            self._notice=(f'默认消息已应用到 {count} 位待处理人员；' if count else '消息模板已保存（名单暂无待发送人员）；')+'个人改动'+('已覆盖' if override_personal else '已保留')+'，请重新预览'
             self._reload_snapshot();self._notify_preview();self._notify_status();return True
         except Exception as exc:self._notice='默认消息保存失败：'+str(exc);self._notify_status();return False
 
@@ -422,6 +422,48 @@ class GroupCenter(QObject):
             self._notice='消息字段已更新；已发送和异常待确认记录保留原内容'
             self._reload_snapshot();self._notify_preview();self._notify_status();return True
         except Exception as exc:self._notice='保存失败：'+str(exc);self._notify_status();return False
+
+    @Slot(str,result=bool)
+    def createEmptyList(self,title):
+        """新建群发方案只取名：成员和消息随后在群发名单和消息模板里补。"""
+        if self.active:
+            self._notice='发送运行中，不能新建群发方案';self._notify_status();return False
+        try:
+            self._id=self.store.create(title,[],allow_empty=True)
+            self._preview=[];self._confirmation=None
+            self._notice=f'已新建群发方案「{title.strip()}」；请在「群发名单」填写姓名，再配置消息模板'
+            self._reload_snapshot(lists=True);self._notify_preview();self._notify_status();return True
+        except Exception as exc:self._notice='创建失败：'+str(exc);self._notify_status();return False
+
+    @Slot(int,'QVariantList',result='QVariantMap')
+    def addNames(self,list_id,names):
+        if self.active:
+            self._notice='发送运行中，不能添加名单人员';self._notify_status();return {}
+        try:
+            if list_id!=self._id or not self.store.get(list_id):raise ValueError('群发名单已变化，请重新选择')
+            result=self.store.add_recipients(list_id,list(names))
+            self._preview=[];self._confirmation=None
+            summary=[]
+            if result['added']:summary.append(f"已添加 {len(result['added'])} 人")
+            if result['skipped']:summary.append(f"名单里已有同名，跳过 {len(result['skipped'])} 人")
+            if result['no_message']:summary.append(f"{len(result['no_message'])} 人还没有套用上模板消息（模板含无法解析的变量或文件），请双击单独填写")
+            self._notice=('；'.join(summary)+'；请重新预览') if summary else '没有可添加的姓名'
+            self._reload_snapshot(lists=True);self._notify_preview();self._notify_status()
+            return dict(result,list_id=list_id)
+        except Exception as exc:
+            self._notice='添加失败：'+str(exc);self._notify_status();return {}
+
+    @Slot(int,'QVariantList',result=bool)
+    def removeNames(self,list_id,recipient_ids):
+        if self.active:
+            self._notice='发送运行中，不能删除名单人员';self._notify_status();return False
+        try:
+            if list_id!=self._id or not self.store.get(list_id):raise ValueError('群发名单已变化，请重新选择')
+            result=self.store.remove_recipients(list_id,list(recipient_ids))
+            self._preview=[];self._confirmation=None
+            self._notice=f"已从名单删除 {len(result['removed'])} 人；已发送记录未受影响，请重新预览"
+            self._reload_snapshot(lists=True);self._notify_preview();self._notify_status();return True
+        except Exception as exc:self._notice='删除失败：'+str(exc);self._notify_status();return False
 
     @Slot(int,str,result=bool)
     def renameList(self,list_id,title):

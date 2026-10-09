@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from PySide6.QtCore import QObject, QUrl, QMetaObject, Q_ARG, Qt, QPointF, QPoint
-from PySide6.QtGui import QFontDatabase, QInputMethodEvent, QWheelEvent
+from PySide6.QtGui import QFontDatabase, QInputMethodEvent, QWheelEvent, QGuiApplication
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
 from PySide6.QtTest import QTest
@@ -110,6 +110,12 @@ def run():
             pos = obj.mapToScene(QPointF(obj.width()/2, obj.height()/2)).toPoint()
             action = QTest.mouseDClick if double else QTest.mouseClick
             action(window, Qt.LeftButton, Qt.NoModifier, pos)
+            QTest.qWait(90)
+
+        def modifier_click(name, modifier=Qt.NoModifier):
+            obj = item(name)
+            pos = obj.mapToScene(QPointF(obj.width()/2, obj.height()/2)).toPoint()
+            QTest.mouseClick(window, Qt.LeftButton, modifier, pos)
             QTest.qWait(90)
 
         invoke(window, 'switchModule', 4)
@@ -594,6 +600,67 @@ def run():
         assert item('groupResolveSent').property('visible')
         assert not item('recipientMessageChat').property('editable')
         click('cancelRecipientMessages')
+
+        # 新建群发方案只填名称；名单用手填空单元格和 Ctrl+V 粘贴补，像文件列表一样多选复制。
+        saved_clipboard = QGuiApplication.clipboard().text()
+        click('groupCreateList')
+        assert item('customGroupDialog').property('visible')
+        assert window.findChild(QObject, 'groupCustomNames') is None, '新建群发方案不应再要求先填名单和消息'
+        assert window.findChild(QObject, 'newMessageFields') is None
+        item('groupCustomTitle').setProperty('text', '手填名单验证')
+        click('createGroupPlan')
+        assert not item('customGroupDialog').property('visible')
+        assert g.selected['title'] == '手填名单验证' and g.rows == [], g.status
+        assert item('groupListSelector').property('currentText').startswith('手填名单验证')
+        assert window.findChild(QObject, 'groupEditPersonButton') is None, '查看个人消息按钮应已移除'
+        names_view = item('groupNamesTable')
+        assert names_view.metaObject().className() == 'QQuickListView', names_view.metaObject().className()
+        add_cell = item('groupAddNameInput')
+        assert add_cell.property('visible') and add_cell.property('enabled')
+        capture('group-empty-plan.png')
+        for name in ('手填甲', '手填乙', '手填丙'):
+            invoke(add_cell, 'forceActiveFocus')
+            add_cell.setProperty('text', name)
+            QTest.keyClick(window, Qt.Key_Return)
+            QTest.qWait(110)
+        assert [row['name'] for row in g.rows] == ['手填甲', '手填乙', '手填丙'], g.status
+        assert add_cell.property('text') == '' and '已添加' in item('groupListNotice').property('text'), (add_cell.property('text'), item('groupListNotice').property('text'), g.status)
+        # 名单内同名会被跳过，不产生第二行。
+        add_cell.setProperty('text', '手填甲')
+        QTest.keyClick(window, Qt.Key_Return); QTest.qWait(110)
+        assert [row['name'] for row in g.rows] == ['手填甲', '手填乙', '手填丙']
+        assert '跳过名单内同名' in item('groupListNotice').property('text'), item('groupListNotice').property('text')
+        # 每行底边一条分隔线，行距为 0，看起来像表格。
+        row_item = item('groupName0')
+        separators = [child for child in row_item.childItems()
+                      if child.metaObject().className() == 'QQuickRectangle' and child.height() == 1]
+        assert separators and separators[0].width() == row_item.width(), [(c.metaObject().className(), c.height()) for c in row_item.childItems()]
+        assert names_view.property('spacing') == 0
+        # Ctrl+C 复制选中的姓名；Shift 连选、Ctrl 增删选择。
+        modifier_click('groupName0')
+        modifier_click('groupName2', Qt.ShiftModifier)
+        QTest.keyClick(window, Qt.Key_C, Qt.ControlModifier); QTest.qWait(110)
+        assert QGuiApplication.clipboard().text().split('\n') == ['手填甲', '手填乙', '手填丙'], QGuiApplication.clipboard().text()
+        assert '已复制 3 个姓名' in item('groupListNotice').property('text'), item('groupListNotice').property('text')
+        capture('group-list-copied.png')
+        modifier_click('groupName1', Qt.ControlModifier)
+        QTest.keyClick(window, Qt.Key_C, Qt.ControlModifier); QTest.qWait(110)
+        assert QGuiApplication.clipboard().text().split('\n') == ['手填甲', '手填丙']
+        # Ctrl+V 把剪贴板里的多行姓名加入名单，同名自动跳过。
+        QGuiApplication.clipboard().setText('粘贴甲\n粘贴乙\n手填甲')
+        QTest.keyClick(window, Qt.Key_V, Qt.ControlModifier); QTest.qWait(120)
+        assert [row['name'] for row in g.rows] == ['手填甲', '手填乙', '手填丙', '粘贴甲', '粘贴乙'], g.status
+        assert '已添加 2 人' in item('groupListNotice').property('text') and '跳过名单内同名 1 人' in item('groupListNotice').property('text')
+        capture('group-list-selection.png')
+        # Delete 删除选中的待处理姓名，确认后生效；发送记录仍然保留。
+        modifier_click('groupName3')
+        QTest.keyClick(window, Qt.Key_Delete); QTest.qWait(90)
+        assert item('groupRemoveNamesDialog').property('visible')
+        click('confirmRemoveNames')
+        assert [row['name'] for row in g.rows] == ['手填甲', '手填乙', '手填丙', '粘贴乙'], g.status
+        QGuiApplication.clipboard().setText(saved_clipboard)
+        invoke(item('groupCenterPage'), 'selectList', next(i for i, row in enumerate(g.lists) if row['id'] == list_id))
+        assert g.selected['id'] == list_id
 
         # Close flushes prefix debounce, but committed bubbles have already persisted.
         item('groupContactPrefix').setProperty('text', '关闭前前缀-')

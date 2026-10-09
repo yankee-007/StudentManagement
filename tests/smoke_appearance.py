@@ -112,7 +112,7 @@ def run():
                 dialog = find('customGroupDialog')
                 dialog.open(); QTest.qWait(70)
                 assert QQmlProperty.read(dialog, 'palette.window') == surface
-                assert QQmlProperty.read(find('groupCustomNames'), 'palette.text') == ink
+                assert QQmlProperty.read(find('groupCustomTitle'), 'palette.text') == ink
                 assert window.grabWindow().save(str(output / f'{mode}-dialog-{width}.png'))
                 dialog.close()
             window.resize(1280, 800); window.switchModule(7); QTest.qWait(80)

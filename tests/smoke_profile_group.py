@@ -58,7 +58,7 @@ def run():
         QMetaObject.invokeMethod(window,'switchModule',Q_ARG('QVariant',4))
         QTest.qWait(150)
         group_table=window.findChild(QObject,'groupNamesTable')
-        assert group_table.property('rows')==2
+        assert group_table.property('count')==2
         panel=window.findChild(QObject,'recipientMessages')
         panel.setProperty('selectedRow',b.groupCenter.pendingModel.get(0))
         selected_id=b.groupCenter.pendingModel.get(0)['id']
@@ -116,7 +116,7 @@ def run():
             conn.execute("UPDATE recipients SET state='已发送' WHERE id=?",(row['id'],))
         b.groupCenter.refresh()
         tabs.setProperty('currentIndex',1);QTest.qWait(100)
-        assert group_table.property('rows')==1
+        assert group_table.property('count')==1
         panel.setProperty('selectedRow',b.groupCenter.sentModel.get(0))
         QMetaObject.invokeMethod(panel,'openEditor');QTest.qWait(100)
         assert not editor.property('canEdit')

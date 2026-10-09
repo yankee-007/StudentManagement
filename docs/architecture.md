@@ -29,7 +29,7 @@ Backend / TermModule / SettingsModule / LiveAbsence → AcquisitionTask（QThrea
 
 ## Python ↔ QML 与状态
 
-- QML 展示层共用 UiTheme、UiButton、UiTextField、UiComboBox、UiPanel；本地 qmldir 注册主题单例。左侧导航调用原 switchModule，群发中心位于最后。班期学员／画像／催办等共用顶部 classSelector，班期页通过 Workflow.selectClass → TermModule.alignTerm/activate 跟随当前班级；activate 和班期目录刷新均按当前班级 term_id 选择缓存，未关联平台的旧导入班级显示空名单及选择提示，避免显示另一班期的缓存。调试重启保留原保护条件。工作台／画像窄窗口切换列表与详情的可见性，不销毁编辑组件、不改保存和业务接口。群发按发送配置／模板／姓名列表三栏排列（消息模板居中），姓名仅展示前缀＋姓名，模板常驻纵向气泡，移除逐人消息表和统计卡片；双击姓名打开个人消息弹窗。MessageChatEditor 复用于公共模板和个人消息，支持 Enter 加入、Shift＋Enter 换行、组合输入保护、双击气泡内联编辑并以回车或点击外部提交、文件及顺序；文字气泡按最宽一行实测宽度自适应并留 2 像素余量，能放进列宽的消息以 NoWrap 渲染，设备像素取整不再把末字挤到下一行，只有整条消息超过列宽上限才换行，换行时不拆开 `{变量}` 占位符；消息线程与姓名列表独立滚动，长消息内联编辑单独滚动，当前编辑委托在移出视口时保留。发送参数在左侧自动保存；粘贴等待默认 0.5 秒，关闭回车发送时单条发送禁用并置灰。
+- QML 展示层共用 UiTheme、UiButton、UiTextField、UiComboBox、UiPanel；本地 qmldir 注册主题单例。左侧导航调用原 switchModule，群发中心位于最后。班期学员／画像／催办等共用顶部 classSelector，班期页通过 Workflow.selectClass → TermModule.alignTerm/activate 跟随当前班级；activate 和班期目录刷新均按当前班级 term_id 选择缓存，未关联平台的旧导入班级显示空名单及选择提示，避免显示另一班期的缓存。调试重启保留原保护条件。工作台／画像窄窗口切换列表与详情的可见性，不销毁编辑组件、不改保存和业务接口。群发按发送配置／模板／群发名单三栏排列（消息模板居中），姓名仅展示前缀＋姓名，模板常驻纵向气泡，移除逐人消息表和统计卡片；双击姓名打开个人消息弹窗（已移除「查看个人消息」按钮）。右侧「群发名单」由 ListView 呈现，行间 1px 横线、行距 0，页脚是添加姓名的空单元格（回车提交、成功后清空保留焦点），选择用 recordKey 集合维护，支持 Ctrl 增删、Shift 连选、Ctrl+C 复制、Ctrl+V 粘贴加入与 Delete 删除，剪贴板经隐藏 TextEdit 桥接系统剪贴板。MessageChatEditor 复用于公共模板和个人消息，支持 Enter 加入、Shift＋Enter 换行、组合输入保护、双击气泡内联编辑并以回车或点击外部提交、文件及顺序；文字气泡按最宽一行实测宽度自适应并留 2 像素余量，能放进列宽的消息以 NoWrap 渲染，设备像素取整不再把末字挤到下一行，只有整条消息超过列宽上限才换行，换行时不拆开 `{变量}` 占位符；消息线程与姓名列表独立滚动，长消息内联编辑单独滚动，当前编辑委托在移出视口时保留。发送参数在左侧自动保存；粘贴等待默认 0.5 秒，关闭回车发送时单条发送禁用并置灰。
 - SettingsModule.appearanceMode 读取主 registry 的 settings.appearance_mode（light/dark，旧库或无效值默认 light），保存成功后只发 appearanceChanged，不广播账号/绑定 changed。UiTheme 绑定该属性，统一语义颜色与 Fusion Palette；主窗口和两个独立 Window 共享此 Palette。OverviewChart 将既有业务颜色映射为主题颜色并延迟重绘，保留当前选择/缩放。Backend 日期弹窗和 LeaveCalendar 使用对应 QWidget Palette，包含自绘日期格与星期标题；文件选择器仍由 Windows 原生界面承载。
 
 - Backend 以常量 QObject Property 暴露模块；QML 使用 QVariantMap/List 读取行、字段、参数，调用 Slot，以 notify signal 更新绑定。
@@ -70,8 +70,8 @@ Backend / TermModule / SettingsModule / LiveAbsence → AcquisitionTask（QThrea
 ### 群发
 
 - createFromCampaignSelection/createFromProfiles 按可见人员生成独立名单，文字变量创建时展开，保留模板和资料元数据。names_only 保存空消息，补齐后才可发送。
-- GroupCenter 缓存名单、选择、待处理/已发送模型；GroupStore 负责持久化、编辑和队列保护。
-- GroupCenter.qml 顶部一行是「选择群发方案」下拉框＋「重命名」（左）与「复制为新名单」「新建群发」（右对齐）；重命名经 GroupCenter.renameList → GroupStore.rename_list 只更新 lists.title（拒绝空白/换行标题与过期 list_id，发送运行中只提示不改名），不触碰 recipients/attempts，也不清空当前预览确认。
+- GroupCenter 缓存名单、选择、待处理/已发送模型；GroupStore 负责持久化、编辑和队列保护。空方案（create allow_empty）允许 0 成员，`save_default_row` 对空名单只写模板；`add_recipients` 手填/粘贴加入成员并按当前模板渲染消息，模板无法解析时留空并回报 no_message，`remove_recipients` 只删没有尝试记录的待处理行。
+- GroupCenter.qml 顶部一行是「选择群发方案」下拉框＋「重命名」（左）与「复制为新名单」「新建群发」（右对齐）；重命名经 GroupCenter.renameList → GroupStore.rename_list 只更新 lists.title（拒绝空白/换行标题与过期 list_id，发送运行中只提示不改名），不触碰 recipients/attempts，也不清空当前预览确认。「新建群发」只收方案名称，调用 createEmptyList 建空方案，成员与消息随后手动补。
 - GroupCenter.qml 参数 600ms 防抖保存，切名单/预览/关闭另有保存处理；按 list_id 校验，修改后清除预览确认。
 - prepare → GroupStore.plan → confirmation；start 重验计划、参数/文件及 F11 注册，再启动 SendWorker。每人先 claim 后 finish；暂停/结束在当前联系人完成后生效。
 - WeComSender 执行进程/焦点检查、搜索、可选浮窗核验、剪贴板粘贴和回车。“已发送”不证明送达，不确定结果需人工核实。

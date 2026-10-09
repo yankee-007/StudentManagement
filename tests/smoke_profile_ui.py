@@ -104,17 +104,13 @@ with tempfile.TemporaryDirectory() as folder:
             test_dialog=window.findChild(QObject,'customGroupDialog')
             assert test_dialog.property('visible')
             window.findChild(QObject,'groupCustomTitle').setProperty('text','GUI多字段测试')
-            window.findChild(QObject,'groupCustomNames').setProperty('text','仅界面测试人员')
-            note=Path(folder)/'smoke_note.txt'
-            note.write_text('仅界面测试，不发送',encoding='utf-8')
-            fields=[dict(type='text',text='{姓名}，这是测试'),dict(type='file',path=str(note))]
-            assert QMetaObject.invokeMethod(window.findChild(QObject,'newMessageFields'),'load',Q_ARG('QVariant',fields))
         if steps[0] == 64:
-            assert QMetaObject.invokeMethod(window.findChild(QObject,'saveStructuredGroup'),'clicked')
+            assert QMetaObject.invokeMethod(window.findChild(QObject,'createGroupPlan'),'clicked')
             assert backend.groupCenter.selected['title']=='GUI多字段测试',backend.groupCenter.status
-            content=json.loads(backend.groupCenter.rows[0]['content'])
-            assert content[0]['text']=='仅界面测试人员，这是测试'
-            assert content[1]['type']=='file'
+            # 新建群发方案只取名；成员与消息随后手动补。
+            assert backend.groupCenter.rows==[]
+            assert backend.groupCenter.addNames(backend.groupCenter.selected['id'],['仅界面测试人员'])
+            assert backend.groupCenter.addNames(backend.groupCenter.selected['id'],['仅界面测试人员'])['skipped']==['仅界面测试人员']
             timer.stop()
             table.setProperty('contentY', 0)
             if os.environ.get('PROFILE_UI_CAPTURE'):

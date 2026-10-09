@@ -62,6 +62,16 @@
 
 验证：`QT_QPA_PLATFORM=offscreen` 下 40 项群发相关单元回归（test_group_center、test_group_interaction、test_profile_group_flow、test_message_content、test_real_sending）通过；新增 test_rename_list_only_changes_the_title 覆盖改名只动标题、预览/人员/消息/前缀不变、空白与换行标题被拒、过期 list_id 被拒、发送运行中拒绝改名。smoke_group_interaction 新增：四个控件同一行且下拉框＜重命名＜复制＜新建、最后一个按钮右边缘贴页面右侧的同排几何断言，真实点击重命名对话框改名后下拉框文本与库内标题同步、人员与个人消息不变，复制／新建对话框仍可从新位置打开，并新增 1250×800 亮暗与 720×480 暗色三栏截图 `output/group-rename`（含 group-rename-dialog.png）。两套真实 QML 冒烟通过、无 QML 警告（仅起点即有的 recursive rearrange 提示）。未跑全库，未访问正式数据，未调用真实发送。
 
+本轮新要求：把右侧「收件人」改名「群发名单」并支持手动增删——名单最底下加一个可填写姓名的空单元格，支持 Ctrl/Shift 像文件列表那样多选、复制、粘贴；去掉选中时出现的「查看个人消息」按钮，只保留双击查看；每行用横线隔开像表格；「新建群发」只填群发方案名称，成员和消息随后手动补。起点 e956e57；工作区仍有其他任务的在改内容（PROJECT_CONTEXT.md、README.md、app/workflow.py、qml/CampaignFieldDialog.qml、qml/Main.qml、qml/ProfileFieldOrder.qml 及两项工作台测试），本轮未触碰。当前 Agent 统一写入、验证与复查，无子 Agent。
+
+后端：`GroupStore.create(..., allow_empty=True)` 允许 0 成员；`save_default_row` 改为「成员都存在但都不可编辑才拒绝」，空方案允许先存模板（0 人更新，GroupCenter 提示改为「消息模板已保存（名单暂无待发送人员）」）；新增 `add_recipients`（去空白、拒绝换行/空字符、发送中拒绝、按名单内同名跳过，按当前模板渲染消息，模板含无法解析的画像变量或失效文件时留空并回报 `no_message`）与 `remove_recipients`（只删既不是受保护状态、也没有任何 attempts 记录的行，避免破坏发送记录与外键）；新增 `GroupCenter.createEmptyList`、`addNames`、`removeNames` 三个 Slot，成功后都重载名单快照并清空预览确认，发送运行中只提示不改动。
+
+前端：GroupCenter.qml 的「新建群发」对话框简化为只收方案名称（`createGroupPlan`），移除名单文本域、导入按钮与消息字段；RecipientMessages.qml 右侧面板改名「群发名单」，名字列表由 TableView 换成 ListView（行距 0、每行底边 1px 分隔线、表格式外观），页脚是空单元格 `groupAddNameInput`（回车提交、成功后清空并保持焦点、同名拒绝时保留原文），选择状态用 recordKey 集合维护（单击单选、Ctrl 增删、Shift 连选），`Ctrl+C` 复制选中姓名、`Ctrl+V` 粘贴剪贴板多行加入、`Delete` 经确认对话框删除，剪贴板用隐藏 TextEdit 桥接系统剪贴板，操作结果和快捷键提示显示在列表下方的标签中；移除「查看个人消息」按钮，双击（或回车）打开个人消息；已发送页签仍为只读。
+
+过程记录：页脚是 ListView 的独立组件作用域，最初在根组件函数里写 `newName.text=""` 触发 `ReferenceError: newName is not defined`（探针 output/probe_add_cell.log 定位），改为页脚内 `onAccepted` 自行清空并保持焦点。空方案先存模板这一条同时消除了「先写消息后加人」时草稿因修订变化失效的陷阱。
+
+验证：`QT_QPA_PLATFORM=offscreen` 下 43 项群发相关单元回归（test_group_center、test_group_interaction、test_profile_group_flow、test_message_content、test_real_sending）通过；新增 3 项覆盖空方案起手（先存模板 → 添加姓名按模板生成消息 → 可预览）、模板无法解析时新名字留空且不能预览、删除只作用于无发送记录的待处理行（含发送中拒绝）。smoke_group_interaction 新增：新建群发方案只需名称、空方案名单为 0 且底部空单元格可见、连续三次回车添加 + 同名跳过、行内 1px 分隔线与行距 0、`groupEditPersonButton` 已不存在、真实鼠标 Ctrl/Shift 多选、`Ctrl+C` 复制（读系统剪贴板核对）、`Ctrl+V` 多行粘贴加入并跳过同名、`Delete` 确认删除，截图 `output/group-list/group-empty-plan.png`、`group-list-copied.png`、`group-list-selection.png`；smoke_profile_group 与 smoke_appearance 的 TableView 断言改为 ListView 的 `count`／新对话框对象，均通过；无 QML 警告。未跑全库，未访问正式数据，未调用真实发送。smoke_profile_ui 已按新对话框改写（原来是填名单+消息再保存），但该文件依赖本机 `学员画像表.xlsx`，本轮无法运行。
+
 ## 人工验收与恢复
 
-技术实现、定向验证、审查与文档同步完成，待用户重启应用体验三栏配置（发送配置／消息模板／收件人，消息模板居中）、单条发送灰态、气泡双击及外部点击保存、顶部工具条布局（下拉框＋重命名在左，复制为新名单／新建群发右对齐）与重命名只改标题，以及上一轮气泡宽度与 `{变量}` 不拆行效果。已有名单等待时间保留，可使用恢复默认等待改为 0.5 秒。没有执行真实中文输入法或企微发送，亦未跑全库，既有其他模块验证缺口维持 PROJECT_CONTEXT 的边界。本地提交按策略保存，不推送、不合入 main。接续先核对 Git 和此任务，实际磁盘为事实来源；通过 Task ID 查询提交可恢复实现。下一步为体验反馈或真实测试联系人验证。
+技术实现、定向验证、审查与文档同步完成，待用户重启应用体验：三栏配置（发送配置／消息模板／群发名单）、顶部工具条布局与重命名、「新建群发」只填名称后手填/粘贴名单、Ctrl/Shift 多选与 Ctrl+C/V/Delete、表格横线，以及此前的单条发送灰态、气泡双击及外部点击保存、气泡宽度与 `{变量}` 不拆行效果。已有名单等待时间保留，可使用恢复默认等待改为 0.5 秒。没有执行真实中文输入法或企微发送，亦未跑全库，既有其他模块验证缺口维持 PROJECT_CONTEXT 的边界。本地提交按策略保存，不推送、不合入 main。接续先核对 Git 和此任务，实际磁盘为事实来源；通过 Task ID 查询提交可恢复实现。下一步为体验反馈或真实测试联系人验证。
