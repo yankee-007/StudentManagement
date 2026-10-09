@@ -57,7 +57,7 @@ def run():
         QMetaObject.invokeMethod(group_dialog,'close')
         QMetaObject.invokeMethod(window,'switchModule',Q_ARG('QVariant',4))
         QTest.qWait(150)
-        group_table=window.findChild(QObject,'groupRecipientList')
+        group_table=window.findChild(QObject,'groupNamesTable')
         assert group_table.property('rows')==2
         panel=window.findChild(QObject,'recipientMessages')
         panel.setProperty('selectedRow',b.groupCenter.pendingModel.get(0))
@@ -69,10 +69,12 @@ def run():
                 found=visual_item(child,name)
                 if found:return found
             return None
-        template_input=visual_item(window.contentItem(),'groupDefaultText0')
+        chat=window.findChild(QObject,'groupMessageChat')
+        QMetaObject.invokeMethod(chat,'beginEdit',Q_ARG('QVariant',0));QTest.qWait(60)
+        template_input=visual_item(window.contentItem(),'groupChatInline0')
         QMetaObject.invokeMethod(template_input,'forceActiveFocus')
         template_input.setProperty('text','统一消息-{姓名}')
-        save_defaults=window.findChild(QObject,'groupApplyDefaults')
+        save_defaults=visual_item(window.contentItem(),'groupChatSaveEdit')
         QMetaObject.invokeMethod(save_defaults,'click');QTest.qWait(100)
         assert not panel.property('defaultsDirty')
         assert all(r['message'].startswith('统一消息-'+r['name']) for r in b.groupCenter.rows)
@@ -92,13 +94,16 @@ def run():
         assert tabs.property('currentIndex')==0
         first=b.groupCenter.pendingModel.get(0)
         panel.setProperty('selectedRow',first)
-        QMetaObject.invokeMethod(panel,'openCellEditor',Q_ARG('QVariant',first),Q_ARG('QVariant',0));QTest.qWait(100)
-        single_dialog=window.findChild(QObject,'groupSingleCellDialog')
-        assert single_dialog.property('visible')
-        single_text=window.findChild(QObject,'groupSingleCellText')
+        QMetaObject.invokeMethod(panel,'openEditor');QTest.qWait(100)
+        editor=window.findChild(QObject,'recipientMessageEditor')
+        assert editor.property('visible')
+        person_chat=window.findChild(QObject,'recipientMessageChat')
+        QMetaObject.invokeMethod(person_chat,'beginEdit',Q_ARG('QVariant',0));QTest.qWait(60)
+        single_text=visual_item(window.contentItem(),'personChatInline0')
         single_text.setProperty('text','只改这一格')
-        QMetaObject.invokeMethod(window.findChild(QObject,'saveGroupSingleCell'),'click');QTest.qWait(100)
-        assert not single_dialog.property('visible')
+        QMetaObject.invokeMethod(visual_item(window.contentItem(),'personChatSaveEdit'),'click');QTest.qWait(60)
+        QMetaObject.invokeMethod(window.findChild(QObject,'saveRecipientMessages'),'click');QTest.qWait(100)
+        assert not editor.property('visible')
         assert b.groupCenter.rows[0]['message'].startswith('只改这一格')
         assert b.groupCenter.rows[1]['message'].startswith('统一消息-')
         panel.setProperty('selectedRow',b.groupCenter.pendingModel.get(0))
@@ -119,7 +124,7 @@ def run():
         QMetaObject.invokeMethod(editor,'close')
         window.close();app.processEvents()
         assert not warnings,warnings
-        print('Group center selection, tabs, unified default row and cell editors, batch copy and read-only sent tab: OK')
+        print('Group center selection, tabs, chat template/personal editing, batch copy and read-only sent tab: OK')
 
 
 if __name__=='__main__':run()

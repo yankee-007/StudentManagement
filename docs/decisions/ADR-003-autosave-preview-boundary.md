@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted。2026-09-29 根据当时的交互调整整理；2026-10-09按用户统一配置行需求更新布局，自动保存与显式发送边界沿用。
+Accepted。2026-09-29 根据当时的交互调整整理；2026-10-09按用户最终聊天气泡需求替换统一配置行布局，自动保存与显式发送边界沿用。
 
 ## Context
 
@@ -14,9 +14,9 @@ Accepted。2026-09-29 根据当时的交互调整整理；2026-10-09按用户统
 
 ## Decision
 
-姓名前缀与默认消息在名单上方常驻显示，发送参数收进右上角配置弹窗。前缀/参数仍600ms防抖保存；默认消息由一整行草稿统一配置，通过应用或切换名单/模块、预览、关闭前一次提交。后端以list_id与内容修订拒绝陈旧草稿，事务失败保留所有旧内容和当前输入。已保存内容/参数变化清空预览确认，预览窗口显式开始才启动队列。
+姓名前缀在左侧姓名列表上方，右侧常驻纵向聊天模板，发送参数收进右上角配置弹窗。前缀/参数仍600ms防抖保存；输入框 Enter 加入一条文字，Shift＋Enter 在消息内换行，组合输入确认不加入。附件独立成条，气泡支持编辑、取消、删除、排序。每次已提交的气泡操作采用现有整稿事务自动保存；“发送”仅加入模板。后端以list_id与内容修订拒绝陈旧草稿，事务失败保留所有旧内容和当前输入。待加入文字和未完成内联编辑阻止预览、名单/模块切换及关闭，不能隐式提交。已保存内容/参数变化清空预览确认，预览窗口显式开始才启动队列。
 
-公共消息只通过统一默认行编辑，不再点击字段表头或选列打开配置。个人消息保留逐人/逐格编辑；批量修改默认保留个人修改，未改的异构列保持各自内容，受保护发送状态不可覆盖。预览按人员显示有序文字/文件，可返回编辑。
+公共消息只通过常驻聊天模板编辑，移除逐人内容表和统计卡片。姓名使用前缀＋姓名，双击打开同样的个人聊天编辑器，显式保存仅作用于该人。模板修改默认保留个人改动；覆盖个人改动需在“更多”明确确认，未改的混合槽位保持各自内容。删除公共槽位也删除对应个人改动，界面提示；受保护发送状态不可覆盖。待核实结果的核实动作移入个人窗口。预览按人员显示有序文字/文件，可返回编辑。
 
 ## Rationale
 
@@ -32,4 +32,4 @@ Accepted。2026-09-29 根据当时的交互调整整理；2026-10-09按用户统
 
 ## Related Areas
 
-qml/GroupCenter.qml、RecipientMessages.qml、Main.qml；app/group_center.py、group_dispatch.py、message_content.py；tests/test_group_interaction.py、smoke_group_interaction.py、smoke_profile_group.py。
+qml/GroupCenter.qml、RecipientMessages.qml、MessageChatEditor.qml、Main.qml；app/group_center.py、group_dispatch.py、message_content.py；tests/test_group_interaction.py、smoke_group_interaction.py、smoke_profile_group.py。

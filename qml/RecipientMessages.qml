@@ -8,71 +8,34 @@ Item {
     required property var center
     property alias contactPrefix: prefix.text
     property var selectedRow: ({})
-    property int selectedField: -1
     property int currentListId: -1
     property var currentModel: tabs.currentIndex===0 ? center.pendingModel : center.sentModel
-    property int fieldCount: tabs.currentIndex===0 ? center.pendingFieldCount : center.sentFieldCount
     property bool canManage: !center.active && center.editableCount>0
-    property bool defaultsDirty: false
-    property bool loadingDefaults: false
-    readonly property bool compact: height<420
+    readonly property bool defaultsDirty: defaults.dirty
     property string draftRevision: ""
-    property real nameWidth: width<750 ? 120 : 180
-    property real infoWidth: width<750 ? 150 : 220
-    property real messageWidth: Math.max(200,(table.width-Math.max(0,fieldCount-1))/Math.max(1,fieldCount))
     signal prefixEdited()
     signal resolveRequested(int recipientId, bool wasSent)
-    function loadDefaults() {
-        loadingDefaults=true
-        defaults.clear()
-        var fields=center.defaultFields
-        for(var i=0;i<fields.length;i++) defaults.append({sourceIndex:fields[i].sourceIndex,kind:fields[i].type,value:fields[i].value,mixed:fields[i].mixed})
+    function loadDefaults(preserveComposer) {
+        defaults.load(center.defaultFields,!!preserveComposer)
         draftRevision=center.contentRevision
-        defaultsDirty=false
-        overridePersonal.checked=false
-        loadingDefaults=false
     }
-    function draftValues() {
-        var result=[]
-        for(var i=0;i<defaults.count;i++) {
-            var f=defaults.get(i)
-            result.push({sourceIndex:f.sourceIndex,type:f.kind,value:f.value})
+    function saveCommittedDefaults(overridePersonal) {
+        if(!defaults.dirty && !overridePersonal) return true
+        if(!canManage || currentListId!==center.selected.id) return false
+        if(!center.saveDefaultRow(currentListId,draftRevision,defaults.values(),!!overridePersonal)) {
+            defaults.feedback=center.status+"；消息稿已保留，请修改后重试或重载。"
+            return false
         }
-        return result
-    }
-    function updateDefault(index,value) {
-        if(!loadingDefaults && defaults.get(index).value!==value) {
-            defaults.setProperty(index,"value",value)
-            defaultsDirty=true
-        }
-    }
-    function revealDefault(index) {
-        var left=index*(messageWidth+1)
-        var right=left+messageWidth
-        if(left<defaultsScroll.contentX) defaultsScroll.contentX=left
-        else if(right>defaultsScroll.contentX+defaultsScroll.width) defaultsScroll.contentX=right-defaultsScroll.width
-        if(index<fieldCount) table.contentX=defaultsScroll.contentX
-    }
-    function addDefault(kind) {
-        defaults.append({sourceIndex:-1,kind:kind,value:"",mixed:false})
-        defaultsDirty=true
-        Qt.callLater(function() { defaultsScroll.contentX=Math.max(0,defaultsScroll.contentWidth-defaultsScroll.width) })
-    }
-    function removeDefault() {
-        if(defaults.count>0) { defaults.remove(defaults.count-1); defaultsDirty=true }
+        loadDefaults(true)
+        return true
     }
     function saveDefaults() {
-        Qt.inputMethod.commit()
-        // Capture committed text even if focus changed before the IME finished.
-        for(var i=0;i<defaults.count;i++) {
-            var field=defaultsRepeater.itemAt(i)
-            if(field && field.kind==="text") updateDefault(i,field.currentText)
+        if(editor.visible && (messages.dirty || messages.hasPending)) {
+            messages.feedback="请先保存个人消息或取消修改。"
+            return false
         }
-        if(!defaultsDirty) return true
-        if(!canManage || currentListId!==center.selected.id) return false
-        if(!center.saveDefaultRow(currentListId,draftRevision,draftValues(),overridePersonal.checked)) return false
-        loadDefaults()
-        return true
+        if(!defaults.checkPending()) return false
+        return saveCommittedDefaults(false)
     }
     function editRecipient(recipientId) {
         if(!saveDefaults()) return
@@ -85,30 +48,14 @@ Item {
         editor.listId=center.selected.id
         editor.recipientId=selectedRow.id
         editor.canEdit=selectedRow.editable && !center.active
-        editor.title=(editor.canEdit ? "编辑消息 · " : "查看消息 · ") + selectedRow.name
-        messages.load(selectedRow.items)
+        editor.personState=selectedRow.state || ""
+        editor.personInfo=selectedRow.detail || ""
+        editor.title=(editor.canEdit ? "个人消息 · " : "查看消息 · ") + contactPrefix + selectedRow.name
+        messages.load(selectedRow.items,false)
         editor.open()
-    }
-    function openCellEditor(person,index) {
-        if(!person.id || index<0 || index>=person.items.length || !saveDefaults()) return
-        person=center.recipientForView(person.id,tabs.currentIndex===1)
-        if(index>=person.items.length) return
-        var item=person.items[index]
-        cellDialog.listId=center.selected.id
-        cellDialog.recipientId=person.id
-        cellDialog.fieldIndex=index
-        cellDialog.fieldType=item.type
-        cellDialog.fieldValue=item.type==="file" ? item.path : item.text
-        cellDialog.canEdit=person.editable && tabs.currentIndex===0 && !center.active
-        cellDialog.personName=person.name
-        cellDialog.open()
     }
     function restoreSelection() {
         if(selectedRow.id) selectedRow=center.recipientForView(selectedRow.id,tabs.currentIndex===1)
-    }
-    function selectPerson(row,column) {
-        selectedRow=currentModel.get(row)
-        selectedField=column>0 && column<=fieldCount ? column-1 : -1
     }
     Connections {
         target: panel.center
@@ -118,296 +65,159 @@ Item {
                 panel.currentListId=listId
                 tabs.currentIndex=0
                 panel.selectedRow=({})
-                panel.selectedField=-1
-                panel.loadDefaults()
+                panel.loadDefaults(false)
             }
         }
         function onRowsChanged() {
             panel.restoreSelection()
-            if(!panel.defaultsDirty) panel.loadDefaults()
+            if(!defaults.dirty && defaults.editingIndex<0) panel.loadDefaults(true)
         }
-        function onModelInfoChanged() { table.forceLayout(); namesTable.forceLayout(); infoTable.forceLayout() }
+        function onModelInfoChanged() { namesTable.forceLayout() }
     }
-    Component.onCompleted: { currentListId=center.selected.id || 0; loadDefaults() }
-    ListModel { id: defaults }
-    ColumnLayout {
-        anchors.fill: parent; spacing: panel.compact ? 1 : 8
-        RowLayout {
-            Layout.fillWidth: true; spacing: 10
-            UiPanel {
-                Layout.preferredWidth: panel.nameWidth; Layout.minimumWidth: panel.nameWidth; Layout.maximumWidth: panel.nameWidth
-                Layout.preferredHeight: panel.compact ? 112 : 140; padding: panel.compact ? 8 : 12
-                ColumnLayout {
-                    anchors.fill: parent
-                    Label { text: "姓名前缀"; font.bold: true; font.pixelSize: 15 }
-                    UiTextField {
-                        id: prefix; objectName: "groupContactPrefix"; Layout.fillWidth: true
-                        enabled: !center.active && center.selectedIndex>=0
-                        placeholderText: "可留空"; Accessible.name: "姓名前缀"
-                        onTextChanged: panel.prefixEdited()
-                    }
-                    Label { visible: !panel.compact; text: "前缀＋姓名\n自动保存"; Layout.fillWidth: true; color: UiTheme.muted; font.pixelSize: 12 }
-                    Item { Layout.fillHeight: true }
+    Component.onCompleted: { currentListId=center.selected.id || 0; loadDefaults(false) }
+    RowLayout {
+        anchors.fill: parent; spacing: 10
+        UiPanel {
+            Layout.preferredWidth: panel.width<750 ? 140 : 204
+            Layout.fillHeight: true; padding: 10
+            ColumnLayout {
+                anchors.fill: parent; spacing: 8
+                Label { text: "收件人"; font.bold: true; font.pixelSize: 15 }
+                UiTextField {
+                    id: prefix; objectName: "groupContactPrefix"; Layout.fillWidth: true
+                    enabled: !center.active && center.selectedIndex>=0
+                    placeholderText: "姓名前缀（可留空）"; Accessible.name: "姓名前缀"
+                    onTextChanged: panel.prefixEdited()
                 }
-            }
-            UiPanel {
-                objectName: "groupDefaultRow"; Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.preferredHeight: panel.compact ? 112 : 140; padding: 8
-                ColumnLayout {
-                    anchors.fill: parent; spacing: 4
-                    RowLayout {
-                        Layout.fillWidth: true; spacing: 4
-                        Label { text: "默认消息"; font.bold: true; font.pixelSize: 15; Layout.fillWidth: true; elide: Text.ElideRight }
-                        UiButton { objectName: "groupResetDefaults"; text: panel.compact ? "↶" : "重载"; implicitWidth: panel.compact ? 28 : 64; visible: panel.defaultsDirty; enabled: !center.active; implicitHeight: 28; Accessible.name: "重载已保存的默认消息"; ToolTip.visible: hovered; ToolTip.text: "放弃草稿，重载已保存的默认消息"; onClicked: panel.loadDefaults() }
-                        UiButton { objectName: "groupApplyDefaults"; text: "应用"; implicitHeight: 28; enabled: panel.canManage && panel.defaultsDirty; onClicked: panel.saveDefaults() }
-                        UiButton { objectName: "groupRemoveDefault"; text: "−"; implicitWidth: 28; implicitHeight: 28; enabled: panel.canManage && defaults.count>0; Accessible.name: "移除最后一条默认消息"; ToolTip.visible: hovered; ToolTip.text: "移除最后一条消息，应用后生效"; onClicked: panel.removeDefault() }
-                        UiButton { objectName: "groupAddDefault"; text: "+"; implicitWidth: 28; implicitHeight: 28; enabled: panel.canManage; Accessible.name: "添加默认消息"; onClicked: panel.addDefault("text") }
-                    }
-                    Flickable {
-                        id: defaultsScroll; objectName: "groupDefaultsViewport"; Layout.fillWidth: true; Layout.fillHeight: true
-                        clip: true; contentWidth: draftRow.width; contentHeight: height; boundsBehavior: Flickable.StopAtBounds
-                        onContentXChanged: if(dragging || flicking) table.contentX=contentX
-                        ScrollBar.horizontal: ScrollBar { policy: ScrollBar.AsNeeded }
-                        Row {
-                            id: draftRow; spacing: 1; height: defaultsScroll.height-12
-                            Repeater {
-                                id: defaultsRepeater
-                                model: defaults
-                                Rectangle {
-                                    id: draftField
-                                    required property int index
-                                    required property int sourceIndex
-                                    required property string kind
-                                    required property string value
-                                    required property bool mixed
-                                    property alias currentText: defaultText.text
-                                    width: panel.messageWidth; height: draftRow.height; color: UiTheme.stripe
-                                    ColumnLayout {
-                                        anchors.fill: parent; anchors.margins: 4; spacing: 2; enabled: panel.canManage
-                                        RowLayout {
-                                            Layout.fillWidth: true
-                                            Label { text: "消息"+(draftField.index+1); color: UiTheme.muted; font.pixelSize: 12; Layout.fillWidth: true }
-                                            UiComboBox {
-                                                objectName: "groupDefaultType"+draftField.index; model: ["文字","文件"]; implicitHeight: panel.compact ? 22 : 26; implicitWidth: 76
-                                                currentIndex: draftField.kind==="file" ? 1 : 0; Accessible.name: "消息"+(draftField.index+1)+"类型"
-                                                onActivated: { defaults.setProperty(draftField.index,"kind",currentIndex===1 ? "file" : "text"); defaults.setProperty(draftField.index,"value",""); panel.defaultsDirty=true }
-                                            }
-                                        }
-                                        ScrollView {
-                                            id: defaultTextScroll; visible: draftField.kind==="text"; Layout.fillWidth: true; Layout.fillHeight: true; contentWidth: availableWidth; clip: true
-                                            TextArea {
-                                                id: defaultText
-                                                objectName: "groupDefaultText"+draftField.index; width: defaultTextScroll.availableWidth; text: draftField.value
-                                                font.pixelSize: panel.compact ? 12 : 13; topPadding: 1; bottomPadding: 1; color: UiTheme.ink; wrapMode: TextEdit.Wrap; selectByMouse: true
-                                                placeholderText: draftField.mixed ? "此列内容不同，填写以统一" : "填写默认消息，可用 {姓名}"
-                                                Accessible.name: "消息"+(draftField.index+1)+"默认文字"
-                                                background: Rectangle { color: UiTheme.input; border.color: parent.activeFocus ? UiTheme.focus : UiTheme.line; radius: 3 }
-                                                onActiveFocusChanged: if(activeFocus) panel.revealDefault(draftField.index)
-                                                onTextChanged: if(activeFocus && !inputMethodComposing) panel.updateDefault(draftField.index,text)
-                                                onInputMethodComposingChanged: if(activeFocus && !inputMethodComposing) panel.updateDefault(draftField.index,text)
-                                            }
-                                        }
-                                        RowLayout {
-                                            visible: draftField.kind==="file"; Layout.fillWidth: true; Layout.fillHeight: true
-                                            UiTextField { text: draftField.value; readOnly: true; Layout.fillWidth: true; placeholderText: "未选择文件"; Accessible.name: "消息"+(draftField.index+1)+"默认文件" }
-                                            UiButton { objectName: "groupDefaultFile"+draftField.index; text: "选择"; onActiveFocusChanged: if(activeFocus) panel.revealDefault(draftField.index); onClicked: { var path=center.chooseMessageFile(); if(path) panel.updateDefault(draftField.index,path) } }
-                                        }
-                                    }
-                                }
-                            }
+                TabBar {
+                    id: tabs; objectName: "groupMessageTabs"; Layout.fillWidth: true
+                    onCurrentIndexChanged: panel.selectedRow=({})
+                    TabButton { text: "待处理 "+center.pendingCount; font.pixelSize: 12 }
+                    TabButton { text: "已发送 "+center.sentCount; font.pixelSize: 12 }
+                }
+                TableView {
+                    id: namesTable; objectName: "groupNamesTable"
+                    Layout.fillWidth: true; Layout.fillHeight: true
+                    model: panel.currentModel; clip: true; reuseItems: true; rowSpacing: 2
+                    columnWidthProvider: function(c) { return c===0 ? namesTable.width : 0 }
+                    rowHeightProvider: function(r) { return 42 }
+                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+                    delegate: Rectangle {
+                        id: nameCell
+                        required property int row
+                        required property string display
+                        required property string recordKey
+                        objectName: "groupName"+row
+                        implicitWidth: 160; implicitHeight: 42; radius: 5
+                        color: recordKey===String(panel.selectedRow.id || "") ? UiTheme.selection : nameHover.hovered ? UiTheme.stripe : UiTheme.surface
+                        activeFocusOnTab: true
+                        Accessible.role: Accessible.Button
+                        Accessible.name: panel.contactPrefix+display
+                        Accessible.description: "双击查看或编辑个人消息"
+                        Text {
+                            objectName: "groupNameLabel"+nameCell.row
+                            anchors.fill: parent; anchors.margins: 7
+                            text: panel.contactPrefix+nameCell.display; textFormat: Text.PlainText
+                            verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight; color: UiTheme.ink; font.pixelSize: 14
                         }
-                        Label { x: defaultsScroll.contentX; y: (defaultsScroll.height-height)/2; width: defaultsScroll.width; horizontalAlignment: Text.AlignHCenter; elide: Text.ElideRight; visible: defaults.count===0; text: center.selectedIndex<0 ? "先新建或生成名单" : panel.canManage ? "点击 + 添加默认消息" : "暂无可编辑人员"; color: UiTheme.muted }
+                        TapHandler {
+                            onTapped: { panel.selectedRow=panel.currentModel.get(nameCell.row); nameCell.forceActiveFocus() }
+                            onDoubleTapped: { panel.selectedRow=panel.currentModel.get(nameCell.row); panel.openEditor() }
+                        }
+                        Keys.onReturnPressed: { panel.selectedRow=panel.currentModel.get(row); panel.openEditor() }
+                        Keys.onEnterPressed: { panel.selectedRow=panel.currentModel.get(row); panel.openEditor() }
+                        HoverHandler { id: nameHover }
+                        ToolTip.visible: nameHover.hovered
+                        ToolTip.text: panel.contactPrefix+display+" · 双击查看或编辑"
                     }
                 }
-            }
-            UiPanel {
-                objectName: "groupStatistics"; Layout.preferredWidth: panel.infoWidth; Layout.minimumWidth: panel.infoWidth; Layout.maximumWidth: panel.infoWidth; Layout.preferredHeight: panel.compact ? 112 : 140; padding: panel.compact ? 8 : 12
-                ColumnLayout {
-                    anchors.fill: parent; spacing: 6
-                    Label { text: "状态统计"; font.bold: true; font.pixelSize: 15 }
-                    GridLayout {
-                        visible: !panel.compact; columns: 2; Layout.fillWidth: true; rowSpacing: 6
-                        Label { text: "成功"; color: UiTheme.muted; Layout.fillWidth: true }
-                        Label { objectName: "groupSuccessCount"; text: center.statistics.success; color: UiTheme.success; font.bold: true }
-                        Label { text: "失败"; color: UiTheme.muted }
-                        Label { objectName: "groupFailureCount"; text: center.statistics.failed; color: UiTheme.danger; font.bold: true }
-                        Label { text: "待发"; color: UiTheme.muted }
-                        Label { objectName: "groupPendingCount"; text: center.statistics.pending; color: UiTheme.warning; font.bold: true }
-                        Label { text: "待核实"; color: UiTheme.muted }
-                        Label { objectName: "groupUncertainCount"; text: center.statistics.uncertain; color: UiTheme.muted; font.bold: true }
-                    }
-                    GridLayout {
-                        visible: panel.compact; columns: 2; Layout.fillWidth: true; rowSpacing: 8; columnSpacing: 8
-                        Label { text: "成功 "+center.statistics.success; color: UiTheme.success; font.pixelSize: 12 }
-                        Label { text: "失败 "+center.statistics.failed; color: UiTheme.danger; font.pixelSize: 12 }
-                        Label { text: "待发 "+center.statistics.pending; color: UiTheme.warning; font.pixelSize: 12 }
-                        Label { text: "待核实 "+center.statistics.uncertain; color: UiTheme.muted; font.pixelSize: 12 }
-                    }
-                }
+                Label { text: "双击姓名 · 单独编辑"; color: UiTheme.muted; font.pixelSize: 11; Layout.fillWidth: true; elide: Text.ElideRight }
+                UiButton { objectName: "groupEditPersonButton"; text: "查看个人消息"; Layout.fillWidth: true; visible: !!panel.selectedRow.id; enabled: !center.active; onClicked: panel.openEditor() }
             }
         }
-        RowLayout {
-            Layout.fillWidth: true; spacing: 8
-            TabBar {
-                id: tabs; objectName: "groupMessageTabs"; Layout.fillWidth: true; implicitHeight: 30
-                onCurrentIndexChanged: { panel.selectedRow=({}); panel.selectedField=-1 }
-                TabButton { text: "待处理（"+center.pendingCount+"）"; implicitHeight: 30 }
-                TabButton { text: "已发送（"+center.sentCount+"）"; implicitHeight: 30 }
-            }
-            CheckBox { id: overridePersonal; objectName: "groupOverridePersonal"; text: panel.width<750 ? "覆盖个人改动" : "应用时覆盖个人改动"; enabled: panel.canManage; implicitHeight: 30; onToggled: if(!panel.loadingDefaults) panel.defaultsDirty=true }
-            UiButton { id: compactActions; objectName: "groupCompactRecipientActions"; visible: panel.compact; text: "编辑"; implicitHeight: 30; enabled: !!panel.selectedRow.id && !center.active; onClicked: recipientMenu.popup(compactActions,0,compactActions.height) }
-        }
-        RowLayout {
-            Layout.fillWidth: true; Layout.fillHeight: true; spacing: 10
-            UiPanel {
-                Layout.preferredWidth: panel.nameWidth; Layout.minimumWidth: panel.nameWidth; Layout.maximumWidth: panel.nameWidth; Layout.fillHeight: true; padding: 8
-                ColumnLayout {
-                    anchors.fill: parent; spacing: 1
-                    Label { text: "姓名"; Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; font.bold: true; Layout.preferredHeight: 34; background: Rectangle { color: UiTheme.stripe } }
-                    TableView {
-                        id: namesTable; objectName: "groupNamesTable"; Layout.fillWidth: true; Layout.fillHeight: true
-                        model: panel.currentModel; syncView: table; syncDirection: Qt.Vertical; clip: true; reuseItems: true; rowSpacing: 1
-                        columnWidthProvider: function(c) { return c===0 ? namesTable.width : 0 }; rowHeightProvider: function(r) { return 44 }
-                        delegate: Rectangle {
-                            required property int row
-                            required property string display
-                            required property string recordKey
-                            implicitWidth: 120; implicitHeight: 44; color: recordKey===String(panel.selectedRow.id || "") ? UiTheme.selection : row%2 ? UiTheme.stripe : UiTheme.surface
-                            Label { anchors.fill: parent; anchors.margins: 7; text: (row+1)+"  "+display; elide: Text.ElideRight; textFormat: Text.PlainText }
-                            TapHandler { onTapped: panel.selectPerson(row,0) }
-                        }
+        UiPanel {
+            objectName: "groupTemplatePanel"; Layout.fillWidth: true; Layout.fillHeight: true; padding: panel.height<350 ? 8 : 16
+            ColumnLayout {
+                anchors.fill: parent; spacing: 8
+                RowLayout {
+                    Layout.fillWidth: true
+                    Label { text: "消息模板"; font.bold: true; font.pixelSize: 17; Layout.fillWidth: true }
+                    UiButton { objectName: "groupResetDefaults"; text: "重载"; visible: defaults.dirty; enabled: !center.active; implicitHeight: 28; onClicked: panel.loadDefaults(true) }
+                    UiButton { objectName: "groupRetryDefaults"; text: "重试保存"; visible: defaults.dirty; enabled: panel.canManage; implicitHeight: 28; onClicked: panel.saveDefaults() }
+                    ToolButton {
+                        text: "更多"; font.pixelSize: 12; enabled: panel.canManage; implicitHeight: 28
+                        Accessible.name: "模板更多操作"; onClicked: templateMenu.popup()
                     }
                 }
-            }
-            UiPanel {
-                id: messageArea; Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumWidth: 0; padding: 8
-                ColumnLayout {
-                    anchors.fill: parent; spacing: 1
-                    HorizontalHeaderView {
-                        id: header; syncView: table; Layout.fillWidth: true; Layout.preferredHeight: 34; clip: true
-                        delegate: Rectangle {
-                            required property var display
-                            required property int index
-                            implicitWidth: panel.messageWidth; implicitHeight: 34; color: UiTheme.stripe
-                            Label { anchors.fill: parent; anchors.margins: 7; text: panel.fieldCount===0 ? "消息" : display; elide: Text.ElideRight; horizontalAlignment: Text.AlignHCenter; font.bold: true }
-                        }
-                    }
-                    TableView {
-                        id: table; objectName: "groupRecipientList"; Layout.fillWidth: true; Layout.fillHeight: true
-                        model: panel.currentModel; clip: true; reuseItems: true; columnSpacing: 1; rowSpacing: 1
-                        columnWidthProvider: function(c) { return c>0 && c<=panel.fieldCount ? panel.messageWidth : (panel.fieldCount===0 && c===0 ? table.width : 0) }
-                        rowHeightProvider: function(r) { return 44 }
-                        onContentXChanged: if(!defaultsScroll.dragging && !defaultsScroll.flicking) defaultsScroll.contentX=Math.min(contentX,Math.max(0,defaultsScroll.contentWidth-defaultsScroll.width))
-                        ScrollBar.horizontal: ScrollBar {}
-                        ScrollBar.vertical: ScrollBar {}
-                        delegate: Rectangle {
-                            required property int row
-                            required property int column
-                            required property string display
-                            required property string recordKey
-                            implicitWidth: panel.messageWidth; implicitHeight: 44
-                            color: recordKey===String(panel.selectedRow.id || "") ? UiTheme.selection : row%2 ? UiTheme.stripe : UiTheme.surface
-                            border.width: recordKey===String(panel.selectedRow.id || "") && column===panel.selectedField+1 ? 1 : 0; border.color: UiTheme.focus
-                            Text { anchors.fill: parent; anchors.margins: 7; text: panel.fieldCount===0 ? "尚未配置消息" : display; textFormat: Text.PlainText; wrapMode: Text.Wrap; maximumLineCount: 2; elide: Text.ElideRight; font.pixelSize: 13; color: panel.fieldCount===0 ? UiTheme.muted : UiTheme.ink }
-                            TapHandler {
-                                onTapped: panel.selectPerson(row,column)
-                                onDoubleTapped: if(column>0 && column<=panel.fieldCount) panel.openCellEditor(panel.currentModel.get(row),column-1)
-                            }
-                        }
-                    }
-                    Label { visible: (tabs.currentIndex===0 ? center.pendingCount : center.sentCount)===0; text: center.selectedIndex<0 ? "先新建或生成名单" : "暂无人员"; color: UiTheme.muted; Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter }
+                Label {
+                    text: center.selectedIndex<0 ? "先新建或生成名单" : center.active ? "发送中，消息模板暂不可编辑" : "加入后自动保存 · 保留个人改动 · 预览后开始群发"
+                    Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted; font.pixelSize: 12
+                }
+                MessageChatEditor {
+                    id: defaults; objectName: "groupMessageChat"
+                    Layout.fillWidth: true; Layout.fillHeight: true
+                    fileChooser: center; controlPrefix: "groupChat"; defaultTemplate: true; editable: panel.canManage
+                    onCommitted: panel.saveCommittedDefaults(false)
                 }
             }
-            UiPanel {
-                Layout.preferredWidth: panel.infoWidth; Layout.minimumWidth: panel.infoWidth; Layout.maximumWidth: panel.infoWidth; Layout.fillHeight: true; padding: 8
-                ColumnLayout {
-                    anchors.fill: parent; spacing: 1
-                    Label { text: "信息"; Layout.fillWidth: true; horizontalAlignment: Text.AlignHCenter; font.bold: true; Layout.preferredHeight: 34; background: Rectangle { color: UiTheme.stripe } }
-                    TableView {
-                        id: infoTable; objectName: "groupInformationTable"; Layout.fillWidth: true; Layout.fillHeight: true
-                        model: panel.currentModel; syncView: table; syncDirection: Qt.Vertical; clip: true; reuseItems: true; rowSpacing: 1
-                        columnWidthProvider: function(c) { return c===panel.fieldCount+2 ? infoTable.width : 0 }; rowHeightProvider: function(r) { return 44 }
-                        delegate: Rectangle {
-                            required property int row
-                            required property string display
-                            required property string recordKey
-                            property var person: { var revision=center.contentRevision; return panel.currentModel.get(row) }
-                            implicitWidth: 160; implicitHeight: 44; color: recordKey===String(panel.selectedRow.id || "") ? UiTheme.selection : row%2 ? UiTheme.stripe : UiTheme.surface
-                            Text { anchors.fill: parent; anchors.margins: 7; text: (parent.person.state || "")+(display ? " · "+display : ""); textFormat: Text.PlainText; wrapMode: Text.Wrap; maximumLineCount: 2; elide: Text.ElideRight; font.pixelSize: 12; color: parent.person.state==="已发送" ? UiTheme.success : parent.person.state==="未发送失败" ? UiTheme.danger : UiTheme.muted }
-                            TapHandler { onTapped: panel.selectPerson(row,-1) }
-                            ToolTip.visible: infoHover.hovered; ToolTip.text: (person.state || "")+" "+display
-                            HoverHandler { id: infoHover }
-                        }
-                    }
-                }
-            }
-        }
-        RowLayout {
-            visible: !panel.compact; Layout.fillWidth: true
-            Label { text: panel.selectedRow.id ? "当前："+panel.selectedRow.name : "默认消息在上方统一配置"; textFormat: Text.PlainText; elide: Text.ElideRight; Layout.fillWidth: true; color: UiTheme.muted }
-            UiButton { objectName: "groupEditCellButton"; text: tabs.currentIndex===0 && panel.selectedRow.editable ? "单独编辑" : "查看消息"; enabled: !center.active && !!panel.selectedRow.id && panel.selectedField>=0 && panel.selectedField<(panel.selectedRow.items || []).length; onClicked: panel.openCellEditor(panel.selectedRow,panel.selectedField) }
-            UiButton { objectName: "groupEditPersonButton"; text: tabs.currentIndex===0 && panel.selectedRow.editable ? "此人全部消息" : "查看全部消息"; enabled: !!panel.selectedRow.id && !center.active; onClicked: panel.openEditor() }
-        }
-        RowLayout {
-            visible: panel.selectedRow.state==="结果待确认" || panel.selectedRow.state==="仅粘贴未发送"; enabled: !center.active; Layout.fillWidth: true
-            Label { text: "核实前不可编辑或重发"; Layout.fillWidth: true; color: UiTheme.warning }
-            UiButton { text: "核实已发送"; onClicked: panel.resolveRequested(panel.selectedRow.id,true) }
-            UiButton { text: "核实未发送"; onClicked: panel.resolveRequested(panel.selectedRow.id,false) }
         }
     }
     Menu {
-        id: recipientMenu
-        MenuItem { text: tabs.currentIndex===0 && panel.selectedRow.editable ? "编辑所选消息" : "查看所选消息"; enabled: panel.selectedField>=0 && panel.selectedField<(panel.selectedRow.items || []).length; onTriggered: panel.openCellEditor(panel.selectedRow,panel.selectedField) }
-        MenuItem { text: "查看或编辑此人全部消息"; onTriggered: panel.openEditor() }
+        id: templateMenu
+        MenuItem { objectName: "groupOverridePersonal"; text: "将模板应用到个人改动…"; onTriggered: if(panel.saveDefaults()) overrideDialog.open() }
     }
     Dialog {
-        id: cellDialog; objectName: "groupSingleCellDialog"; anchors.centerIn: parent; modal: true
-        title: (canEdit ? "修改 " : "查看 ") + personName + " 的" + (fieldType==="file" ? "文件" : "话术")
-        width: Math.min(panel.width-20,560)
-        property int listId: 0
-        property int recipientId: 0
-        property int fieldIndex: -1
-        property string fieldType: "text"
-        property string fieldValue: ""
-        property string personName: ""
-        property bool canEdit: false
-        onOpened: { cellText.text=fieldType==="text" ? fieldValue : ""; cellFile.text=fieldType==="file" ? fieldValue : "" }
+        id: overrideDialog; objectName: "groupOverrideDialog"; anchors.centerIn: parent; modal: true; title: "覆盖个人改动"
+        width: Math.min(panel.width-20,430)
         ColumnLayout {
             anchors.fill: parent
-            Label { text: cellDialog.canEdit ? "只修改这个单元格，其他消息保持不变。" : "该记录当前只能查看。"; Layout.fillWidth: true; wrapMode: Text.Wrap }
-            ScrollView {
-                visible: cellDialog.fieldType==="text"; Layout.fillWidth: true; Layout.preferredHeight: 160; clip: true
-                TextArea { id: cellText; objectName: "groupSingleCellText"; readOnly: !cellDialog.canEdit; wrapMode: TextEdit.Wrap; selectByMouse: true }
-            }
+            Label { text: "将已保存的模板应用到所有可编辑人员，覆盖个人消息改动。已发送和待核实记录保留。"; Layout.fillWidth: true; wrapMode: Text.Wrap }
             RowLayout {
-                visible: cellDialog.fieldType==="file"; Layout.fillWidth: true
-                UiTextField { id: cellFile; readOnly: true; Layout.fillWidth: true }
-                UiButton { text: "更换文件"; visible: cellDialog.canEdit; enabled: !center.active; onClicked: { var path=center.chooseMessageFile(); if(path) cellFile.text=path } }
-            }
-            Label { text: center.status; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.warning }
-            RowLayout {
-                UiButton { text: "关闭"; onClicked: cellDialog.close() }
-                UiButton { objectName: "saveGroupSingleCell"; text: "保存此格"; visible: cellDialog.canEdit; enabled: !center.active && (cellDialog.fieldType==="text" ? cellText.text.trim().length>0 : cellFile.text.length>0); highlighted: true; onClicked: { var item=cellDialog.fieldType==="text" ? {type:"text",text:cellText.text} : {type:"file",path:cellFile.text}; if(center.saveRecipientField(cellDialog.listId,cellDialog.recipientId,cellDialog.fieldIndex,item)) cellDialog.close() } }
+                UiButton { text: "取消"; onClicked: overrideDialog.close() }
+                UiButton { objectName: "groupConfirmOverride"; text: "应用模板"; highlighted: true; onClicked: if(panel.saveCommittedDefaults(true)) overrideDialog.close() }
             }
         }
     }
     Dialog {
         id: editor; objectName: "recipientMessageEditor"
-        anchors.centerIn: parent; modal: true
-        width: Math.min(parent.width,700); height: Math.min(parent.height,600)
+        parent: Overlay.overlay
+        anchors.centerIn: parent; modal: true; closePolicy: Popup.NoAutoClose
+        width: Math.min(parent.width-32,760); height: Math.min(parent.height-32,650)
         property int listId: 0
         property int recipientId: 0
         property bool canEdit: false
+        property string personState: ""
+        property string personInfo: ""
         ColumnLayout {
-            anchors.fill: parent
-            Label { text: editor.canEdit ? "仅修改此人；可增删文字、文件并调整顺序。内容按原文保存，不再替换变量。" : "已发送或待核实记录只读，保留发送时内容。"; wrapMode: Text.Wrap; Layout.fillWidth: true }
-            ScrollView {
-                id: scroll; Layout.fillWidth: true; Layout.fillHeight: true; contentWidth: availableWidth; clip: true
-                MessageFields { id: messages; objectName: "recipientMessageFields"; width: scroll.availableWidth; enabled: editor.canEdit && !center.active }
+            anchors.fill: parent; spacing: 8
+            Label {
+                text: editor.canEdit ? "只修改此人，保存后生效。个人消息按原文保存。" : "该记录只读，保留发送时内容。"
+                wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.muted; font.pixelSize: 12
             }
-            Label { text: center.status; Layout.fillWidth: true; wrapMode: Text.Wrap }
+            Label { text: editor.personState+(editor.personInfo ? " · "+editor.personInfo : ""); Layout.fillWidth: true; maximumLineCount: 2; elide: Text.ElideRight; wrapMode: Text.Wrap; color: UiTheme.muted; font.pixelSize: 12 }
+            MessageChatEditor {
+                id: messages; objectName: "recipientMessageChat"
+                Layout.fillWidth: true; Layout.fillHeight: true
+                fileChooser: center; controlPrefix: "personChat"; editable: editor.canEdit && !center.active
+            }
+            Label { text: center.status; Layout.fillWidth: true; maximumLineCount: 2; elide: Text.ElideRight; wrapMode: Text.Wrap; color: UiTheme.warning; font.pixelSize: 12; ToolTip.visible: statusHover.hovered; ToolTip.text: text; HoverHandler { id: statusHover } }
             RowLayout {
-                UiButton { text: "关闭"; onClicked: editor.close() }
-                UiButton { text: "保存该学员消息"; visible: editor.canEdit; enabled: !center.active; onClicked: { if(center.saveRecipientContent(editor.listId,editor.recipientId,messages.values())) editor.close() } }
+                visible: editor.personState==="结果待确认" || editor.personState==="仅粘贴未发送"
+                Layout.fillWidth: true; enabled: !center.active
+                Label { text: "核实前不可编辑或重发"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.warning; font.pixelSize: 12 }
+                UiButton { objectName: "groupResolveSent"; text: "核实已发送"; onClicked: { editor.close(); panel.resolveRequested(editor.recipientId,true) } }
+                UiButton { objectName: "groupResolveUnsent"; text: "核实未发送"; onClicked: { editor.close(); panel.resolveRequested(editor.recipientId,false) } }
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                UiButton { objectName: "cancelRecipientMessages"; text: editor.canEdit ? "取消" : "关闭"; onClicked: editor.close() }
+                Item { Layout.fillWidth: true }
+                Label { visible: editor.canEdit && messages.messageCount===0; text: "至少保留一条消息"; color: UiTheme.warning; font.pixelSize: 12 }
+                UiButton {
+                    objectName: "saveRecipientMessages"; text: "保存个人消息"; highlighted: true
+                    visible: editor.canEdit; enabled: !center.active && messages.messageCount>0
+                    onClicked: if(messages.checkPending() && center.saveRecipientContent(editor.listId,editor.recipientId,messages.values())) editor.close()
+                }
             }
         }
     }

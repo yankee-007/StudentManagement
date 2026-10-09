@@ -1,12 +1,12 @@
-"""Group editing/settings/preview integration using a disposable database only."""
+"""Real QML chat/settings/preview integration; disposable data and mocked sending."""
 import json
 import os
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-from PySide6.QtCore import QObject, QUrl, QMetaObject, Q_ARG
-from PySide6.QtGui import QFontDatabase
+from PySide6.QtCore import QObject, QUrl, QMetaObject, Q_ARG, Qt, QPointF, QPoint
+from PySide6.QtGui import QFontDatabase, QInputMethodEvent
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
 from PySide6.QtTest import QTest
@@ -19,7 +19,6 @@ from app.fonts import configure_font
 def run():
     QQuickStyle.setStyle('Fusion')
     app = QApplication([])
-    # The offscreen platform may not enumerate Windows' installed CJK fonts.
     if os.environ.get('QT_QPA_PLATFORM') == 'offscreen':
         font_path = Path(os.environ.get('WINDIR', 'C:/Windows')) / 'Fonts/msyh.ttc'
         if font_path.exists():
@@ -35,8 +34,8 @@ def run():
             dict(type='file', path=str(attachment)),
             dict(type='text', text='完成后请回复，感谢配合。')])
         list_id = g.selected['id']
-        first = g.pendingModel.get(0)
-        assert g.saveRecipientField(list_id, first['id'], 0, dict(type='text', text='张三的个人消息'))
+        first_id = g.pendingModel.get(0)['id']
+        assert g.saveRecipientField(list_id, first_id, 0, dict(type='text', text='张三的个人消息'))
         engine = QQmlApplicationEngine()
         warnings = []
         engine.warnings.connect(lambda values: warnings.extend(v.toString() for v in values))
@@ -51,265 +50,384 @@ def run():
         def item(name):
             result = window.findChild(QObject, name)
             def visual_item(parent):
-                if parent.objectName()==name:return parent
+                if parent.objectName() == name: return parent
                 for child in parent.childItems():
-                    found=visual_item(child)
-                    if found:return found
+                    found = visual_item(child)
+                    if found: return found
                 return None
-            if result is None:result=visual_item(window.contentItem())
+            if result is None: result = visual_item(window.contentItem())
             assert result is not None, name
             return result
 
         def invoke(obj, method, *args):
             assert QMetaObject.invokeMethod(obj, method, *[Q_ARG('QVariant', arg) for arg in args])
-            QTest.qWait(60)
+            QTest.qWait(70)
 
         def click(name):
             obj = item(name)
             assert obj.property('enabled'), name
             invoke(obj, 'click')
 
-        def edit_default(index, text):
-            obj=item('groupDefaultText'+str(index))
+        def edit(index, text, control='groupChat', save=True):
+            invoke(item('groupMessageChat' if control == 'groupChat' else 'recipientMessageChat'), 'beginEdit', index)
+            obj = item(control+'Inline'+str(index))
             invoke(obj, 'forceActiveFocus')
             obj.setProperty('text', text)
+            obj.setProperty('cursorPosition', len(text))
+            if save:
+                QTest.keyClick(window, Qt.Key_Return)
+                QTest.qWait(80)
+
+        def compose(text, control='groupChat', send=True):
+            obj = item(control+'Composer')
+            invoke(obj, 'forceActiveFocus')
+            obj.setProperty('text', text)
+            obj.setProperty('cursorPosition', len(text))
+            if send:
+                QTest.keyClick(window, Qt.Key_Return)
+                QTest.qWait(80)
+            return obj
+
+        def content(): return [json.loads(row['content']) for row in g.rows]
 
         def capture(name):
             directory = os.environ.get('GROUP_UI_CAPTURE_DIR')
             if directory:
                 path = Path(directory)
                 path.mkdir(parents=True, exist_ok=True)
+                QTest.mouseMove(window, QPoint(0, 0)); QTest.qWait(80)
                 assert window.grabWindow().save(str(path / name))
+
+        def double_name(row):
+            obj = item('groupName'+str(row))
+            pos = obj.mapToScene(QPointF(obj.width()/2, obj.height()/2)).toPoint()
+            QTest.mouseDClick(window, Qt.LeftButton, Qt.NoModifier, pos)
+            QTest.qWait(90)
 
         invoke(window, 'switchModule', 4)
         panel = item('recipientMessages')
+        chat = item('groupMessageChat')
+        assert item('groupTemplatePanel').property('visible')
+        for removed in ('groupStatistics', 'groupRecipientList', 'groupInformationTable', 'groupSingleCellDialog'):
+            assert window.findChild(QObject, removed) is None, removed
         capture('group-center.png')
 
-        # The unified row is always visible; reloading a draft writes nothing.
-        assert item('groupDefaultRow').property('visible')
-        assert window.findChild(QObject, 'groupBulkEditButton') is None
-        assert window.findChild(QObject, 'groupColumnSelector') is None
-        assert window.findChild(QObject, 'groupColumnMessageDialog') is None
-        before = [r['content'] for r in g.rows]
-        edit_default(0, '取消的修改')
-        assert panel.property('defaultsDirty')
-        click('groupResetDefaults')
-        assert [r['content'] for r in g.rows] == before
-        edit_default(0, '{姓名}，本周资料已经更新。')
+        # Inline editing can cancel; committing only updates unoverridden recipients.
+        before = content()
+        edit(0, '取消的修改', save=False)
         capture('group-default-edit.png')
-        click('groupApplyDefaults')
-        content = [json.loads(r['content']) for r in g.rows]
-        assert content[0][0]['text'] == '张三的个人消息'
-        assert content[1][0]['text'] == '李四，本周资料已经更新。'
-        assert all(r[1]['type'] == 'file' and r[2]['text'] == '完成后请回复，感谢配合。' for r in content)
+        click('groupChatCancelEdit')
+        assert content() == before
+        edit(0, '{姓名}，本周资料已经更新。')
+        assert content()[0][0]['text'] == '张三的个人消息'
+        assert content()[1][0]['text'] == '李四，本周资料已经更新。'
+        assert not panel.property('defaultsDirty')
 
-        # Add/remove operate on the draft; an empty addition blocks preview and list switching.
-        click('groupAddDefault')
-        edit_default(3, '新增-{姓名}')
-        click('groupApplyDefaults')
-        assert all(len(json.loads(r['content'])) == 4 for r in g.rows)
-        click('groupRemoveDefault')
-        click('groupApplyDefaults')
-        assert all(len(json.loads(r['content'])) == 3 for r in g.rows)
-        click('groupAddDefault')
+        # Real keys: Shift+Enter inserts a newline, Enter commits one raw message.
+        obj = compose('第一行', send=False)
+        QTest.keyClick(window, Qt.Key_Return, Qt.ShiftModifier)
+        assert obj.property('text') == '第一行\n'
+        obj.setProperty('text', '第一行\n\n第二行\n')
+        QTest.keyClick(window, Qt.Key_Return)
+        QTest.qWait(80)
+        assert all(len(row) == 4 and row[3]['text'] == '第一行\n\n第二行\n' for row in content())
+        # A second Enter uses the freshly loaded contentRevision, rather than a stale draft.
+        compose('连续第二条-{姓名}')
+        assert all(len(row) == 5 for row in content())
+        assert content()[2][4]['text'] == '连续第二条-王五'
+        invoke(chat, 'moveMessage', 4, -1)
+        assert content()[1][3]['text'] == '连续第二条-李四'
+        invoke(chat, 'removeMessage', 3)
+        invoke(chat, 'removeMessage', 3)
+        assert all(len(row) == 3 for row in content())
+
+        # IME confirmation cannot accidentally append a message.
+        obj = compose('', send=False)
+        app.sendEvent(window, QInputMethodEvent('军训', []))
+        assert obj.property('inputMethodComposing')
+        QTest.keyClick(window, Qt.Key_Return)
+        assert chat.property('messageCount') == 3
+        event = QInputMethodEvent()
+        event.setCommitString('军训')
+        app.sendEvent(window, event)
+        assert not obj.property('inputMethodComposing') and obj.property('text') == '军训'
+        QTest.keyClick(window, Qt.Key_Return)
+        QTest.qWait(80)
+        assert content()[0][-1]['text'] == '军训'
+        invoke(chat, 'removeMessage', 3)
+
+        # Cancelled attachment is inert. Invalid paths retain the draft for retry/reset.
+        with patch.object(g, 'chooseMessageFile', return_value=''):
+            click('groupChatAttach')
+        assert chat.property('messageCount') == 3
+        with patch.object(g, 'chooseMessageFile', return_value=str(attachment)):
+            click('groupChatAttach')
+        assert content()[1][3]['type'] == 'file'
+        invoke(chat, 'removeMessage', 3)
+        with patch.object(g, 'chooseMessageFile', return_value=str(Path(folder)/'missing.txt')):
+            click('groupChatAttach')
+        assert panel.property('defaultsDirty') and chat.property('messageCount') == 4
         click('groupPreviewButton')
         assert not item('groupSendPreview').property('visible')
-        assert panel.property('defaultsDirty') and g.pendingFieldCount == 3
+        click('groupResetDefaults')
+        assert chat.property('messageCount') == 3 and not panel.property('defaultsDirty')
+        # Retrying a recoverable save cannot discard an unfinished inline edit.
+        with patch.object(g, 'saveDefaultRow', return_value=False):
+            compose('临时保存失败的消息')
+        assert panel.property('defaultsDirty') and all(len(row) == 3 for row in content())
+        edit(3, '正在修订失败稿', save=False)
+        click('groupRetryDefaults')
+        assert chat.property('editingIndex') == 3
+        assert item('groupChatInline3').property('text') == '正在修订失败稿'
+        assert all(len(row) == 3 for row in content())
+        click('groupChatCancelEdit')
+        click('groupRetryDefaults')
+        assert all(len(row) == 4 for row in content()) and not panel.property('defaultsDirty')
+        invoke(chat, 'removeMessage', 3)
+
+        # Names use the actual prefix, with no index. A real double click opens personal chat.
+        item('groupContactPrefix').setProperty('text', '测试班-')
+        QTest.qWait(750)
+        assert item('groupNameLabel1').property('text') == '测试班-李四'
+        double_name(1)
+        editor = item('recipientMessageEditor')
+        assert editor.property('visible') and editor.property('canEdit')
+        assert editor.property('recipientId') == g.rows[1]['id']
+        edit(2, '李四的补充说明', 'personChat')
+        assert content()[1][2]['text'] == '完成后请回复，感谢配合。'
+        window.close(); app.processEvents()
+        assert window.isVisible() and editor.property('visible')
+        compose('未加入个人稿', 'personChat', send=False)
+        click('saveRecipientMessages')
+        assert editor.property('visible')
+        item('personChatComposer').setProperty('text', '')
+        capture('group-personal.png')
+        click('saveRecipientMessages')
+        assert not editor.property('visible') and content()[1][2]['text'] == '李四的补充说明'
+        assert content()[0][2]['text'] == '完成后请回复，感谢配合。'
+        edit(2, '公共补充-{姓名}')
+        assert content()[1][2]['text'] == '李四的补充说明'
+        assert content()[0][2]['text'] == '公共补充-张三'
+
+        # A pending composer or inline edit blocks preview, list/module changes and closing.
+        compose('未提交草稿', send=False)
+        click('groupPreviewButton')
+        assert not item('groupSendPreview').property('visible')
         invoke(window, 'switchModule', 1)
         assert window.property('moduleIndex') == 4
-        click('groupResetDefaults')
+        window.close(); app.processEvents()
+        assert window.isVisible() and item('groupChatComposer').property('text') == '未提交草稿'
+        item('groupChatComposer').setProperty('text', '')
+        edit(0, '尚未保存编辑', save=False)
+        click('groupPreviewButton')
+        assert not item('groupSendPreview').property('visible')
+        click('groupChatCancelEdit')
 
-        # File selection happens directly in the same row and is validated before apply.
-        with patch.object(g, 'chooseMessageFile', return_value=str(attachment)):
-            click('groupDefaultFile1')
-        assert json.loads(g.rows[1]['content'])[1]['path'] == str(attachment)
-
-        # An ordinary button edits precisely the selected person's selected field.
-        panel.setProperty('selectedRow', g.pendingModel.get(1))
-        panel.setProperty('selectedField', 2)
-        click('groupEditCellButton')
-        assert item('groupSingleCellDialog').property('visible')
-        item('groupSingleCellText').setProperty('text', '李四的补充说明')
-        click('saveGroupSingleCell')
-        assert json.loads(g.rows[1]['content'])[2]['text'] == '李四的补充说明'
-        assert json.loads(g.rows[0]['content'])[2]['text'] == '完成后请回复，感谢配合。'
-
-        # Sending settings live behind the explicit configuration entry and still auto-save.
-        assert not item('groupSettingsPanel').property('visible')
+        # Settings and the explicit, ordered preview/send boundary stay intact.
         click('groupConfigurationButton')
-        assert item('groupSettingsPanel').property('visible')
-        capture('group-configuration.png')
-        assert item('groupPreviewButton').parent().property('visible')
-        assert window.findChild(QObject, 'saveGroupSettings') is None
-        assert window.findChild(QObject, 'resetGroupSettings') is None
-        # The per-message option sits directly under "paste then Enter" and follows it.
         confirm_send = item('groupConfirmSend')
         single_send = item('groupSingleSend')
-        assert single_send.property('text') == '每条消息单独发送'
         assert single_send.property('enabled') and single_send.property('y') > confirm_send.property('y')
+        confirm_send.setProperty('checked', False)
         click('groupCloseConfiguration')
-        # An empty contact prefix only warns: the preview can still continue.
+        assert not single_send.property('enabled') and not g.preview
+        item('groupContactPrefix').setProperty('text', '')
         click('groupPreviewButton')
-        reminder = item('groupEmptyPrefixReminder')
-        assert reminder.property('visible') and not item('groupSendPreview').property('visible')
-        capture('group-empty-prefix.png')
+        assert item('groupEmptyPrefixReminder').property('visible')
         click('groupEmptyPrefixBack')
-        assert not reminder.property('visible') and not item('groupSendPreview').property('visible')
         click('groupPreviewButton')
-        assert reminder.property('visible')
         click('groupEmptyPrefixContinue')
         assert item('groupSendPreview').property('visible')
         click('groupPreviewBack')
         item('groupContactPrefix').setProperty('text', '测试班-')
-        confirm_send.setProperty('checked', False)
         QTest.qWait(750)
-        assert g.selected['prefix'] == '测试班-'
-        assert not g.selected['options']['confirm_send']
-        assert not single_send.property('enabled'), '未勾选回车发送时不应还能选择每条消息单独发送'
-        assert not g.preview
-
-        # Preview is per person, preserves file/text order, and never invokes the driver.
         click('groupPreviewButton')
         preview = item('groupSendPreview')
         assert preview.property('visible') and len(g.preview) == 3
-        assert item('groupPreviewSummary').property('text').startswith('仅粘贴，不发送 · 按下列顺序粘贴')
+        assert item('groupPreviewSummary').property('text').startswith('仅粘贴，不发送 · ')
         assert item('groupPreviewContact').property('text') == '联系人：测试班-张三'
         assert item('groupStartButton').property('text') == '开始粘贴 · 3 人'
         click('groupPreviewNext')
-        assert item('groupPreviewContact').property('text') == '联系人：测试班-李四'
         current = preview.property('currentRecipient').toVariant()
-        assert [r['type'] for r in current['content']] == ['text', 'file', 'text']
+        assert [row['type'] for row in current['content']] == ['text', 'file', 'text']
         assert current['content'][2]['text'] == '李四的补充说明'
         capture('group-preview.png')
         click('groupPreviewEditPerson')
-        editor = item('recipientMessageEditor')
         assert editor.property('visible') and editor.property('recipientId') == g.rows[1]['id']
-        invoke(editor, 'close')
-
-        # Auto-saving a changed setting invalidates the previously confirmed preview.
-        item('groupContactPrefix').setProperty('text', '改过的前缀-')
-        QTest.qWait(750)
-        assert g.selected['prefix'] == '改过的前缀-'
+        click('cancelRecipientMessages')
+        edit(0, '更新预览-{姓名}')
         assert not g.preview and not g.start()
         driver.assert_not_called()
-        item('groupContactPrefix').setProperty('text', '测试班-')
-        QTest.qWait(750)
 
-        # Small-window layout still exposes primary actions and preview controls.
-        window.resize(720, 480)
-        QTest.qWait(100)
-        capture('group-center-small.png')
-        assert item('groupPreviewButton').property('visible')
-        assert item('groupRecipientList').height() > 70
-        assert item('groupDefaultText0').parentItem().height() >= 16
-        table=item('groupRecipientList')
-        table.setProperty('contentY', 44)
-        QTest.qWait(60)
-        assert abs(item('groupNamesTable').property('contentY')-table.property('contentY')) < 1
-        assert abs(item('groupInformationTable').property('contentY')-table.property('contentY')) < 1
-        item('groupNamesTable').setProperty('contentY',0)
-        QTest.qWait(60)
-        assert abs(table.property('contentY')) < 1
-        invoke(item('groupDefaultText2'), 'forceActiveFocus')
-        assert item('groupDefaultsViewport').property('contentX') > 0
+        # Actual control geometry in light/dark, wide/narrow; names and messages scroll independently.
+        for mode in ('light', 'dark'):
+            assert b.settingsModule.setAppearanceMode(mode)
+            for width, height in ((1250, 800), (720, 480)):
+                window.resize(width, height); QTest.qWait(100)
+                capture('group-'+mode+'-'+str(width)+'.png')
+                for name in ('groupChatComposer', 'groupChatSend', 'groupPreviewButton'):
+                    control = item(name)
+                    top = control.mapToScene(QPointF(0, 0))
+                    assert top.y() >= 0 and top.y()+control.height() <= window.height()+1, (name, top.y(), control.height())
+                assert item('groupChatThread').height() > 35
+                # Inline save/cancel must remain reachable in the smaller viewport too.
+                edit(2, '小窗正在编辑', save=False)
+                save = item('groupChatSaveEdit')
+                thread = item('groupChatThread')
+                assert save.property('visible') and save.mapToScene(QPointF(0, 0)).y() >= thread.mapToScene(QPointF(0, 0)).y()-1
+                assert save.mapToScene(QPointF(0, save.height())).y() <= thread.mapToScene(QPointF(0, thread.height())).y()+1
+                click('groupChatCancelEdit')
+                if width == 720:
+                    panel.setProperty('selectedRow', g.pendingModel.get(1))
+                    invoke(panel, 'openEditor')
+                    for name in ('personChatComposer', 'saveRecipientMessages', 'cancelRecipientMessages'):
+                        control = item(name)
+                        top = control.mapToScene(QPointF(0, 0))
+                        assert top.y() >= 0 and top.y()+control.height() <= window.height()+1, (name, top.y(), control.height())
+                    assert item('personChatThread').height() > 70
+                    capture('group-personal-'+mode+'-small.png')
+                    edit(2, '\n'.join('个人长消息'+str(i) for i in range(40)), 'personChat', save=False)
+                    QTest.qWait(80)
+                    save = item('personChatSaveEdit')
+                    thread = item('personChatThread')
+                    assert save.property('visible')
+                    assert save.mapToScene(QPointF(0, 0)).y() >= thread.mapToScene(QPointF(0, 0)).y()-1
+                    assert save.mapToScene(QPointF(0, save.height())).y() <= thread.mapToScene(QPointF(0, thread.height())).y()+1
+                    capture('group-personal-edit-'+mode+'-small.png')
+                    click('personChatCancelEdit')
+                    click('cancelRecipientMessages')
+        assert b.settingsModule.setAppearanceMode('light')
         click('groupPreviewButton')
         assert preview.property('width') <= window.width() and preview.property('height') <= window.height()
-        assert item('groupStartButton').property('visible')
         capture('group-preview-small.png')
         click('groupPreviewBack')
-        capture('group-center-small.png')
-
-        # The existing contact-risk acknowledgment remains required and resets each preview.
         assert g.saveOptions(list_id, '测试班-', dict(confirm_send=True, verify_contact=False))
         invoke(item('groupCenterPage'), 'loadOptions')
-        assert item('groupSingleSend').property('enabled'), '恢复回车发送后应重新可选'
         click('groupPreviewButton')
-        assert item('groupPreviewSummary').property('text').startswith('回车发送 · ')
-        assert item('groupAcceptRisk').property('visible')
-        assert not item('groupStartButton').property('enabled')
+        assert item('groupAcceptRisk').property('visible') and not item('groupStartButton').property('enabled')
         item('groupAcceptRisk').setProperty('checked', True)
         assert item('groupStartButton').property('enabled')
         click('groupPreviewBack')
         click('groupPreviewButton')
         assert not item('groupStartButton').property('enabled')
         click('groupPreviewBack')
-
-        # While sending, UI edit/preview actions are disabled as before.
-        g._worker = object()
-        g._notify_activity()
-        app.processEvents()
-        assert not item('groupApplyDefaults').property('enabled')
-        assert not item('groupAddDefault').property('enabled')
-        assert not item('groupDefaultText0').property('enabled')
+        g._worker = object(); g._notify_activity(); app.processEvents()
+        assert not chat.property('editable')
         assert not item('groupConfigurationButton').property('enabled')
         assert not item('groupContactPrefix').property('enabled')
         assert not item('groupPreviewButton').property('enabled')
-        g._worker = None
-        g._notify_activity()
+        g._worker = None; g._notify_activity()
 
-        # Dark mode keeps both the unified row and the roster readable.
-        window.resize(1250, 800)
-        assert b.settingsModule.setAppearanceMode('dark')
-        QTest.qWait(100)
-        capture('group-center-dark.png')
-        window.resize(720, 480)
-        QTest.qWait(100)
-        capture('group-center-dark-small.png')
-        assert b.settingsModule.setAppearanceMode('light')
-
-        # A changed roster never silently overwrites the pending unified-row draft.
-        edit_default(0, '仍保留的草稿')
-        assert g.saveRecipientField(list_id, g.rows[1]['id'], 0, dict(type='text',text='外部编辑'))
+        # A concurrent update keeps the inline draft but rejects its stale revision.
+        window.resize(1250, 800); QTest.qWait(100)
+        edit(0, '仍保留的草稿', save=False)
+        assert g.saveRecipientField(list_id, g.rows[1]['id'], 0, dict(type='text', text='外部编辑'))
+        click('groupChatSaveEdit')
+        assert panel.property('defaultsDirty')
+        assert item('groupChatBubble0').property('text') == '仍保留的草稿'
         click('groupPreviewButton')
-        assert panel.property('defaultsDirty') and not preview.property('visible')
-        assert item('groupDefaultText0').property('text') == '仍保留的草稿'
+        assert not preview.property('visible')
         click('groupResetDefaults')
 
-        # A names-only roster still displays synchronized name/information rows.
-        assert g.copyList('仅人员名单',False)
+        # Long chat edits stay scrollable and at the same part of the conversation.
+        many = [dict(type='text', text='第'+str(i+1)+'条消息') for i in range(80)]
+        assert g.createStructured('长消息验证', '甲\n乙\n丙', many)
+        QTest.qWait(90)
+        invoke(chat, 'beginEdit', 79)
+        long_text = '\n'.join('长消息第'+str(i+1)+'行' for i in range(40))
+        inline = item('groupChatInline79')
+        inline.setProperty('text', long_text)
         QTest.qWait(80)
-        assert g.pendingCount==3 and g.pendingFieldCount==0
-        assert item('groupRecipientList').property('rows')==3
-        assert item('groupNamesTable').property('rows')==3
-        assert item('groupInformationTable').property('rows')==3
+        assert item('groupChatInlineScroll79').property('clip')
+        assert item('groupChatInlineScroll79').height() <= 160
+        thread = item('groupChatThread')
+        # Reposition after text grows, as a user's editor can grow while typing.
+        invoke(chat, 'beginEdit', 79)  # Already editing: should leave the draft intact.
+        save = item('groupChatSaveEdit')
+        assert save.property('visible') and save.mapToScene(QPointF(0, 0)).y() >= thread.mapToScene(QPointF(0, 0)).y()-1
+        assert save.mapToScene(QPointF(0, save.height())).y() <= thread.mapToScene(QPointF(0, thread.height())).y()+1
+        g._worker = object(); g._notify_activity(); app.processEvents()
+        assert inline.property('readOnly') and not save.property('enabled')
+        g._worker = None; g._notify_activity()
+        capture('group-long-edit.png')
+        click('groupChatSaveEdit')
+        assert content()[0][79]['text'] == long_text
+        assert thread.property('contentY')-thread.property('originY') > 2000
+        edit(50, '中间消息更新')
+        assert content()[1][50]['text'] == '中间消息更新'
+        assert thread.property('contentY')-thread.property('originY') > 2000
+
+        # Mixed legacy messages remain distinct when another bubble is added/deleted.
+        assert g.createCustom('旧混合名单', '甲|甲的话术\n乙|乙的话术')
+        QTest.qWait(90)
+        assert item('groupChatBubble0').property('text') == '各人内容不同 · 编辑后统一'
+        compose('共同的第二条')
+        assert [row[0]['text'] for row in content()] == ['甲的话术', '乙的话术']
+        assert all(row[1]['text'] == '共同的第二条' for row in content())
+        invoke(chat, 'removeMessage', 1)
+        edit(0, '已统一-{姓名}')
+        assert [row[0]['text'] for row in content()] == ['已统一-甲', '已统一-乙']
+
+        # The name list and message thread have independent vertical positions.
+        assert g.createStructured('长名单验证', '\n'.join('验证学员'+str(i) for i in range(90)), [dict(type='text', text='统一消息')])
+        QTest.qWait(90)
+        names = item('groupNamesTable')
+        old_y = thread.property('contentY')
+        names.setProperty('contentY', 1000); QTest.qWait(80)
+        assert names.property('contentY') > 900 and thread.property('contentY') == old_y
+        invoke(item('groupCenterPage'), 'selectList', next(i for i, row in enumerate(g.lists) if row['id'] == list_id))
+
+        # Covering personal overrides remains explicit and invalidates prior preview.
+        click('groupOverridePersonal')
+        assert item('groupOverrideDialog').property('visible')
+        click('groupConfirmOverride')
+        assert content()[0][0]['text'] == '更新预览-张三'
+        assert content()[1][2]['text'] == '公共补充-李四'
+
+        # Names-only lists accept the first bubble. Switching cannot discard pending text.
+        assert g.copyList('仅人员名单', False)
+        QTest.qWait(90)
+        assert g.pendingCount == 3 and chat.property('messageCount') == 0
         capture('group-names-only.png')
-        click('groupAddDefault')
-        edit_default(0,'新增给-{姓名}')
-        click('groupApplyDefaults')
-        assert g.pendingFieldCount==1
-        assert json.loads(g.rows[2]['content'])[0]['text']=='新增给-王五'
-
-        # A quick list switch flushes edits to the old list, never the new one.
-        assert g.createCustom('另一份名单', '甲|第二份消息')
-        other_id = g.selected['id']
-        item('groupContactPrefix').setProperty('text', '第二份前缀-')
-        edit_default(0, '第二份统一消息-{姓名}')
-        invoke(item('groupCenterPage'), 'selectList', next(i for i,r in enumerate(g.lists) if r['id']==list_id))
-        assert g.store.get(other_id)['prefix'] == '第二份前缀-'
-        assert json.loads(g.store.rows(other_id)[0]['content'])[0]['text'] == '第二份统一消息-甲'
+        compose('新增给-{姓名}')
+        assert content()[2][0]['text'] == '新增给-王五'
+        names_only_id = g.selected['id']
+        target_index = next(i for i, row in enumerate(g.lists) if row['id'] == list_id)
+        compose('不能丢弃', send=False)
+        invoke(item('groupCenterPage'), 'selectList', target_index)
+        assert g.selected['id'] == names_only_id
+        assert item('groupListSelector').property('currentIndex') == g.selectedIndex
+        item('groupChatComposer').setProperty('text', '')
+        invoke(item('groupCenterPage'), 'selectList', target_index)
         assert g.selected['id'] == list_id
-        assert item('groupContactPrefix').property('text') == '测试班-'
+        assert chat.property('messageCount') == 3
 
-        # Closing before the debounce expires still saves the active list's edit.
-        click('groupAddDefault')
-        window.close()
-        app.processEvents()
-        assert window.isVisible() and panel.property('defaultsDirty')
-        click('groupResetDefaults')
+        # Protected rows are viewed through the same name entry, and expose result resolution.
+        row_id = g.rows[2]['id']
+        with g.store.connect() as conn:
+            conn.execute("UPDATE recipients SET state='结果待确认' WHERE id=?", (row_id,))
+        g.refresh(); QTest.qWait(80)
+        panel.setProperty('selectedRow', g.recipientForView(row_id, False))
+        invoke(panel, 'openEditor')
+        assert editor.property('visible') and not editor.property('canEdit')
+        assert item('groupResolveSent').property('visible')
+        assert not item('recipientMessageChat').property('editable')
+        click('cancelRecipientMessages')
+
+        # Close flushes prefix debounce, but committed bubbles have already persisted.
         item('groupContactPrefix').setProperty('text', '关闭前前缀-')
-        edit_default(2, '关闭前默认消息')
-        window.close()
-        app.processEvents()
+        compose('关闭前追加')
+        window.close(); app.processEvents()
+        assert not window.isVisible()
         assert g.store.get(list_id)['prefix'] == '关闭前前缀-'
-        assert json.loads(g.store.rows(list_id)[0]['content'])[2]['text'] == '关闭前默认消息'
-        assert json.loads(g.store.rows(list_id)[1]['content'])[2]['text'] == '李四的补充说明'
+        assert len(json.loads(g.store.rows(list_id)[0]['content'])) == 4
+        assert len(json.loads(g.store.rows(list_id)[2]['content'])) == 3
         assert not warnings, warnings
         driver.assert_not_called()
         import shiboken6
         shiboken6.delete(engine)
         shiboken6.delete(b)
-        print('Group interaction smoke OK: unified defaults, draft cancellation/add/remove, personal edits, settings, ordered preview, light/dark/small layout, activity guards; no sending')
+        print('Group chat smoke OK: keys/IME, append/edit/cancel/delete/order, files, personal/protected records, draft/revision guards, settings and explicit preview, light/dark/small; no sending')
 
 
-if __name__ == '__main__':
-    run()
+if __name__ == '__main__': run()

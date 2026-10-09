@@ -63,6 +63,7 @@ Item {
     }
     function selectList(index) {
         if (saveSettings()) center.selectList(index)
+        listSelector.currentIndex=Qt.binding(function() { return center.selectedIndex })
     }
     ColumnLayout {
         anchors.fill: parent; spacing: page.height<600 ? 6 : 10
@@ -74,7 +75,7 @@ Item {
             UiButton { text: page.width<650 ? "复制名单" : "复制为新名单"; enabled: !center.active && center.selectedIndex>=0; onClicked: if(page.saveSettings()) copyDialog.open() }
             UiButton { text: "新建群发"; enabled: !center.active; onClicked: if(page.saveSettings()) customDialog.open() }
         }
-        UiComboBox { objectName: "groupListSelector"; Layout.fillWidth: true; model: center.lists; textRole: "label"; currentIndex: center.selectedIndex; displayText: currentIndex<0 ? "暂无名单，请从催办生成或新建自定义名单" : currentText; enabled: !center.active; onActivated: page.selectList(currentIndex) }
+        UiComboBox { id: listSelector; objectName: "groupListSelector"; Layout.fillWidth: true; model: center.lists; textRole: "label"; currentIndex: center.selectedIndex; displayText: currentIndex<0 ? "暂无名单，请从催办生成或新建自定义名单" : currentText; enabled: !center.active; onActivated: page.selectList(currentIndex) }
         RecipientMessages {
             id: recipientPanel; Layout.fillWidth: true; Layout.fillHeight: true; center: page.center
             onPrefixEdited: page.scheduleSave()
@@ -209,7 +210,7 @@ Item {
                             required property var modelData
                             required property int index
                             width: previewList.width; highlighted: previewList.currentIndex===index
-                            text: (index+1)+". "+modelData.name
+                            text: modelData.contact || modelData.name
                             onClicked: previewList.currentIndex=index
                         }
                     }
