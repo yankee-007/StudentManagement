@@ -16,6 +16,40 @@ class GroupCenterTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):cls.app=QCoreApplication.instance() or QCoreApplication([])
 
+    def test_rename_list_only_changes_the_title(self):
+        with seeded(1) as b:
+            g=b.groupCenter
+            self.assertTrue(g.createCustom('重命名前','甲|第一条\n乙|第二条'))
+            list_id=g.selected['id']
+            self.assertTrue(g.prepare('前缀-',{}),g.status)
+            preview=list(g.preview)
+            self.assertEqual(len(preview),2)
+            self.assertTrue(g.renameList(list_id,'  重命名后  '),g.status)
+            self.assertEqual(g.selected['title'],'重命名后')
+            self.assertEqual(g.store.get(list_id)['title'],'重命名后')
+            self.assertEqual([row['label'].split(' · ')[0] for row in g.lists],['重命名后'])
+            self.assertEqual([r['name'] for r in g.store.rows(list_id)],['甲','乙'])
+            self.assertEqual([r['message'] for r in g.store.rows(list_id)],['第一条','第二条'])
+            self.assertEqual(g.pendingCount,2)
+            # 改名不废弃已确认的预览，人员与消息也不变。
+            self.assertEqual(g.preview,preview)
+            self.assertEqual(g.selected['prefix'],'前缀-')
+            for invalid in ('   ','第一行\n第二行'):
+                self.assertFalse(g.renameList(list_id,invalid))
+                self.assertIn('重命名失败',g.status)
+                self.assertEqual(g.store.get(list_id)['title'],'重命名后')
+            self.assertFalse(g.renameList(list_id+999,'别的名单'))
+            self.assertIn('重命名失败',g.status)
+            self.assertEqual([r['state'] for r in g.rows],['待发送','待发送'])
+            # 发送运行中不接受改名，名单名保持原值。
+            g._worker=object()
+            try:
+                self.assertFalse(g.renameList(list_id,'发送中改名'))
+                self.assertIn('发送运行中',g.status)
+            finally:
+                g._worker=None
+            self.assertEqual(g.store.get(list_id)['title'],'重命名后')
+
     def test_v2_options_apply_and_paste_only_never_sends_enter(self):
         driver=WeComSender.__new__(WeComSender)
         driver.options=normalize(dict(wait=.7,focus_delay=.8,paste_delay=.9,timeout=5,substring_mode=True,confirm_send=False))

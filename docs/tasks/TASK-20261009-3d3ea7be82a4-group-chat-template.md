@@ -54,6 +54,14 @@
 
 该轮最终 39 项相关单元回归通过，两套真实 QML 冒烟通过，无 QML 警告；三栏水平顺序断言在 1250×800 验证通过，亮暗及 720×480 小窗既有垂直几何检查继续通过，截图 output/group-chat-template 已核对（消息模板居中、收件人列表居右）。全部临时库与模拟发送，未访问正式数据、未发送真实消息。
 
+本轮新要求：群发中心顶部「选择群发方案」下拉框旁增加重命名按钮，并把「复制为新名单」「新建群发」也放到同一行右侧。起点 1d6d44d；工作区另有催办「以往反馈情况」列的在改内容（PROJECT_CONTEXT.md、README.md、app/workflow.py、qml/CampaignFieldDialog.qml、qml/Main.qml、qml/ProfileFieldOrder.qml 及两项工作台测试），属于其他任务，本轮未触碰。当前 Agent 统一写入、验证与复查，无子 Agent。用户确认只改群发中心页面本身，不新增模块入口，且两个按钮放在下拉框同一行的最右侧。
+
+实现为 GroupCenter.qml 顶部拆成标题行与工具条行：工具条左半区是名单下拉框＋「重命名」（`groupRenameList`），右端依次「复制为新名单」（`groupCopyList`，窄窗口仍是短标签「复制名单」）和「新建群发」（`groupCreateList`）；三个按钮都先 `page.saveSettings()` 再开对话框，沿用原有入口的保存前置。新增 `groupRenameDialog`／`groupRenameInput`／`confirmRenameList`：打开时预填当前标题并全选，回车或「保存名称」提交，失败时对话框保留并显示 `center.status`。
+
+后端新增 `GroupStore.rename_list`（去首尾空白、拒绝空标题与换行/空字符、按 id 更新 `lists.title`，行不存在时报「群发名单已不存在」）与 `GroupCenter.renameList`（发送运行中只提示不改名；list_id 与当前选择不符即拒绝；成功后只重载名单快照，人员、消息、发送记录和已确认预览都保持）。未改存储结构、发送协议与其它模块。
+
+验证：`QT_QPA_PLATFORM=offscreen` 下 40 项群发相关单元回归（test_group_center、test_group_interaction、test_profile_group_flow、test_message_content、test_real_sending）通过；新增 test_rename_list_only_changes_the_title 覆盖改名只动标题、预览/人员/消息/前缀不变、空白与换行标题被拒、过期 list_id 被拒、发送运行中拒绝改名。smoke_group_interaction 新增：四个控件同一行且下拉框＜重命名＜复制＜新建、最后一个按钮右边缘贴页面右侧的同排几何断言，真实点击重命名对话框改名后下拉框文本与库内标题同步、人员与个人消息不变，复制／新建对话框仍可从新位置打开，并新增 1250×800 亮暗与 720×480 暗色三栏截图 `output/group-rename`（含 group-rename-dialog.png）。两套真实 QML 冒烟通过、无 QML 警告（仅起点即有的 recursive rearrange 提示）。未跑全库，未访问正式数据，未调用真实发送。
+
 ## 人工验收与恢复
 
-技术实现、定向验证、审查与文档同步完成，待用户重启应用体验三栏配置（发送配置／消息模板／收件人，消息模板居中）、单条发送灰态、气泡双击及外部点击保存，以及本轮气泡宽度与 `{变量}` 不拆行效果。已有名单等待时间保留，可使用恢复默认等待改为 0.5 秒。没有执行真实中文输入法或企微发送，亦未跑全库，既有其他模块验证缺口维持 PROJECT_CONTEXT 的边界。本地提交按策略保存，不推送、不合入 main。接续先核对 Git 和此任务，实际磁盘为事实来源；通过 Task ID 查询提交可恢复实现。下一步为体验反馈或真实测试联系人验证。
+技术实现、定向验证、审查与文档同步完成，待用户重启应用体验三栏配置（发送配置／消息模板／收件人，消息模板居中）、单条发送灰态、气泡双击及外部点击保存、顶部工具条布局（下拉框＋重命名在左，复制为新名单／新建群发右对齐）与重命名只改标题，以及上一轮气泡宽度与 `{变量}` 不拆行效果。已有名单等待时间保留，可使用恢复默认等待改为 0.5 秒。没有执行真实中文输入法或企微发送，亦未跑全库，既有其他模块验证缺口维持 PROJECT_CONTEXT 的边界。本地提交按策略保存，不推送、不合入 main。接续先核对 Git 和此任务，实际磁盘为事实来源；通过 Task ID 查询提交可恢复实现。下一步为体验反馈或真实测试联系人验证。

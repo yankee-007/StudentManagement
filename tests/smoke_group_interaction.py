@@ -361,6 +361,37 @@ def run():
         invoke(item('groupCenterPage'), 'saveOptions')
         assert not single_send.property('enabled') and not g.preview
         assert single_send.property('opacity') < 0.5
+
+        # 方案下拉框与「重命名」在左，复制为新名单／新建群发在最右侧的同一行。
+        page = item('groupCenterPage')
+        selector = item('groupListSelector')
+        rename_button = item('groupRenameList')
+        copy_button = item('groupCopyList')
+        create_button = item('groupCreateList')
+        row_y = selector.mapToScene(QPointF(0, 0)).y()
+        for control in (rename_button, copy_button, create_button):
+            assert abs(control.mapToScene(QPointF(0, 0)).y()-row_y) < 2, (control.objectName(), control.mapToScene(QPointF(0, 0)).y(), row_y)
+        assert selector.mapToScene(QPointF(0, 0)).x() < rename_button.mapToScene(QPointF(0, 0)).x()
+        assert rename_button.mapToScene(QPointF(rename_button.width(), 0)).x() <= copy_button.mapToScene(QPointF(0, 0)).x()+1
+        assert copy_button.mapToScene(QPointF(copy_button.width(), 0)).x() <= create_button.mapToScene(QPointF(0, 0)).x()+1
+        assert create_button.mapToScene(QPointF(create_button.width(), 0)).x() >= page.mapToScene(QPointF(page.width(), 0)).x()-1
+        click('groupRenameList')
+        assert item('groupRenameDialog').property('visible')
+        assert item('groupRenameInput').property('text') == '消息编辑验证'
+        capture('group-rename-dialog.png')
+        item('groupRenameInput').setProperty('text', '聊天模板改名验证')
+        click('confirmRenameList')
+        assert not item('groupRenameDialog').property('visible')
+        assert g.selected['title'] == '聊天模板改名验证' and g.store.get(list_id)['title'] == '聊天模板改名验证'
+        assert selector.property('currentText').startswith('聊天模板改名验证')
+        assert [row['name'] for row in g.rows] == ['张三', '李四', '王五'] and content()[0][0]['text'] == '张三的个人消息'
+        click('groupCopyList')
+        assert item('groupCopyBatchDialog').property('visible')
+        assert item('groupCopyTitleInput').property('text') == '聊天模板改名验证 - 副本'
+        invoke(item('groupCopyBatchDialog'), 'close')
+        click('groupCreateList')
+        assert item('customGroupDialog').property('visible')
+        invoke(item('customGroupDialog'), 'close')
         item('groupContactPrefix').setProperty('text', '')
         click('groupPreviewButton')
         assert item('groupEmptyPrefixReminder').property('visible')
@@ -543,6 +574,14 @@ def run():
         invoke(item('groupCenterPage'), 'selectList', target_index)
         assert g.selected['id'] == list_id
         assert chat.property('messageCount') == 3
+
+        # 非首个方案的改名同样只换标题，刷新名单列表后当前选择与索引不变。
+        assert target_index > 0
+        assert g.renameList(list_id, '长名单验证-改名'), g.status
+        QTest.qWait(80)
+        assert g.selected['id'] == list_id and g.store.get(list_id)['title'] == '长名单验证-改名'
+        assert item('groupListSelector').property('currentIndex') == target_index == g.selectedIndex
+        assert [row['label'].split(' · ')[0] for row in g.lists][target_index] == '长名单验证-改名'
 
         # Protected rows are viewed through the same name entry, and expose result resolution.
         row_id = g.rows[2]['id']

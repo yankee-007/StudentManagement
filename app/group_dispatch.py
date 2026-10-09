@@ -117,6 +117,16 @@ class GroupStore:
             conn.execute('UPDATE lists SET content_template=? WHERE id=?',(json.dumps(fields,ensure_ascii=False),list_id))
             conn.executemany('UPDATE recipients SET content=?,message=? WHERE id=?',updates)
 
+    def rename_list(self,list_id,title):
+        """Only the display title changes; recipients, messages and attempts stay."""
+        title=str(title).strip()
+        if not title:raise ValueError('请填写名单名称')
+        if any(c in title for c in '\r\n\0'):raise ValueError('名单名称不能包含换行或空字符')
+        with self.connect() as conn:
+            if not conn.execute('UPDATE lists SET title=? WHERE id=?',(title,list_id)).rowcount:
+                raise ValueError('群发名单已不存在，请重新选择')
+        return title
+
     def configure(self,list_id,prefix,options):
         if any(c in prefix for c in '\r\n\0'):raise ValueError('前缀不能包含换行或空字符')
         options=normalize(options)

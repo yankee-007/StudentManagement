@@ -423,6 +423,21 @@ class GroupCenter(QObject):
             self._reload_snapshot();self._notify_preview();self._notify_status();return True
         except Exception as exc:self._notice='保存失败：'+str(exc);self._notify_status();return False
 
+    @Slot(int,str,result=bool)
+    def renameList(self,list_id,title):
+        if self.active:
+            self._notice='发送运行中，不能修改名单名称';self._notify_status();return False
+        try:
+            if list_id!=self._id or not self.store.get(list_id):
+                raise ValueError('群发名单已变化，请重新选择')
+            title=self.store.rename_list(list_id,title)
+            # 只换标题：人员、消息、发送记录与已确认的预览都保持有效。
+            self._reload_snapshot(lists=True)
+            self._notice=f'名单名称已改为“{title}”；人员、消息和发送记录未变'
+            self._notify_status();return True
+        except Exception as exc:
+            self._notice='重命名失败：'+str(exc);self._notify_status();return False
+
     @Slot(int,str,'QVariantMap',result=bool)
     def saveOptions(self,list_id,prefix,options):
         if self.active:

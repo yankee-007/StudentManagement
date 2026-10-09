@@ -71,10 +71,23 @@ Item {
             Layout.fillWidth: true
             Label { text: "群发中心"; font.pixelSize: 22; font.bold: true; Layout.fillWidth: true }
             Label { text: "配置默认消息 → 核对预览 → 开始发送"; visible: page.width>900; color: UiTheme.muted }
-            UiButton { text: page.width<650 ? "复制名单" : "复制为新名单"; enabled: !center.active && center.selectedIndex>=0; onClicked: if(page.saveSettings()) copyDialog.open() }
-            UiButton { text: "新建群发"; enabled: !center.active; onClicked: if(page.saveSettings()) customDialog.open() }
         }
-        UiComboBox { id: listSelector; objectName: "groupListSelector"; Layout.fillWidth: true; model: center.lists; textRole: "label"; currentIndex: center.selectedIndex; displayText: currentIndex<0 ? "暂无名单，请从催办生成或新建自定义名单" : currentText; enabled: !center.active; onActivated: page.selectList(currentIndex) }
+        RowLayout {
+            Layout.fillWidth: true; spacing: 6
+            RowLayout {
+                // 选择群发方案的下拉框与「重命名」留在左侧，名单级操作统一右对齐。
+                Layout.fillWidth: true; spacing: 6
+                UiComboBox { id: listSelector; objectName: "groupListSelector"; Layout.fillWidth: true; model: center.lists; textRole: "label"; currentIndex: center.selectedIndex; displayText: currentIndex<0 ? "暂无名单，请从催办生成或新建自定义名单" : currentText; enabled: !center.active; onActivated: page.selectList(currentIndex) }
+                UiButton {
+                    objectName: "groupRenameList"; text: "重命名"; Accessible.name: "重命名当前群发名单"
+                    enabled: !center.active && center.selectedIndex>=0
+                    ToolTip.visible: hovered; ToolTip.text: "只改名单名称，人员、消息和发送记录不变"
+                    onClicked: if(page.saveSettings()) renameDialog.open()
+                }
+            }
+            UiButton { objectName: "groupCopyList"; text: page.width<650 ? "复制名单" : "复制为新名单"; enabled: !center.active && center.selectedIndex>=0; onClicked: if(page.saveSettings()) copyDialog.open() }
+            UiButton { objectName: "groupCreateList"; text: "新建群发"; enabled: !center.active; onClicked: if(page.saveSettings()) customDialog.open() }
+        }
         RowLayout {
             Layout.fillWidth: true; Layout.fillHeight: true; spacing: 10
             UiPanel {
@@ -132,6 +145,24 @@ Item {
             UiButton { visible: center.active; text: "继续"; enabled: center.isPaused; onClicked: center.resume() }
             UiButton { visible: center.active; text: "结束本轮"; onClicked: center.stop() }
             UiButton { objectName: "groupPreviewButton"; visible: !center.active; text: "预览并发送"; highlighted: true; enabled: !center.active && center.selectedIndex>=0 && center.editableCount>0; onClicked: page.previewMessages() }
+        }
+    }
+    Dialog {
+        id: renameDialog; objectName: "groupRenameDialog"; anchors.centerIn: parent; modal: true; title: "重命名群发名单"
+        width: Math.min(page.width-30,480)
+        onOpened: { renameTitle.text=center.selected.title || ""; renameTitle.forceActiveFocus(); renameTitle.selectAll() }
+        ColumnLayout {
+            anchors.fill: parent
+            Label { text: "只修改名单名称；人员名单、消息内容和发送记录都保持不变。"; wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.muted }
+            UiTextField {
+                id: renameTitle; objectName: "groupRenameInput"; placeholderText: "名单名称"; Layout.fillWidth: true
+                onAccepted: if(center.renameList(center.selected.id,renameTitle.text)) renameDialog.close()
+            }
+            Label { text: center.status; wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.warning }
+            RowLayout {
+                UiButton { objectName: "confirmRenameList"; text: "保存名称"; highlighted: true; enabled: !center.active; onClicked: if(center.renameList(center.selected.id,renameTitle.text)) renameDialog.close() }
+                UiButton { text: "取消"; onClicked: renameDialog.close() }
+            }
         }
     }
     Dialog {

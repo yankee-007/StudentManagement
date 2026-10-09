@@ -71,6 +71,7 @@ Backend / TermModule / SettingsModule / LiveAbsence → AcquisitionTask（QThrea
 
 - createFromCampaignSelection/createFromProfiles 按可见人员生成独立名单，文字变量创建时展开，保留模板和资料元数据。names_only 保存空消息，补齐后才可发送。
 - GroupCenter 缓存名单、选择、待处理/已发送模型；GroupStore 负责持久化、编辑和队列保护。
+- GroupCenter.qml 顶部一行是「选择群发方案」下拉框＋「重命名」（左）与「复制为新名单」「新建群发」（右对齐）；重命名经 GroupCenter.renameList → GroupStore.rename_list 只更新 lists.title（拒绝空白/换行标题与过期 list_id，发送运行中只提示不改名），不触碰 recipients/attempts，也不清空当前预览确认。
 - GroupCenter.qml 参数 600ms 防抖保存，切名单/预览/关闭另有保存处理；按 list_id 校验，修改后清除预览确认。
 - prepare → GroupStore.plan → confirmation；start 重验计划、参数/文件及 F11 注册，再启动 SendWorker。每人先 claim 后 finish；暂停/结束在当前联系人完成后生效。
 - WeComSender 执行进程/焦点检查、搜索、可选浮窗核验、剪贴板粘贴和回车。“已发送”不证明送达，不确定结果需人工核实。
