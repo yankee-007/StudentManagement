@@ -46,7 +46,9 @@ GIT_POLICY 可显式设为 `disabled`；启用 Git 时仍遵循既有项目检�
 
 远端同步授权：2026-10-06 用户明确要求「回退至实现方案1之前；项目提交至GitHub」。本次单次交付允许将回退后的项目及既有待上传提交推送至已核对的 origin：git@github.com:yankee-007/StudentManagement.git、main 分支，任务 TASK-20261006-e751c908ab34。无额外 pushurl 或 URL 重写；本地与远端树均未发现 .github 工作流，未发现仓库内自动部署配置，外部集成不可由本地代码证明。授权不包含强推、发布、部署或后续持续上传；未来任务须按其实际授权核对范围。
 
-远端同步授权：2026-10-09 用户明确要求「将项目提交至GitHub」，并在确认中选定「提交本轮修改并推送 codex/daily-workspace」，同时确认把 32次催交话术库 一并纳入仓库。本次单次交付允许：把本轮工作区修改按逻辑单元提交后，连同既有待上传提交推送至已核对的 origin（git@github.com:yankee-007/StudentManagement.git）的 codex/daily-workspace 与 main 分支。实际结果：codex/daily-workspace 9827639、main 07e7a53，均为快进推送。授权不包含强推、远端删除、标签推送、发布、部署，也不包含把 codex/daily-workspace 合入 main；2026-10-06 的单次交付授权已结束，不延伸至本轮。仓库未发现 .github 工作流，本地代码无法证明是否存在外部自动部署。
+远端同步授权：2026-10-09 用户明确要求「将项目提交至GitHub」，并在确认中选定「提交本轮修改并推送 codex/daily-workspace」，同时确认把 32次催交话术库 一并纳入仓库。本次单次交付允许：把本轮工作区修改按逻辑单元提交后，连同既有待上传提交推送至已核对的 origin（git@github.com:yankee-007/StudentManagement.git）的 codex/daily-workspace 与 main 分支。实际结果：codex/daily-workspace 9827639、main 07e7a53，均为快进推送。授权不包含强推、远端删除、标签推送、发布、部署，也不包含把 codex/daily-workspace 合入 main（该限制仅约束该轮，见下条新授权）；2026-10-06 的单次交付授权已结束，不延伸至本轮。仓库未发现 .github 工作流，本地代码无法证明是否存在外部自动部署。
+
+远端同步授权：2026-10-09 用户询问后续拉取代码应以哪条分支为开发主线，明确选定「把 main 快进到当前开发分支，以后拉 main」。据此把 main 快进（`07e7a53..829fa9c`，无合并提交、不改写历史、无强推）并推送至同一 origin 的 main 分支；本地 main 同步推进到 829fa9c，与 codex/daily-workspace 同一提交。此后项目开发与拉取基线为 main，main 上的新提交按 AUTO_PUSH_POLICY 在授权里程碑内推送。原先对 codex/daily-workspace 的单次上传授权不延伸至后续新内容。
 
 授权记录只记录用户或有效项目约定明确允许的范围，至少能定位实际远端、允许分支、允许内容、适用任务/阶段、已知推送副作用及授权依据。单次交付结束后不自动延伸至下一轮；持续授权明确记录其边界。未授权时明确写“待确认”；有登录能力不等于有操作授权。已有适用授权直接使用，不重复询问。
 
@@ -54,7 +56,7 @@ GIT_POLICY 可显式设为 `disabled`；启用 Git 时仍遵循既有项目检�
 
 运行和验证入口见 README 的「启动」「测试」，依赖见 requirements.txt。常规回归为 `python -m unittest discover -s tests -v`；QML 采用 README 中 offscreen 冒烟并核对真实界面。测试只用临时数据库、虚构学员、模拟网络/企微，不启动正式应用调查。本次纯文档升级只做文档与差异检查，不重新宣称历史测试通过；既有失败与真实平台/企微验收缺口见 PROJECT_CONTEXT。
 
-已有 Git 根和 main 分支沿用，本次无分支切换或集成。需要创建新分支时采用 codex/ 前缀；不自动合入共享分支。单工作区仅一个写入者，不主动创建或委派 Agent；显式并行需求必须先有用户授权和独立工作区。
+已有 Git 根和 main 分支沿用，本次无分支切换或集成。需要创建新分支时采用 codex/ 前缀；不自动合入共享分支。单工作区仅一个写入者，不主动创建或委派 Agent；显式并行需求必须先有用户授权和独立工作区。2026-10-09 起 main 已快进到 829fa9c，与 codex/daily-workspace 同一提交，成为当前开发与拉取基线；codex/daily-workspace 保留为原任务分支，其名称不再代表实际范围。
 
 ## 文档路径映射
 
