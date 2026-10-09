@@ -186,6 +186,18 @@ class GroupInteractionTests(unittest.TestCase):
             self.assertFalse(group.saveDefaultRow(list_id,group.contentRevision,fields,False))
             self.assertEqual(json.loads(group.rows[0]['content'])[0]['text'],'另一消息')
 
+    def test_default_fields_belong_to_selected_list_before_table_refresh(self):
+        with seeded(1) as backend:
+            group=backend.groupCenter
+            self.assertTrue(group.createStructured('三条消息','甲',[
+                dict(type='text',text='一'),dict(type='text',text='二'),dict(type='text',text='三')]))
+            observed=[]
+            group.selectionChanged.connect(lambda:observed.append((group.selected['title'],group.defaultFields)))
+            self.assertTrue(group.createCustom('单条消息','乙|单条默认消息'))
+            self.assertEqual(observed[-1],('单条消息',[dict(sourceIndex=0,type='text',value='单条默认消息',mixed=False)]))
+            group.selectList(1)
+            self.assertEqual([f['value'] for f in observed[-1][1]],['一','二','三'])
+
 
 if __name__=='__main__':
     unittest.main()

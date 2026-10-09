@@ -69,6 +69,11 @@ def run():
             assert obj.property('enabled'), name
             invoke(obj, 'click')
 
+        def edit_default(index, text):
+            obj=item('groupDefaultText'+str(index))
+            invoke(obj, 'forceActiveFocus')
+            obj.setProperty('text', text)
+
         def capture(name):
             directory = os.environ.get('GROUP_UI_CAPTURE_DIR')
             if directory:
@@ -86,11 +91,11 @@ def run():
         assert window.findChild(QObject, 'groupColumnSelector') is None
         assert window.findChild(QObject, 'groupColumnMessageDialog') is None
         before = [r['content'] for r in g.rows]
-        item('groupDefaultText0').setProperty('text', '取消的修改')
+        edit_default(0, '取消的修改')
         assert panel.property('defaultsDirty')
         click('groupResetDefaults')
         assert [r['content'] for r in g.rows] == before
-        item('groupDefaultText0').setProperty('text', '{姓名}，本周资料已经更新。')
+        edit_default(0, '{姓名}，本周资料已经更新。')
         capture('group-default-edit.png')
         click('groupApplyDefaults')
         content = [json.loads(r['content']) for r in g.rows]
@@ -100,7 +105,7 @@ def run():
 
         # Add/remove operate on the draft; an empty addition blocks preview and list switching.
         click('groupAddDefault')
-        item('groupDefaultText3').setProperty('text', '新增-{姓名}')
+        edit_default(3, '新增-{姓名}')
         click('groupApplyDefaults')
         assert all(len(json.loads(r['content'])) == 4 for r in g.rows)
         click('groupRemoveDefault')
@@ -196,6 +201,17 @@ def run():
         capture('group-center-small.png')
         assert item('groupPreviewButton').property('visible')
         assert item('groupRecipientList').height() > 70
+        assert item('groupDefaultText0').parentItem().height() >= 16
+        table=item('groupRecipientList')
+        table.setProperty('contentY', 44)
+        QTest.qWait(60)
+        assert abs(item('groupNamesTable').property('contentY')-table.property('contentY')) < 1
+        assert abs(item('groupInformationTable').property('contentY')-table.property('contentY')) < 1
+        item('groupNamesTable').setProperty('contentY',0)
+        QTest.qWait(60)
+        assert abs(table.property('contentY')) < 1
+        invoke(item('groupDefaultText2'), 'forceActiveFocus')
+        assert item('groupDefaultsViewport').property('contentX') > 0
         click('groupPreviewButton')
         assert preview.property('width') <= window.width() and preview.property('height') <= window.height()
         assert item('groupStartButton').property('visible')
@@ -241,20 +257,47 @@ def run():
         capture('group-center-dark-small.png')
         assert b.settingsModule.setAppearanceMode('light')
 
+        # A changed roster never silently overwrites the pending unified-row draft.
+        edit_default(0, '仍保留的草稿')
+        assert g.saveRecipientField(list_id, g.rows[1]['id'], 0, dict(type='text',text='外部编辑'))
+        click('groupPreviewButton')
+        assert panel.property('defaultsDirty') and not preview.property('visible')
+        assert item('groupDefaultText0').property('text') == '仍保留的草稿'
+        click('groupResetDefaults')
+
+        # A names-only roster still displays synchronized name/information rows.
+        assert g.copyList('仅人员名单',False)
+        QTest.qWait(80)
+        assert g.pendingCount==3 and g.pendingFieldCount==0
+        assert item('groupRecipientList').property('rows')==3
+        assert item('groupNamesTable').property('rows')==3
+        assert item('groupInformationTable').property('rows')==3
+        capture('group-names-only.png')
+        click('groupAddDefault')
+        edit_default(0,'新增给-{姓名}')
+        click('groupApplyDefaults')
+        assert g.pendingFieldCount==1
+        assert json.loads(g.rows[2]['content'])[0]['text']=='新增给-王五'
+
         # A quick list switch flushes edits to the old list, never the new one.
         assert g.createCustom('另一份名单', '甲|第二份消息')
         other_id = g.selected['id']
         item('groupContactPrefix').setProperty('text', '第二份前缀-')
-        item('groupDefaultText0').setProperty('text', '第二份统一消息-{姓名}')
-        invoke(item('groupCenterPage'), 'selectList', 1)
+        edit_default(0, '第二份统一消息-{姓名}')
+        invoke(item('groupCenterPage'), 'selectList', next(i for i,r in enumerate(g.lists) if r['id']==list_id))
         assert g.store.get(other_id)['prefix'] == '第二份前缀-'
         assert json.loads(g.store.rows(other_id)[0]['content'])[0]['text'] == '第二份统一消息-甲'
         assert g.selected['id'] == list_id
         assert item('groupContactPrefix').property('text') == '测试班-'
 
         # Closing before the debounce expires still saves the active list's edit.
+        click('groupAddDefault')
+        window.close()
+        app.processEvents()
+        assert window.isVisible() and panel.property('defaultsDirty')
+        click('groupResetDefaults')
         item('groupContactPrefix').setProperty('text', '关闭前前缀-')
-        item('groupDefaultText2').setProperty('text', '关闭前默认消息')
+        edit_default(2, '关闭前默认消息')
         window.close()
         app.processEvents()
         assert g.store.get(list_id)['prefix'] == '关闭前前缀-'

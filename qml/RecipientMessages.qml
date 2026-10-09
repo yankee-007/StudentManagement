@@ -19,7 +19,7 @@ Item {
     property string draftRevision: ""
     property real nameWidth: width<750 ? 120 : 180
     property real infoWidth: width<750 ? 150 : 220
-    property real messageWidth: Math.max(210,(messageArea.width-Math.max(0,fieldCount-1))/Math.max(1,fieldCount))
+    property real messageWidth: Math.max(200,(table.width-Math.max(0,fieldCount-1))/Math.max(1,fieldCount))
     signal prefixEdited()
     signal resolveRequested(int recipientId, bool wasSent)
     function loadDefaults() {
@@ -46,6 +46,13 @@ Item {
             defaultsDirty=true
         }
     }
+    function revealDefault(index) {
+        var left=index*(messageWidth+1)
+        var right=left+messageWidth
+        if(left<defaultsScroll.contentX) defaultsScroll.contentX=left
+        else if(right>defaultsScroll.contentX+defaultsScroll.width) defaultsScroll.contentX=right-defaultsScroll.width
+        if(index<fieldCount) table.contentX=defaultsScroll.contentX
+    }
     function addDefault(kind) {
         defaults.append({sourceIndex:-1,kind:kind,value:"",mixed:false})
         defaultsDirty=true
@@ -56,9 +63,13 @@ Item {
     }
     function saveDefaults() {
         Qt.inputMethod.commit()
+        // Capture committed text even if focus changed before the IME finished.
+        for(var i=0;i<defaults.count;i++) {
+            var field=defaultsRepeater.itemAt(i)
+            if(field && field.kind==="text") updateDefault(i,field.currentText)
+        }
         if(!defaultsDirty) return true
         if(!canManage || currentListId!==center.selected.id) return false
-        console.log('DSHPROBE draft', draftRevision, 'current', center.contentRevision, 'listId', currentListId)
         if(!center.saveDefaultRow(currentListId,draftRevision,draftValues(),overridePersonal.checked)) return false
         loadDefaults()
         return true
@@ -120,12 +131,12 @@ Item {
     Component.onCompleted: { currentListId=center.selected.id || 0; loadDefaults() }
     ListModel { id: defaults }
     ColumnLayout {
-        anchors.fill: parent; spacing: 0
+        anchors.fill: parent; spacing: panel.compact ? 1 : 8
         RowLayout {
             Layout.fillWidth: true; spacing: 10
             UiPanel {
                 Layout.preferredWidth: panel.nameWidth; Layout.minimumWidth: panel.nameWidth; Layout.maximumWidth: panel.nameWidth
-                Layout.preferredHeight: panel.compact ? 96 : 140; padding: panel.compact ? 8 : 12
+                Layout.preferredHeight: panel.compact ? 112 : 140; padding: panel.compact ? 8 : 12
                 ColumnLayout {
                     anchors.fill: parent
                     Label { text: "姓名前缀"; font.bold: true; font.pixelSize: 15 }
@@ -140,13 +151,13 @@ Item {
                 }
             }
             UiPanel {
-                objectName: "groupDefaultRow"; Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.preferredHeight: panel.compact ? 96 : 140; padding: panel.compact ? 8 : 12
+                objectName: "groupDefaultRow"; Layout.fillWidth: true; Layout.minimumWidth: 0; Layout.preferredHeight: panel.compact ? 112 : 140; padding: 8
                 ColumnLayout {
                     anchors.fill: parent; spacing: 4
                     RowLayout {
                         Layout.fillWidth: true; spacing: 4
                         Label { text: "默认消息"; font.bold: true; font.pixelSize: 15; Layout.fillWidth: true; elide: Text.ElideRight }
-                        UiButton { objectName: "groupResetDefaults"; text: "重载"; visible: panel.defaultsDirty; enabled: !center.active; implicitHeight: 28; onClicked: panel.loadDefaults() }
+                        UiButton { objectName: "groupResetDefaults"; text: panel.compact ? "↶" : "重载"; implicitWidth: panel.compact ? 28 : 64; visible: panel.defaultsDirty; enabled: !center.active; implicitHeight: 28; Accessible.name: "重载已保存的默认消息"; ToolTip.visible: hovered; ToolTip.text: "放弃草稿，重载已保存的默认消息"; onClicked: panel.loadDefaults() }
                         UiButton { objectName: "groupApplyDefaults"; text: "应用"; implicitHeight: 28; enabled: panel.canManage && panel.defaultsDirty; onClicked: panel.saveDefaults() }
                         UiButton { objectName: "groupRemoveDefault"; text: "−"; implicitWidth: 28; implicitHeight: 28; enabled: panel.canManage && defaults.count>0; Accessible.name: "移除最后一条默认消息"; ToolTip.visible: hovered; ToolTip.text: "移除最后一条消息，应用后生效"; onClicked: panel.removeDefault() }
                         UiButton { objectName: "groupAddDefault"; text: "+"; implicitWidth: 28; implicitHeight: 28; enabled: panel.canManage; Accessible.name: "添加默认消息"; onClicked: panel.addDefault("text") }
@@ -159,6 +170,7 @@ Item {
                         Row {
                             id: draftRow; spacing: 1; height: defaultsScroll.height-12
                             Repeater {
+                                id: defaultsRepeater
                                 model: defaults
                                 Rectangle {
                                     id: draftField
@@ -167,6 +179,7 @@ Item {
                                     required property string kind
                                     required property string value
                                     required property bool mixed
+                                    property alias currentText: defaultText.text
                                     width: panel.messageWidth; height: draftRow.height; color: UiTheme.stripe
                                     ColumnLayout {
                                         anchors.fill: parent; anchors.margins: 4; spacing: 2; enabled: panel.canManage
@@ -182,30 +195,32 @@ Item {
                                         ScrollView {
                                             id: defaultTextScroll; visible: draftField.kind==="text"; Layout.fillWidth: true; Layout.fillHeight: true; contentWidth: availableWidth; clip: true
                                             TextArea {
-                                            objectName: "groupDefaultText"+draftField.index; width: defaultTextScroll.availableWidth; text: draftField.value
-                                            font.pixelSize: 13; color: UiTheme.ink; wrapMode: TextEdit.Wrap; selectByMouse: true
-                                            placeholderText: draftField.mixed ? "此列内容不同，填写以统一" : "填写默认消息，可用 {姓名}"
-                                            Accessible.name: "消息"+(draftField.index+1)+"默认文字"
-                                            background: Rectangle { color: UiTheme.input; border.color: parent.activeFocus ? UiTheme.focus : UiTheme.line; radius: 3 }
-                                            onTextChanged: if(!inputMethodComposing) panel.updateDefault(draftField.index,text)
-                                            onInputMethodComposingChanged: if(!inputMethodComposing) panel.updateDefault(draftField.index,text)
+                                                id: defaultText
+                                                objectName: "groupDefaultText"+draftField.index; width: defaultTextScroll.availableWidth; text: draftField.value
+                                                font.pixelSize: panel.compact ? 12 : 13; topPadding: 1; bottomPadding: 1; color: UiTheme.ink; wrapMode: TextEdit.Wrap; selectByMouse: true
+                                                placeholderText: draftField.mixed ? "此列内容不同，填写以统一" : "填写默认消息，可用 {姓名}"
+                                                Accessible.name: "消息"+(draftField.index+1)+"默认文字"
+                                                background: Rectangle { color: UiTheme.input; border.color: parent.activeFocus ? UiTheme.focus : UiTheme.line; radius: 3 }
+                                                onActiveFocusChanged: if(activeFocus) panel.revealDefault(draftField.index)
+                                                onTextChanged: if(activeFocus && !inputMethodComposing) panel.updateDefault(draftField.index,text)
+                                                onInputMethodComposingChanged: if(activeFocus && !inputMethodComposing) panel.updateDefault(draftField.index,text)
                                             }
                                         }
                                         RowLayout {
                                             visible: draftField.kind==="file"; Layout.fillWidth: true; Layout.fillHeight: true
                                             UiTextField { text: draftField.value; readOnly: true; Layout.fillWidth: true; placeholderText: "未选择文件"; Accessible.name: "消息"+(draftField.index+1)+"默认文件" }
-                                            UiButton { objectName: "groupDefaultFile"+draftField.index; text: "选择"; onClicked: { var path=center.chooseMessageFile(); if(path) panel.updateDefault(draftField.index,path) } }
+                                            UiButton { objectName: "groupDefaultFile"+draftField.index; text: "选择"; onActiveFocusChanged: if(activeFocus) panel.revealDefault(draftField.index); onClicked: { var path=center.chooseMessageFile(); if(path) panel.updateDefault(draftField.index,path) } }
                                         }
                                     }
                                 }
                             }
                         }
-                        Label { anchors.centerIn: parent; visible: defaults.count===0; text: "点击 + 添加默认消息"; color: UiTheme.muted }
+                        Label { x: defaultsScroll.contentX; y: (defaultsScroll.height-height)/2; width: defaultsScroll.width; horizontalAlignment: Text.AlignHCenter; elide: Text.ElideRight; visible: defaults.count===0; text: center.selectedIndex<0 ? "先新建或生成名单" : panel.canManage ? "点击 + 添加默认消息" : "暂无可编辑人员"; color: UiTheme.muted }
                     }
                 }
             }
             UiPanel {
-                objectName: "groupStatistics"; Layout.preferredWidth: panel.infoWidth; Layout.minimumWidth: panel.infoWidth; Layout.maximumWidth: panel.infoWidth; Layout.preferredHeight: panel.compact ? 96 : 140; padding: panel.compact ? 8 : 12
+                objectName: "groupStatistics"; Layout.preferredWidth: panel.infoWidth; Layout.minimumWidth: panel.infoWidth; Layout.maximumWidth: panel.infoWidth; Layout.preferredHeight: panel.compact ? 112 : 140; padding: panel.compact ? 8 : 12
                 ColumnLayout {
                     anchors.fill: parent; spacing: 6
                     Label { text: "状态统计"; font.bold: true; font.pixelSize: 15 }
@@ -329,7 +344,7 @@ Item {
         RowLayout {
             visible: !panel.compact; Layout.fillWidth: true
             Label { text: panel.selectedRow.id ? "当前："+panel.selectedRow.name : "默认消息在上方统一配置"; textFormat: Text.PlainText; elide: Text.ElideRight; Layout.fillWidth: true; color: UiTheme.muted }
-            UiButton { objectName: "groupEditCellButton"; text: "单独编辑"; enabled: !center.active && !!panel.selectedRow.id && panel.selectedField>=0 && panel.selectedField<(panel.selectedRow.items || []).length; onClicked: panel.openCellEditor(panel.selectedRow,panel.selectedField) }
+            UiButton { objectName: "groupEditCellButton"; text: tabs.currentIndex===0 && panel.selectedRow.editable ? "单独编辑" : "查看消息"; enabled: !center.active && !!panel.selectedRow.id && panel.selectedField>=0 && panel.selectedField<(panel.selectedRow.items || []).length; onClicked: panel.openCellEditor(panel.selectedRow,panel.selectedField) }
             UiButton { objectName: "groupEditPersonButton"; text: tabs.currentIndex===0 && panel.selectedRow.editable ? "此人全部消息" : "查看全部消息"; enabled: !!panel.selectedRow.id && !center.active; onClicked: panel.openEditor() }
         }
         RowLayout {
@@ -341,7 +356,7 @@ Item {
     }
     Menu {
         id: recipientMenu
-        MenuItem { text: "编辑所选消息"; enabled: panel.selectedField>=0 && panel.selectedField<(panel.selectedRow.items || []).length; onTriggered: panel.openCellEditor(panel.selectedRow,panel.selectedField) }
+        MenuItem { text: tabs.currentIndex===0 && panel.selectedRow.editable ? "编辑所选消息" : "查看所选消息"; enabled: panel.selectedField>=0 && panel.selectedField<(panel.selectedRow.items || []).length; onTriggered: panel.openCellEditor(panel.selectedRow,panel.selectedField) }
         MenuItem { text: "查看或编辑此人全部消息"; onTriggered: panel.openEditor() }
     }
     Dialog {

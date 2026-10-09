@@ -37,6 +37,8 @@ class GroupCenter(QObject):
         self._lists_cache=[dict(r,label=f"{r['title']} · {r['count']} 人 · {r['created_at'].replace('T',' ')}") for r in initial_lists]
         self._selected_cache={}
         self._rows_cache=[]
+        self._default_fields_cache=[]
+        self._content_revision=''
         self._preview=[];self._confirmation=None
         self._worker=None;self._paused=False;self._pause_requested=False
         self._hotkey=F11Hotkey(self.pause)
@@ -99,14 +101,22 @@ class GroupCenter(QObject):
 
     @Property(str,notify=rowsChanged)
     def contentRevision(self):
-        snapshot=[self._id,self._selected_cache.get('content_template',[]),
-                  [(r['id'],r['state'],r['content'],r['message']) for r in self._rows_cache]]
-        return hashlib.sha256(json.dumps(snapshot,ensure_ascii=False).encode('utf-8')).hexdigest()
+        return self._content_revision
 
     @Property('QVariantList',notify=rowsChanged)
     def defaultFields(self):
+        return [dict(field) for field in self._default_fields_cache]
+
+    def _build_default_fields(self):
         template=self._selected_cache.get('content_template',[])
-        rows=[r for r in self._pending_model.rows if r['editable']]
+        # selectionChanged is emitted before the table models are refreshed.
+        # Build defaults from the already-reloaded snapshot of the selected list.
+        rows=[]
+        for row in self._rows_cache:
+            if row['state'] in receipts.PROTECTED:continue
+            items=json.loads(row['content']) or []
+            if not items and row['message']:items=[dict(type='text',text=row['message'])]
+            rows.append(dict(items=items))
         count=max(len(template),max((len(r['items']) for r in rows),default=0))
         fields=[]
         for index in range(count):
@@ -124,14 +134,6 @@ class GroupCenter(QObject):
 
     @Slot(int,str,'QVariantList',bool,result=bool)
     def saveDefaultRow(self,list_id,revision,draft,override_personal):
-        import sys as _sys
-        _orig=self.defaultFields
-        print('DSHPROBE rev_match',revision==self.contentRevision,'n_draft',len(draft),
-              'n_original',len(_orig),'draftIdx',[f.get('sourceIndex') for f in draft],
-              'list_id',list_id,'self._id',self._id,
-              'template',self._selected_cache.get('content_template'),
-              'rows',[(r['id'],r['items']) for r in self._pending_model.rows],
-              file=_sys.stderr,flush=True)
         if self.active or list_id!=self._id:return False
         try:
             if revision!=self.contentRevision:raise ValueError('名单消息已变化，请重载配置后再应用；当前草稿仍保留')
@@ -186,6 +188,10 @@ class GroupCenter(QObject):
             self._lists_cache=[dict(r,label=f"{r['title']} · {r['count']} 人 · {r['created_at'].replace('T',' ')}") for r in self.store.lists()]
         self._selected_cache=self.store.get(self._id) or dict(id=0,title='',prefix='',options=normalize(),kind='',content_template=[])
         self._rows_cache=self.store.rows(self._id) if self._id else []
+        self._default_fields_cache=self._build_default_fields()
+        snapshot=[self._id,self._selected_cache.get('content_template',[]),
+                  [(r['id'],r['state'],r['content'],r['message']) for r in self._rows_cache]]
+        self._content_revision=hashlib.sha256(json.dumps(snapshot,ensure_ascii=False).encode('utf-8')).hexdigest()
         if notify:
             if lists:self.listsChanged.emit()
             if selection:self.selectionChanged.emit()

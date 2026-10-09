@@ -70,6 +70,7 @@ def run():
                 if found:return found
             return None
         template_input=visual_item(window.contentItem(),'groupDefaultText0')
+        QMetaObject.invokeMethod(template_input,'forceActiveFocus')
         template_input.setProperty('text','统一消息-{姓名}')
         save_defaults=window.findChild(QObject,'groupApplyDefaults')
         QMetaObject.invokeMethod(save_defaults,'click');QTest.qWait(100)
