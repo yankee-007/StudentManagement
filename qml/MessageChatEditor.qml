@@ -120,8 +120,14 @@ Item {
                 required property string kind
                 required property string value
                 required property bool mixed
+                readonly property string displayText: mixed ? "各人内容不同 · 编辑后统一" : kind==="file" ? "附件  ·  "+chat.fileName(value) : value
                 width: thread.width
                 height: bubbleColumn.implicitHeight+4
+                Text {
+                    id: naturalText; visible: false
+                    text: bubble.displayText; textFormat: Text.PlainText
+                    font: messageText.font; wrapMode: Text.NoWrap
+                }
                 ColumnLayout {
                     id: bubbleColumn; anchors.right: parent.right; anchors.rightMargin: 16
                     width: Math.min(thread.width-24,Math.max(220,Math.min(660,thread.width*0.86)))
@@ -159,15 +165,21 @@ Item {
                         }
                     }
                     Rectangle {
-                        Layout.fillWidth: true; implicitHeight: body.implicitHeight+24
+                        objectName: chat.controlPrefix+"BubbleCard"+bubble.index
+                        Layout.alignment: Qt.AlignRight
+                        Layout.minimumWidth: Math.min(44,bubbleColumn.width)
+                        Layout.maximumWidth: bubbleColumn.width
+                        Layout.preferredWidth: chat.editingIndex===bubble.index ? bubbleColumn.width : Math.min(bubbleColumn.width,naturalText.implicitWidth+24)
+                        implicitHeight: body.implicitHeight+24
                         color: UiTheme.selection; radius: 12
                         ColumnLayout {
                             id: body; anchors.fill: parent; anchors.margins: 12; spacing: 6
                             Label {
+                                id: messageText
                                 objectName: chat.controlPrefix+"Bubble"+bubble.index
                                 visible: chat.editingIndex!==bubble.index
                                 Layout.fillWidth: true; wrapMode: Text.Wrap; textFormat: Text.PlainText
-                                text: bubble.mixed ? "各人内容不同 · 编辑后统一" : bubble.kind==="file" ? "附件  ·  "+chat.fileName(bubble.value) : bubble.value
+                                text: bubble.displayText
                                 color: bubble.mixed ? UiTheme.muted : UiTheme.ink; font.pixelSize: 14
                                 ToolTip.visible: fileHover.hovered && bubble.kind==="file"
                                 ToolTip.text: bubble.value

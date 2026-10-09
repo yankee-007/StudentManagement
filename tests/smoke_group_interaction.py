@@ -123,6 +123,45 @@ def run():
         assert content()[1][0]['text'] == '李四，本周资料已经更新。'
         assert not panel.property('defaultsDirty')
 
+        # Bubble width follows rendered content; long text wraps at a stable cap.
+        template_text = g.defaultFields[0]['value']
+        edit(0, '好')
+        short_card = item('groupChatBubbleCard0')
+        short_width = short_card.width()
+        short_height = short_card.height()
+        right_edge = short_card.mapToScene(QPointF(short_width, 0)).x()
+        assert short_width < 100
+        edit(0, '这是一条稍长的消息 Hello 123')
+        medium_width = item('groupChatBubbleCard0').width()
+        assert medium_width > short_width+80
+        edit(0, '第二行比较长一些')
+        one_line_width = item('groupChatBubbleCard0').width()
+        edit(0, '短\n第二行比较长一些')
+        card = item('groupChatBubbleCard0')
+        assert abs(card.width()-one_line_width) < 1 and card.height() > short_height+10
+        long_text = '这是一条用于验证自动换行和最大宽度的消息。'*18
+        edit(0, long_text)
+        card = item('groupChatBubbleCard0')
+        capped_width = card.width()
+        assert capped_width > medium_width and capped_width < item('groupChatThread').width()
+        assert card.height() > short_height*2
+        assert abs(card.mapToScene(QPointF(card.width(), 0)).x()-right_edge) < 1
+        edit(0, long_text*2)
+        assert abs(item('groupChatBubbleCard0').width()-capped_width) < 1
+        # Editing expands even a one-character bubble so its controls fit.
+        edit(0, '好')
+        edit(0, '正在编辑', save=False)
+        assert item('groupChatBubbleCard0').width() > short_width+100
+        click('groupChatCancelEdit')
+        assert abs(item('groupChatBubbleCard0').width()-short_width) < 1
+        edit(0, template_text)
+        # Several different content lengths provide a real screenshot of the geometry.
+        compose('收到')
+        compose('请查收附件，完成后回复即可。')
+        compose('第一行\n这条消息有两行')
+        capture('group-bubbles-auto.png')
+        for index in (5, 4, 3): invoke(chat, 'removeMessage', index)
+
         # Real keys: Shift+Enter inserts a newline, Enter commits one raw message.
         obj = compose('第一行', send=False)
         QTest.keyClick(window, Qt.Key_Return, Qt.ShiftModifier)
