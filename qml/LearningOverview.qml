@@ -97,11 +97,15 @@ Item {
                 UiComboBox { objectName: "overviewLesson"; width: 178; model: service.lessonOptions; textRole: "label"; currentIndex: service.lessonIndex; displayText: currentIndex<0 ? "暂无有效节次" : currentText; enabled: count>0; onActivated: service.selectLesson(service.lessonOptions[currentIndex].id); Accessible.name: "评估累计节次" }
             }
         }
-        ScrollView {
+        Flickable {
             id: scroll; objectName: "overviewScroll"; Layout.fillWidth: true; Layout.fillHeight: true; clip: true
-            contentWidth: availableWidth
+            contentWidth: width - overviewScrollBar.width
+            contentHeight: overviewContent.implicitHeight
+            boundsBehavior: Flickable.StopAtBounds
+            ScrollBar.vertical: ScrollBar { id: overviewScrollBar; policy: ScrollBar.AlwaysOn }
             ColumnLayout {
-                width: scroll.availableWidth; spacing: 12
+                id: overviewContent
+                width: scroll.contentWidth; spacing: 12
                 Label { visible: !root.overview.available; text: root.overview.notice; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted; padding: 20 }
                 ColumnLayout {
                     visible: root.overview.available; Layout.fillWidth: true; spacing: 12

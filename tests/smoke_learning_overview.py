@@ -30,7 +30,7 @@ def click(window, item):
     if item.objectName() == 'overviewHomeworkCandidatesButton':
         scroll = visual(window.contentItem(), 'overviewScroll')
         top = scroll.mapToScene(QPointF(0, 0)).y()
-        viewport = scroll.property('contentItem')
+        viewport = scroll
         viewport.setProperty('contentY', max(0, viewport.property('contentY') + point.y() - top - scroll.height()/2))
         QTest.qWait(40)
         point = item.mapToScene(QPointF(item.width()/2, item.height()/2))
@@ -143,7 +143,7 @@ def run():
             for index, name in ((0,'latest'),(1,'history'),(2,'compare'),(3,'goals')):
                 click(window, visual(window.contentItem(), 'overviewTab'+str(index)))
                 scroll = visual(window.contentItem(), 'overviewScroll')
-                scroll.property('contentItem').setProperty('contentY', 0)
+                scroll.setProperty('contentY', 0)
                 QTest.qWait(70)
                 assert window.grabWindow().save(str(output/f'{name}-{width}.png'))
                 assert page.width() <= width
@@ -191,7 +191,7 @@ def run():
                     assert b.learningOverview.view['selectedLesson'] == 1
                     assert b.workflow.editorKey == cursor
                 if index in (0,2,3):
-                    viewport = scroll.property('contentItem')
+                    viewport = scroll
                     viewport.setProperty('contentY', max(0,viewport.property('contentHeight')-viewport.property('height')))
                     QTest.qWait(70)
                     assert window.grabWindow().save(str(output/f'{name}-bottom-{width}.png'))
@@ -204,7 +204,7 @@ def run():
         QTest.keyClick(window, Qt.Key_Escape); QTest.qWait(30)
         b.settingsModule.setAppearanceMode('light')
         b.learningOverview.selectBatch('goal', 1); QTest.qWait(40)
-        scroll.property('contentItem').setProperty('contentY', 0); QTest.qWait(40)
+        scroll.setProperty('contentY', 0); QTest.qWait(40)
         assert b.learningOverview.view['homeworkCandidates']['rows'] == []
         click(window, visual(window.contentItem(), 'overviewHomeworkCandidatesButton'))
         assert dialog.property('visible')
