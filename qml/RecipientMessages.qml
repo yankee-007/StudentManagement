@@ -74,8 +74,8 @@ Item {
             var value=lines[i].trim()
             if (value.length) names.push(value)
         }
-        if (!names.length) { actionNotice="没有可添加的姓名"; return }
-        submitNames(names)
+        if (!names.length) { actionNotice="没有可添加的姓名"; return 0 }
+        return submitNames(names)
     }
     function submitNames(names) {
         var result=center.addNames(center.selected.id,names)
@@ -89,9 +89,7 @@ Item {
         return result.added.length
     }
     function addTypedName(text) {
-        var name=String(text).trim()
-        if (!name.length) return 0
-        return submitNames([name])
+        return addNamesFromText(text)
     }
     function removePicked() {
         var rows=pickedRows()
@@ -174,25 +172,28 @@ Item {
             Layout.fillHeight: true; padding: 10
             ColumnLayout {
                 anchors.fill: parent; spacing: 6
-                Label { text: "群发名单"; font.bold: true; font.pixelSize: 15 }
-                Label {
-                    objectName: "groupListHint"
-                    text: tabs.currentIndex===0
-                        ? "单击选中 · Ctrl/Shift 多选 · Ctrl+C/V 复制粘贴 · Delete 删除"
-                        : "已发送记录只读；Ctrl+C 可复制姓名"
-                    color: UiTheme.muted; font.pixelSize: 11; wrapMode: Text.Wrap; Layout.fillWidth: true
-                }
+                Label { objectName: "groupListTitle"; text: "群发名单"; font.bold: true; font.pixelSize: 15 }
                 UiTextField {
                     id: prefix; objectName: "groupContactPrefix"; Layout.fillWidth: true
                     enabled: !center.active && center.selectedIndex>=0
-                    placeholderText: "姓名前缀（可留空）"; Accessible.name: "姓名前缀"
+                    placeholderText: "姓名前缀（可选）"; Accessible.name: "姓名前缀"
                     onTextChanged: panel.prefixEdited()
                 }
                 TabBar {
                     id: tabs; objectName: "groupMessageTabs"; Layout.fillWidth: true
+                    spacing: 4; padding: 3; implicitHeight: 34
+                    background: Rectangle { radius: 6; color: UiTheme.stripe; border.color: UiTheme.line }
                     onCurrentIndexChanged: { panel.selectedRow=({}); panel.clearPicked(); panel.actionNotice="" }
-                    TabButton { text: "待处理 "+center.pendingCount; font.pixelSize: 12 }
-                    TabButton { text: "已发送 "+center.sentCount; font.pixelSize: 12 }
+                    TabButton {
+                        id: pendingTab; objectName: "groupPendingTab"; text: "待处理 "+center.pendingCount; implicitHeight: 28; leftPadding: 3; rightPadding: 3
+                        contentItem: Text { text: pendingTab.text; font.pixelSize: 12; color: pendingTab.checked ? UiTheme.accentText : UiTheme.muted; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
+                        background: Rectangle { radius: 4; color: pendingTab.checked ? UiTheme.accentFill : pendingTab.hovered ? UiTheme.hover : "transparent" }
+                    }
+                    TabButton {
+                        id: sentTab; objectName: "groupSentTab"; text: "已发送 "+center.sentCount; implicitHeight: 28; leftPadding: 3; rightPadding: 3
+                        contentItem: Text { text: sentTab.text; font.pixelSize: 12; color: sentTab.checked ? UiTheme.accentText : UiTheme.muted; horizontalAlignment: Text.AlignHCenter; verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight }
+                        background: Rectangle { radius: 4; color: sentTab.checked ? UiTheme.accentFill : sentTab.hovered ? UiTheme.hover : "transparent" }
+                    }
                 }
                 ListView {
                     id: namesTable; objectName: "groupNamesTable"
@@ -202,18 +203,50 @@ Item {
                     footer: Item {
                         id: addCell
                         width: namesTable.width
-                        height: visible ? 44 : 0
+                        height: visible ? 36 : 0
                         visible: tabs.currentIndex===0 && center.selectedIndex>=0
-                        Rectangle { anchors.fill: parent; color: UiTheme.surface }
-                        UiTextField {
+                        TextArea {
                             id: newName; objectName: "groupAddNameInput"
-                            anchors.fill: parent; anchors.margins: 5
-                            placeholderText: "填写姓名，回车添加"; enabled: !center.active
+                            property bool submitting: false
+                            property int draftListId: center.selected.id || 0
+                            anchors.fill: parent; padding: 9; topPadding: 8; bottomPadding: 8; clip: true
+                            font.pixelSize: 13; color: UiTheme.ink; placeholderTextColor: UiTheme.muted
+                            selectionColor: UiTheme.accentFill; selectedTextColor: UiTheme.accentText
+                            wrapMode: TextEdit.NoWrap; textFormat: TextEdit.PlainText; selectByMouse: true
+                            placeholderText: "姓名或粘贴多行"; enabled: !center.active; hoverEnabled: true
                             Accessible.name: "添加群发名单姓名"
-                            // 页脚是独立组件作用域：清空和重新聚焦只能在这里做。
-                            onAccepted: if (panel.addTypedName(text)>0) { newName.text=""; newName.forceActiveFocus() }
+                            Accessible.description: "单个姓名回车添加，多行姓名自动逐行加入"
+                            ToolTip.visible: hovered
+                            ToolTip.text: "单个姓名按回车添加；粘贴多行姓名自动逐行加入"
+                            background: Rectangle { color: UiTheme.stripe }
+                            function submitInput() {
+                                bulkNamesTimer.stop()
+                                if (submitting || inputMethodComposing || !enabled || draftListId!==(center.selected.id || 0)) return
+                                submitting=true
+                                if (panel.addTypedName(text)>0) {
+                                    text=""
+                                    namesTable.forceLayout()
+                                    namesTable.positionViewAtEnd()
+                                    forceActiveFocus()
+                                }
+                                submitting=false
+                            }
+                            function queueMultiline() {
+                                if (!submitting && !inputMethodComposing && /[\r\n]/.test(text)) bulkNamesTimer.restart()
+                            }
+                            onTextChanged: queueMultiline()
+                            onInputMethodComposingChanged: if(!inputMethodComposing) queueMultiline()
+                            onDraftListIdChanged: { bulkNamesTimer.stop(); text="" }
+                            Keys.onPressed: function(event) {
+                                if (event.key===Qt.Key_Return || event.key===Qt.Key_Enter) {
+                                    if (!inputMethodComposing && !event.isAutoRepeat) submitInput()
+                                    event.accepted=true
+                                }
+                            }
+                            // 等本次粘贴结束后再改模型，避免在输入控件的 textChanged 中重入。
+                            Timer { id: bulkNamesTimer; interval: 0; onTriggered: newName.submitInput() }
                         }
-                        Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: 1; color: UiTheme.line }
+                        Rectangle { anchors.left: parent.left; anchors.right: parent.right; anchors.bottom: parent.bottom; height: newName.activeFocus ? 2 : 1; color: newName.activeFocus ? UiTheme.accent : UiTheme.line }
                     }
                     delegate: Rectangle {
                         id: nameCell
@@ -221,15 +254,16 @@ Item {
                         required property string display
                         required property string recordKey
                         objectName: "groupName"+index
-                        width: namesTable.width; height: 42
-                        color: panel.isPicked(recordKey) ? UiTheme.selection : nameMouse.containsMouse ? UiTheme.stripe : UiTheme.surface
+                        width: namesTable.width; height: 36
+                        color: panel.isPicked(recordKey) ? UiTheme.selection : nameMouse.containsMouse ? UiTheme.hover : index%2 ? UiTheme.stripe : UiTheme.surface
+                        border.width: activeFocus ? 1 : 0; border.color: UiTheme.focus
                         activeFocusOnTab: true
                         Accessible.role: Accessible.Button
                         Accessible.name: panel.contactPrefix+display
                         Accessible.description: "双击查看或编辑个人消息；Ctrl 或 Shift 可多选"
                         Text {
                             objectName: "groupNameLabel"+nameCell.index
-                            anchors.fill: parent; anchors.leftMargin: 7; anchors.rightMargin: 7
+                            anchors.fill: parent; anchors.leftMargin: 9; anchors.rightMargin: 9
                             text: panel.contactPrefix+nameCell.display; textFormat: Text.PlainText
                             verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight; color: UiTheme.ink; font.pixelSize: 14
                         }
@@ -257,8 +291,8 @@ Item {
                 }
                 Label {
                     objectName: "groupListNotice"
-                    text: panel.actionNotice.length ? panel.actionNotice : "双击姓名查看或编辑个人消息"
-                    color: panel.actionNotice.length ? UiTheme.warning : UiTheme.muted
+                    text: panel.actionNotice; visible: text.length>0
+                    color: UiTheme.warning
                     font.pixelSize: 11; Layout.fillWidth: true; wrapMode: Text.Wrap; maximumLineCount: 2; elide: Text.ElideRight
                 }
             }

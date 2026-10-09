@@ -617,6 +617,10 @@ def run():
         assert names_view.metaObject().className() == 'QQuickListView', names_view.metaObject().className()
         add_cell = item('groupAddNameInput')
         assert add_cell.property('visible') and add_cell.property('enabled')
+        assert window.findChild(QObject, 'groupListHint') is None
+        title_bottom = item('groupListTitle').mapToScene(QPointF(0, item('groupListTitle').height())).y()
+        assert 0 <= item('groupContactPrefix').mapToScene(QPointF(0, 0)).y()-title_bottom <= 7
+        assert not item('groupListNotice').property('visible')
         capture('group-empty-plan.png')
         for name in ('手填甲', '手填乙', '手填丙'):
             invoke(add_cell, 'forceActiveFocus')
@@ -630,6 +634,7 @@ def run():
         QTest.keyClick(window, Qt.Key_Return); QTest.qWait(110)
         assert [row['name'] for row in g.rows] == ['手填甲', '手填乙', '手填丙']
         assert '跳过名单内同名' in item('groupListNotice').property('text'), item('groupListNotice').property('text')
+        assert add_cell.property('text') == '手填甲'
         # 每行底边一条分隔线，行距为 0，看起来像表格。
         row_item = item('groupName0')
         separators = [child for child in row_item.childItems()
@@ -658,6 +663,76 @@ def run():
         assert item('groupRemoveNamesDialog').property('visible')
         click('confirmRemoveNames')
         assert [row['name'] for row in g.rows] == ['手填甲', '手填乙', '手填丙', '粘贴乙'], g.status
+
+        # 填写框保留换行，直接粘贴多行就逐行加入，空行和同名自动跳过。
+        invoke(add_cell, 'forceActiveFocus')
+        add_cell.setProperty('text', '')
+        QGuiApplication.clipboard().setText('填写甲\r\n \r\n填写乙\n手填甲\r\n填写甲')
+        QTest.keyClick(window, Qt.Key_V, Qt.ControlModifier); QTest.qWait(120)
+        expected_names = ['手填甲', '手填乙', '手填丙', '粘贴乙', '填写甲', '填写乙']
+        assert [row['name'] for row in g.rows] == expected_names, g.status
+        assert add_cell.property('text') == '' and add_cell.property('activeFocus')
+        assert '已添加 2 人' in item('groupListNotice').property('text')
+
+        # 原生粘贴方法同样按行加入；单行粘贴仍等回车，输入法组合回车不添加。
+        QGuiApplication.clipboard().setText('原生甲\n原生乙')
+        invoke(add_cell, 'paste')
+        expected_names += ['原生甲', '原生乙']
+        assert [row['name'] for row in g.rows] == expected_names
+        QGuiApplication.clipboard().setText('单行姓名')
+        invoke(add_cell, 'paste')
+        assert add_cell.property('text') == '单行姓名' and [row['name'] for row in g.rows] == expected_names
+        QTest.keyClick(window, Qt.Key_Return); QTest.qWait(100)
+        expected_names += ['单行姓名']
+        assert [row['name'] for row in g.rows] == expected_names
+        app.sendEvent(window, QInputMethodEvent('组合姓名', []))
+        assert add_cell.property('inputMethodComposing')
+        QTest.keyClick(window, Qt.Key_Return)
+        assert [row['name'] for row in g.rows] == expected_names
+        commit_name = QInputMethodEvent(); commit_name.setCommitString('组合姓名')
+        app.sendEvent(window, commit_name)
+        QTest.keyClick(window, Qt.Key_Return); QTest.qWait(100)
+        expected_names += ['组合姓名']
+        assert [row['name'] for row in g.rows] == expected_names
+
+        # 批量保存失败保留整段输入，回车可重试；全为重复姓名时也保留原文。
+        with patch.object(g.store, 'add_recipients', side_effect=RuntimeError('模拟批量添加失败')):
+            add_cell.setProperty('text', '重试甲\n重试乙'); QTest.qWait(100)
+            assert [row['name'] for row in g.rows] == expected_names
+            assert add_cell.property('text') == '重试甲\n重试乙'
+            assert '模拟批量添加失败' in item('groupListNotice').property('text')
+        QTest.keyClick(window, Qt.Key_Return); QTest.qWait(100)
+        expected_names += ['重试甲', '重试乙']
+        assert [row['name'] for row in g.rows] == expected_names and add_cell.property('text') == ''
+        add_cell.setProperty('text', '填写甲\n填写乙'); QTest.qWait(100)
+        assert [row['name'] for row in g.rows] == expected_names and add_cell.property('text') == '填写甲\n填写乙'
+
+        # 长名单批量加入后，添加单元格仍在视口内，亮暗和小窗均可继续填写。
+        bulk_names = ['批量学员'+str(i) for i in range(40)]
+        add_cell.setProperty('text', '\n'.join(bulk_names)); QTest.qWait(120)
+        expected_names += bulk_names
+        assert [row['name'] for row in g.rows] == expected_names and add_cell.property('text') == ''
+        for mode in ('light', 'dark'):
+            assert b.settingsModule.setAppearanceMode(mode)
+            for width, height in ((1250, 800), (720, 480)):
+                window.resize(width, height); QTest.qWait(100)
+                invoke(names_view, 'positionViewAtEnd')
+                top = add_cell.mapToScene(QPointF(0, 0)).y()
+                assert top >= names_view.mapToScene(QPointF(0, 0)).y()-1
+                assert top+add_cell.height() <= names_view.mapToScene(QPointF(0, names_view.height())).y()+1
+                for name in ('groupPendingTab', 'groupSentTab'):
+                    assert not item(name).property('contentItem').property('truncated'), name
+                capture('group-input-'+mode+'-'+str(width)+'.png')
+
+        # 延后处理的多行输入不能跟着切换写入另一个方案。
+        draft_list_id = g.selected['id']
+        add_cell.setProperty('text', '不应加入甲\n不应加入乙')
+        g.selectList(next(i for i, row in enumerate(g.lists) if row['id'] == list_id))
+        QTest.qWait(100)
+        assert [row['name'] for row in g.store.rows(draft_list_id)] == expected_names
+        assert not any(row['name'] in ('不应加入甲', '不应加入乙') for row in g.rows)
+        assert add_cell.property('text') == ''
+        assert b.settingsModule.setAppearanceMode('light')
         QGuiApplication.clipboard().setText(saved_clipboard)
         invoke(item('groupCenterPage'), 'selectList', next(i for i, row in enumerate(g.lists) if row['id'] == list_id))
         assert g.selected['id'] == list_id
