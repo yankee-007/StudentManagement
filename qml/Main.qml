@@ -235,7 +235,7 @@ ApplicationWindow {
                                 var fields = wf.managedFields
                                 if (c < 0 || c >= fields.length || !fields[c].show_column) return 0
                                 var key = fields[c].field_id
-                                return key === "student_id" ? 120 : (key === "feedback" || key === "courses" || key === "homework") ? 180 : 100
+                                return key === "student_id" ? 120 : (key === "feedback" || key.indexOf("previous_feedback_") === 0 || key === "courses" || key === "homework") ? 180 : 100
                             }
                             rowHeightProvider: function() { return UiTheme.rowHeight }
                             ScrollBar.horizontal: ScrollBar { }

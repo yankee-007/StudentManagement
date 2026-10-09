@@ -4,6 +4,7 @@
 
 | Task ID | 标题 | 工作状态 | 分支或范围 | 文件 |
 | --- | --- | --- | --- | --- |
+| TASK-20261009-c17bfef2a601 | 学员画像管理字段交互与布局 | awaiting_acceptance | codex/daily-workspace／后台排序保存、重置默认、紧凑卡片；19项回归和真实QML通过，待体感验收 | [任务](TASK-20261009-c17bfef2a601-profile-field-manager.md) |
 | TASK-20261009-227f0bb86b8b | AI 催交话术生成（课程节次选模板＋自然话术＋设置配置） | awaiting_acceptance | codex/daily-workspace／已实现，60项定向测试及AI／设置／群发／工作台QML通过，待真实服务与效果验收 | [任务](TASK-20261009-227f0bb86b8b-ai-campaign-scripts.md) |
 | TASK-20261009-3d3ea7be82a4 | 群发聊天式消息模板 | awaiting_acceptance | codex/daily-workspace／三栏配置（模板居中）、气泡双击与外部点击保存、方案重命名、群发名单手填/多选复制粘贴 | [任务](TASK-20261009-3d3ea7be82a4-group-chat-template.md) |
 | TASK-20261008-92b25cfb4c40 | 学员画像批量验证微信 | awaiting_acceptance | codex/daily-workspace／筛选优先、默认未退课，26项及真实QML通过，待企微验收 | [任务](TASK-20261008-92b25cfb4c40-profile-wechat-verification.md) |

@@ -70,11 +70,13 @@ def run():
 
         manager=window.findChild(QObject,'profileFieldManager')
         QMetaObject.invokeMethod(manager,'open'); QTest.qWait(100)
-        order=window.findChild(QObject,'profileFieldOrder')
-        handle=visual(order,lambda i:i.objectName()=='fieldDragHandle' and i.parentItem().parentItem().parentItem().property('index')==0)
+        order=manager.findChild(QObject,'profileFieldOrder')
+        handle=visual(order,lambda i:i.objectName()=='fieldDragHandle' and i.parentItem().property('index')==0)
         assert handle is not None
         start=handle.mapToScene(QPointF(handle.width()/2,handle.height()/2)).toPoint()
-        finish=start+QPointF(0,84).toPoint()
+        target=visual(order,lambda i:i.objectName()=='profileFieldRow' and i.property('index')==2)
+        y=target.mapToItem(order,QPointF(0,target.height())).y()+order.property('rowSpacing')/2
+        finish=order.mapToScene(QPointF(40,y)).toPoint()
         original=b.profilesModule.managedFields[0]['field_id']
         QTest.mousePress(window,Qt.LeftButton,Qt.NoModifier,start)
         QTest.mouseMove(window,finish,100)

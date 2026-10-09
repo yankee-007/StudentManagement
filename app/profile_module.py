@@ -2,9 +2,10 @@
 import json
 import uuid
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from PySide6.QtWidgets import QFileDialog
-from PySide6.QtCore import QObject, Property, Signal, Slot
+from PySide6.QtCore import QCoreApplication, QObject, Property, Signal, Slot, QTimer
 from .database import Database
 from .repository import StudentRepository
 from .qt_models import DictTableModel
@@ -21,6 +22,9 @@ FIXED_COLUMNS = [('class_name','班期'),('student_id','学号'),('name','姓名
 class ProfileModule(QObject):
     changed = Signal()
     selectionChanged = Signal()
+    fieldLayoutChanged = Signal()
+    editorFieldsChanged = Signal()
+    fieldOrderSavingChanged = Signal()
     layoutChanged = Signal()
     fieldSaved = Signal(str, str, str)
     rosterChanged = Signal()
@@ -39,6 +43,17 @@ class ProfileModule(QObject):
         self._sort=-1
         self._descending=False
         self._notice='修改后自动保存'
+        self._managed_fields=None
+        self._order_executor=None
+        self._order_jobs=[]
+        self._order_sequence=0
+        self._order_timer=QTimer(self)
+        self._order_timer.setInterval(40)
+        self._order_timer.timeout.connect(self._finish_field_orders)
+        if QCoreApplication.instance():
+            QCoreApplication.instance().aboutToQuit.connect(self.flushFieldOrder)
+        self.changed.connect(self.fieldLayoutChanged)
+        self.selectionChanged.connect(self.editorFieldsChanged)
         self.refresh()
         from .profile_wechat import ProfileWechatVerifier
         self._wechat_verifier = ProfileWechatVerifier(self)
@@ -48,8 +63,10 @@ class ProfileModule(QObject):
 
     @Property(QObject,constant=True)
     def tableModel(self):return self._model
-    @Property('QVariantList',notify=changed)
+    @Property('QVariantList',notify=fieldLayoutChanged)
     def columnLabels(self):return [label for key,label in self._model.columns]
+    @Property('QVariantList',notify=fieldLayoutChanged)
+    def columnKeys(self):return [key for key,label in self._model.columns]
     @Property(int,notify=changed)
     def total(self):return len(self._rows)
     @Property(int,notify=changed)
@@ -145,7 +162,7 @@ class ProfileModule(QObject):
     def selected(self):return self._selected
     @Property(str,notify=changed)
     def notice(self):return self._notice
-    @Property('QVariantList',notify=selectionChanged)
+    @Property('QVariantList',notify=editorFieldsChanged)
     def fields(self):
         return self.editor_fields(self._selected, not self._all)
 
@@ -153,8 +170,10 @@ class ProfileModule(QObject):
         fields = student.get('profile_fields', {})
         result = []
         if not student:return []
-        db = Database(student['_db_path']) if student.get('_db_path') else self.owner.db
-        for item in self.managed_fields(db):
+        path = student.get('_db_path')
+        db = self.owner.db if not path or path == str(self.owner.db.path) else Database(path)
+        layout = self.managedFields if db is self.owner.db else self.managed_fields(db)
+        for item in layout:
             if not item['show_column']:continue
             label=item['name']
             if not item['deletable'] and label not in BASE_PROFILE_LABELS and label!='免催日期':continue
@@ -210,9 +229,11 @@ class ProfileModule(QObject):
     def _visibility(self, db=None):
         return json.loads(StudentRepository(db or self.owner.db).get_setting('profile_column_visibility','{}'))
 
-    @Property('QVariantList',notify=changed)
+    @Property('QVariantList',notify=fieldLayoutChanged)
     def managedFields(self):
-        return self.managed_fields(self.owner.db)
+        if self._managed_fields is None:
+            self._managed_fields=self.managed_fields(self.owner.db)
+        return self._managed_fields
 
     def managed_fields(self, db):
         visible=self._visibility(db)
@@ -225,19 +246,103 @@ class ProfileModule(QObject):
     @Slot(str,int,result=bool)
     def moveField(self,field_id,index):
         if self._all:return False
-        ids=[r['field_id'] for r in self.managedFields]
-        if field_id not in ids:return False
-        ids.remove(field_id)
-        ids.insert(max(0,min(index,len(ids))),field_id)
-        self.owner.repo.set_setting('profile_field_order',json.dumps(ids))
-        self.refresh()
+        self.flushFieldOrder()
+        return self._move_field(field_id,index,False)
+
+    @Slot(str,int,result=bool)
+    def moveFieldAsync(self,field_id,index):
+        if self._all:return False
+        return self._move_field(field_id,index,True)
+
+    def _move_field(self,field_id,index,background):
+        fields=list(self.managedFields)
+        source=next((i for i,f in enumerate(fields) if f['field_id']==field_id),-1)
+        if source<0:return False
+        target=max(0,min(index,len(fields)-1))
+        if target==source:return True
+        fields.insert(target,fields.pop(source))
+        value=json.dumps([f['field_id'] for f in fields])
+        if background:
+            if self._order_executor is None:
+                self._order_executor=ThreadPoolExecutor(max_workers=1,thread_name_prefix='profile-field-order')
+            self._order_sequence+=1
+            # Capture the current database; later class changes cannot redirect this write.
+            future=self._order_executor.submit(StudentRepository(self.owner.db).set_setting,'profile_field_order',value)
+            was_saving=bool(self._order_jobs)
+            self._order_jobs.append((self._order_sequence,str(self.owner.db.path),future))
+            if not was_saving:self.fieldOrderSavingChanged.emit()
+            self._order_timer.start()
+        else:
+            self.owner.repo.set_setting('profile_field_order',value)
+        self._apply_field_layout(fields)
+        return True
+
+    @Property(bool,notify=fieldOrderSavingChanged)
+    def fieldOrderSaving(self):return bool(self._order_jobs)
+
+    def _finish_field_orders(self,wait=False):
+        failures=[]
+        finished=[]
+        for job in self._order_jobs:
+            sequence,path,future=job
+            if not wait and not future.done():continue
+            try:future.result()
+            except Exception as exc:failures.append((sequence,path,str(exc)))
+            finished.append(job)
+        was_saving=bool(self._order_jobs)
+        self._order_jobs=[job for job in self._order_jobs if job not in finished]
+        if not self._order_jobs:
+            self._order_timer.stop()
+            if was_saving:self.fieldOrderSavingChanged.emit()
+        for sequence,path,error in failures:
+            # A later successful queued order supersedes an older failed write.
+            if sequence!=self._order_sequence:continue
+            self._notice='字段排序保存失败：'+error
+            if path==str(self.owner.db.path):
+                self._apply_field_layout(self.managed_fields(self.owner.db))
+            self.changed.emit()
+        return not failures
+
+    @Slot(result=bool)
+    def flushFieldOrder(self):
+        return self._finish_field_orders(wait=True)
+
+    def _apply_field_layout(self,fields):
+        # Layout changes reuse loaded rows, their frozen scope and the current cursor.
+        self._managed_fields=fields
+        sort_key=self._model.columns[self._sort][0] if 0<=self._sort<len(self._model.columns) else None
+        columns=[(f['field_id'][7:] if f['field_id'].startswith('column:') else 'profile:'+f['name'],f['name'])
+                 for f in fields if f['show_column']]
+        if columns!=self._model.columns:
+            self._model.beginResetModel()
+            self._model.columns=columns
+            self._model.endResetModel()
+        self._sort=next((i for i,c in enumerate(columns) if c[0]==sort_key),-1)
+        self.fieldLayoutChanged.emit()
+        self.editorFieldsChanged.emit()
         self.layoutChanged.emit()
+
+    @Slot(result=bool)
+    def resetFieldLayout(self):
+        if self._all:return False
+        try:
+            self.flushFieldOrder()
+            with self.owner.db.connect() as conn:
+                conn.execute("DELETE FROM settings WHERE key IN ('profile_field_order','profile_column_visibility')")
+                conn.execute('UPDATE profile_field_definitions SET show_column=1')
+            fields=self.managed_fields(self.owner.db)
+        except Exception as exc:
+            self._notice='恢复默认失败：'+str(exc);self.changed.emit();return False
+        self._notice='已恢复默认顺序和显示，字段及填写内容已保留'
+        self._apply_field_layout(fields)
+        self.changed.emit()
         return True
 
     @Slot(str,result=bool)
     def deleteField(self,field_id):
         if self._all:return False
         try:
+            self.flushFieldOrder()
             with self.owner.db.connect() as conn:
                 if not conn.execute('SELECT 1 FROM profile_field_definitions WHERE field_id=?',(field_id,)).fetchone():
                     raise ValueError('仅能删除存在的额外字段')
@@ -254,6 +359,7 @@ class ProfileModule(QObject):
     def addField(self,name,kind,options,show_column):
         if self._all:return False
         try:
+            self.flushFieldOrder()
             name=name.strip()
             if not name or name in set(PROFILE_INPUT_LABELS)|{'学号','姓名','状态','班期','免催日期','合计完课','合计作业','差的课程','差的作业'} or name in REMOVED_FIELDS:
                 raise ValueError('字段名称为空、已存在或属于系统字段')
@@ -272,6 +378,7 @@ class ProfileModule(QObject):
     @Slot(str,bool)
     def setFieldVisible(self,field_id,visible):
         if self._all:return
+        self.flushFieldOrder()
         if field_id.startswith('column:'):
             key=field_id[len('column:'):]
             if key in ('student_id','name') or key not in dict(FIXED_COLUMNS):return
@@ -310,6 +417,8 @@ class ProfileModule(QObject):
 
     @Slot()
     def refresh(self, current_students=None, keep_query=False):
+        self.flushFieldOrder()
+        self._managed_fields=None
         if self._context_path!=str(self.owner.db.path):
             self._context_path=str(self.owner.db.path)
             self._filters.clear()

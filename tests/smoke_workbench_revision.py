@@ -290,6 +290,29 @@ def run():
         window.close()
         assert backend.workflow.store.rows(backend.workflow._batch, sid)[0]['feedback'] == '主窗口关闭前输入'
         app.processEvents()
+        # 查看以往反馈情况：创建第二个批次后，管理字段勾选开关会在表格追加历史反馈列并填充内容
+        old_batch = backend.workflow._batch
+        backend.workflow.createBatch()
+        app.processEvents()
+        assert backend.workflow._batch != old_batch
+        field_dialog = window.findChild(QObject, "campaignFieldDialog")
+        assert QMetaObject.invokeMethod(field_dialog, "open")
+        app.processEvents()
+        prev_box = field_dialog.findChild(QObject, "campaignShowPreviousFeedback")
+        assert prev_box is not None and prev_box.property("checked") == backend.workflow.showPreviousFeedback
+        backend.workflow.setShowPreviousFeedback(True)
+        app.processEvents()
+        assert backend.workflow.showPreviousFeedback
+        prev_key = f'previous_feedback_{old_batch}'
+        assert prev_key in backend.workflow.columnKeys
+        assert dict(backend.workflow._model.columns)[prev_key].startswith('以往反馈情况（')
+        assert next(r for r in backend.workflow._rows if r['student_id'] == sid).get(prev_key) == '主窗口关闭前输入'
+        assert prev_key in [f['field_id'] for f in backend.workflow.managedFields]
+        backend.workflow.setShowPreviousFeedback(False)
+        app.processEvents()
+        assert not backend.workflow.showPreviousFeedback
+        assert not any(k.startswith('previous_feedback_') for k in backend.workflow.columnKeys)
+        field_dialog.close()
 
 
 if __name__ == "__main__":

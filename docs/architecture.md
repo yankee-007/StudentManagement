@@ -33,14 +33,15 @@ AI 催交于2026-10-09接入 Backend.aiCampaign。设置卡片保存非密参数
 
 ## Python ↔ QML 与状态
 
-- QML 展示层共用 UiTheme、UiButton、UiTextField、UiComboBox、UiPanel；本地 qmldir 注册主题单例。左侧导航调用原 switchModule，群发中心位于最后。班期学员／画像／催办等共用顶部 classSelector，班期页通过 Workflow.selectClass → TermModule.alignTerm/activate 跟随当前班级；activate 和班期目录刷新均按当前班级 term_id 选择缓存，未关联平台的旧导入班级显示空名单及选择提示，避免显示另一班期的缓存。调试重启保留原保护条件。工作台／画像窄窗口切换列表与详情的可见性，不销毁编辑组件、不改保存和业务接口。群发按群发名单／模板／发送配置三栏排列（消息模板居中），姓名仅展示前缀＋姓名，模板常驻纵向气泡，移除逐人消息表和统计卡片；双击姓名打开个人消息弹窗（已移除「查看个人消息」按钮）。左侧「群发名单」标题后直接配置前缀，待处理／已发送采用分段页签；ListView 行高 36px、交替底色、行间 1px 横线、行距 0，页脚为 TextArea 添加单元格（单个姓名回车提交、多行粘贴自动按行加入；0ms Timer 等待粘贴结束，组合输入不提交，切换名单取消待处理输入；成功后清空保留焦点并滚动到底部，全为重复或失败时保留输入），选择用 recordKey 集合维护，支持 Ctrl 增删、Shift 连选、Ctrl+C 复制、Ctrl+V 粘贴加入与 Delete 删除，剪贴板经隐藏 TextEdit 桥接系统剪贴板。MessageChatEditor 复用于公共模板和个人消息，支持 Enter 加入、Shift＋Enter 换行、组合输入保护、双击气泡内联编辑并以回车或点击外部提交、文件及顺序；文字气泡按最宽一行实测宽度自适应并留 2 像素余量，能放进列宽的消息以 NoWrap 渲染，设备像素取整不再把末字挤到下一行，只有整条消息超过列宽上限才换行，换行时不拆开 `{变量}` 占位符；消息线程与姓名列表独立滚动，长消息内联编辑单独滚动，当前编辑委托在移出视口时保留。发送参数在右侧自动保存；粘贴等待默认 0.5 秒，关闭回车发送时单条发送禁用并置灰。
+- QML 展示层共用 UiTheme、UiButton、UiTextField、UiComboBox、UiPanel；本地 qmldir 注册主题单例。左侧导航调用原 switchModule，群发中心位于最后。班期学员／画像／催办等共用顶部 classSelector，班期页通过 Workflow.selectClass → TermModule.alignTerm/activate 跟随当前班级；activate 和班期目录刷新均按当前班级 term_id 选择缓存，未关联平台的旧导入班级显示空名单及选择提示，避免显示另一班期的缓存。调试重启保留原保护条件。工作台／画像窄窗口切换列表与详情的可见性，不销毁编辑组件、不改保存和业务接口。群发按群发名单／模板／发送配置三栏排列（消息模板居中），姓名仅展示前缀＋姓名，模板默认纵向气泡，标题右侧切换逐人消息表格（保留标题与说明，两种模式固定相同 padding／表头高度）；TableView 使用 GroupCenter 的 pendingMessageModel／sentMessageModel，和姓名模型共用同源人员顺序及 recordKey，以 40px 行高、相同视口和 bottomMargin 按 contentY−originY 双向联动。字段列最小 220px，正文省略且不附加标号，消息1／消息2…表头同步 contentX；长文悬停打开可滚动只读 Popup，字段表头在弹窗复用原 MessageChatEditor，切换先检查草稿；双击姓名或消息行打开个人消息弹窗（已移除「查看个人消息」按钮）。左侧「群发名单」标题后直接配置前缀，待处理／已发送采用下划线页签；ListView 行高 40px、统一底色，选中行浅色背景与左侧细标记，行间 1px 横线缩进 12px 并降低透明度、行距 0，页脚为 TextArea 添加单元格与「＋」按钮（单个姓名回车或点击按钮提交、多行粘贴自动按行加入；0ms Timer 等待粘贴结束，组合输入不提交，切换名单取消待处理输入；成功后清空保留焦点并滚动到底部，全为重复或失败时保留输入），选择用 recordKey 集合维护，支持 Ctrl 增删、Shift 连选、Ctrl+C 复制、Ctrl+V 粘贴加入与 Delete 删除，剪贴板经隐藏 TextEdit 桥接系统剪贴板。MessageChatEditor 复用于公共模板和个人消息，支持 Enter 加入、Shift＋Enter 换行、组合输入保护、双击气泡内联编辑并以回车或点击外部提交、文件及顺序；文字气泡按最宽一行实测宽度自适应并留 2 像素余量，能放进列宽的消息以 NoWrap 渲染，设备像素取整不再把末字挤到下一行，只有整条消息超过列宽上限才换行，换行时不拆开 `{变量}` 占位符；聊天模式的消息线程与姓名列表独立滚动，表格模式的纵向滚动同步、字段可横向查看，长消息内联编辑单独滚动，当前编辑委托在移出视口时保留。发送参数在右侧自动保存；粘贴等待默认 0.5 秒，关闭回车发送时单条发送禁用并置灰。
 - SettingsModule.appearanceMode 读取主 registry 的 settings.appearance_mode（light/dark，旧库或无效值默认 light），保存成功后只发 appearanceChanged，不广播账号/绑定 changed。UiTheme 绑定该属性，统一语义颜色与 Fusion Palette；主窗口和两个独立 Window 共享此 Palette。OverviewChart 将既有业务颜色映射为主题颜色并延迟重绘，保留当前选择/缩放。Backend 日期弹窗和 LeaveCalendar 使用对应 QWidget Palette，包含自绘日期格与星期标题；文件选择器仍由 Windows 原生界面承载。
 
 - Backend 以常量 QObject Property 暴露模块；QML 使用 QVariantMap/List 读取行、字段、参数，调用 Slot，以 notify signal 更新绑定。
 - DictTableModel 是 QAbstractTableModel，角色包括 display、studentId、recordKey、expiredCell、staleRow。set_rows 重置模型，reconcile_rows 用增删移动/数据通知减少委托重建。
 - Workflow 的 _rows 是完整批次行，_model.rows 是当前显示集合（冻结结果集，可能含已不符合筛选的过期行），_selected 是主表选择。selectionChanged、queryChanged、changed 不可任意互换。
 - 筛选按 ADR-007 冻结：应用筛选时把命中 key 存入 _frozen，值变化只更新数据并写 _filter_stale，只有显式重新筛选（搜索、视图、列筛选、切班/切批、刷新数据、重新应用）才重算；业务取数必须走 _scope_rows()（显示集合去掉过期行），不能直接用 _model.rows。
-- 列筛选按字段 key 保存；ProfileFilterDialog 共用于画像和工作台，ProfileFieldOrder 负责字段拖拽。工作台隐藏列宽为 0，模型仍保留数据列。
+- 列筛选按字段 key 保存；ProfileFilterDialog 共用于画像和工作台。ProfileFieldOrder 共用卡片拖动、插入间隙索引转换、边缘滚动及按钮排序，ProfileFieldCard 展示字段名、类型／固定备注与显隐；48px卡片／6px间距，ListModel按ID增量移动，间隙及滚动边界计入originY与8px头部。拖动保留源占位，半透明缩窄副本按原抓取点比例定位，动画和移动期间保持指针位置、不限制副本横向位置，画像拖动层高于新增表单。释放前清理手势；画像调用moveFieldAsync，工作台仍调用moveField，字段通知／关闭取消手势。画像管理字段宽窗双栏、窄窗切换新增表单。工作台隐藏列宽为 0，模型仍保留数据列。
+- ProfileModule排序只更新字段配置及表格列，复用学员行、冻结筛选、排序键和光标；managedFields在refresh失效，当前班编辑字段复用owner.db与字段缓存。fieldLayoutChanged／editorFieldsChanged定向通知布局和编辑器，原changed／selectionChanged继续转发相应通知；表头用columnKeys判断筛选标记，点击时才计算选项。moveField保留同步契约；UI的moveFieldAsync即时更新布局，单工作线程捕获当时数据库并串行写profile_field_order，40ms定时器收取结果，fieldOrderSaving显示待保存状态。flushFieldOrder在面板关闭、refresh（含切班）、其他字段修改及aboutToQuit时等待写完；最新失败提示并回退已保存布局。resetFieldLayout在同一事务清除本班顺序／显隐设置并显示所有现有额外字段，保留定义、值和删除标记；不改变schema。
 - 画像记录身份组合数据库路径/学号；工作台 editorKey 是 JSON [db_path,batch_id,student_id]。名单对话框捕获 recipientKeys，后端检查仍与当前筛选完全一致。
 - CampaignDetail 由主界面和催办浮窗共用，反馈为单行 TextField + 点击展开的 Menu，无独立下拉按钮。TapHandler 保留原输入事件；Menu 不抢输入焦点，键入时收起，快捷内容追加到末尾，非空时以「；」分隔。Menu 按上下空间定位，限制高度支持滚动，避免覆盖输入框；捕获 editorKey 防止旧菜单写入新学员。列表底部提供添加选项，默认「答应补课」「未接听电话」，新增选项存于当前班级 settings.campaign_feedback_shortcuts，经专用通知同步，避免广播重建编辑器。字段模型仅在布局签名改变时更新，值单独绑定；反馈保存不能重建编辑器。后端拒绝旧身份 key，工作台集中保存带身份的待保存反馈，连续输入只重启 500ms 定时器，不逐键写库或广播刷新。
 - 切班/切班期是同步 Slot：selectClass 会重建班级上下文并刷新名单、批次和画像，实测整班首次切换约 430ms、缓存命中 30–75ms，必须由 WaitingOverlay 覆盖。
@@ -48,7 +49,7 @@ AI 催交于2026-10-09接入 Backend.aiCampaign。设置卡片保存非密参数
 - 长耗时提示必须提前决定：同步刷新会冻结事件循环，定时器只能在刷新结束后才触发，事后补提示必然晚于工作完成。因此由 Workflow.classRosterSize / TermModule.termRosterSize 在切换前读取缓存人数（只读连接，不构造 Database、不触发迁移，结果按班期缓存），≥300 人或未知时首帧即显示“数据较多，加载时间稍长”。
 - 切班时同一次统计只取一遍名单：selectClass 把 owner.refresh() 返回的 students 分别传给 reload_batches/reload_rows/live_roster 和 _refresh_statistics。list_students 在 900 人班约 30–45ms，重复调用是切班的主要可消除开销。
 
-- 群发模板捕获list_id与contentRevision；defaultFields由选中名单原始缓存计算。MessageChatEditor 用 sourceIndex 关联原始槽位，新条目为 -1，排序不重编号。每次气泡操作经 saveDefaultRow / GroupStore.save_default_row 同一事务校验并写入可编辑人员内容及模板；成功后在原模型更新修订和槽位，保持滚动与待加入输入，失败保留草稿。内联失败恢复字段旧值及原 dirty 状态，仅保留 editText 供修正；Esc 取消该编辑，已有其他失败操作稿保留，干净稿遇修订变化时重载。未编辑的混合槽位与个人覆盖保持原值，删除槽位同时删除对应个人改动；显式覆盖个人需确认，受保护记录保留。预览/切换/关闭前提交有效内联编辑并检查待加入输入，不能隐式把输入框正文加入模板；空白或失败稿阻止操作，名单选择器恢复真实选择。个人消息使用捕获的名单/人员身份整稿保存，弹窗关闭清理内联状态，待核实动作在个人弹窗中。发送仍由预览窗口显式开始。
+- 群发模板捕获list_id与contentRevision；defaultFields由选中名单原始缓存计算。MessageChatEditor 用 sourceIndex 关联原始槽位，新条目为 -1，排序不重编号。每次气泡操作经 saveDefaultRow / GroupStore.save_default_row 同一事务校验并写入可编辑人员内容及模板；成功后在原模型更新修订和槽位，保持滚动与待加入输入，失败保留草稿。内联失败恢复字段旧值及原 dirty 状态，仅保留 editText 供修正；Esc 取消该编辑，已有其他失败操作稿保留，干净稿遇修订变化时重载。未编辑的混合槽位与个人覆盖保持原值，删除槽位同时删除对应个人改动；显式覆盖个人需确认，受保护记录保留。预览/切换/关闭前提交有效内联编辑并检查待加入输入，不能隐式把输入框正文加入模板；直接提交空白或失败稿阻止操作，空白内联稿失焦／外部点击等同 Esc 取消，名单选择器恢复真实选择。气泡操作行保留尺寸，只在悬停／键盘聚焦／菜单展开时显示；输入框通过 GroupCenter.clipboardMessageFiles／messageFiles 读取本地文件 URL，并按 prepare_content 原子验证整批附件，普通文字／网页链接粘贴回退 TextArea，DropArea 只接受 CopyAction，新增附件沿用现有提交及失败稿保护。个人消息使用捕获的名单/人员身份整稿保存，弹窗关闭清理内联状态，待核实动作在个人弹窗中。发送仍由预览窗口显式开始。
 
 ## 关键调用链
 
@@ -137,7 +138,7 @@ Database 顶部 SCHEMA 不是最终 schema 全貌：构造还执行 learning_sto
 | 班期/学习/快照 | test_term_roster、test_fetch_workflow、test_business_logic、test_dashboard、test_linked_identity；smoke_class_switch |
 | 画像/隔离 | test_profile_module、test_profile_extensions、test_class_isolation_regressions；smoke_profile_ui |
 | 工作台/浮窗 | test_workbench_revision、test_campaign_generation、test_campaign_companion、test_workbench_ui、test_editor_identity |
-| 群发/恢复 | test_group_center、test_group_interaction、test_real_sending、test_message_content；smoke_group_interaction、smoke_profile_group |
+| 群发/恢复 | test_group_center、test_group_interaction、test_real_sending、test_message_content；smoke_group_interaction、smoke_group_list_view、smoke_group_message_input、smoke_profile_group |
 | 备注批改 | test_remark_renamer；smoke_remark_renamer（默认测试不真实登录企微、不改名） |
 | 未进直播间 | test_live_absence；smoke_live_absence（注入假直播间结果，不登录平台、不发送） |
 

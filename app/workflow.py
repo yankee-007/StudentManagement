@@ -88,6 +88,26 @@ class Workflow(QObject):
     def canEdit(self): return bool(self._batches and self._batch==self._batches[0]['id'])
     @Property(bool,notify=changed)
     def canSetExemption(self):return not self._batch or self.canEdit
+
+    @Property(bool, notify=changed)
+    def showPreviousFeedback(self):
+        # 按班保存：开启后在表格按历史催办追加“以往反馈情况（日期）”列，一次催办一列。
+        try:
+            return self.owner.repo.get_setting('workflow_show_previous_feedback','') == '1'
+        except Exception:
+            return False
+
+    @Slot(bool, result=bool)
+    def setShowPreviousFeedback(self, visible):
+        try:
+            self.owner.repo.set_setting('workflow_show_previous_feedback','1' if visible else '')
+            self.reload_rows(keep_query=True)
+            self.changed.emit()
+            return True
+        except Exception as exc:
+            self.owner.toast.emit('查看以往反馈设置保存失败：'+str(exc))
+            self.changed.emit()
+            return False
     @Property(str,notify=selectionChanged)
     def editorKey(self):
         return json.dumps([str(self.owner.db.path),self._batch,self._selected.get('student_id','')],ensure_ascii=False)
@@ -196,6 +216,7 @@ class Workflow(QObject):
                     raise ValueError('班期或批次已切换，反馈尚未保存')
                 self.store.save_feedback(batch, sid, value)
                 current = self.store.rows(batch, sid)[0]
+                self._attach_previous_feedback([current])
                 self._rows = [current if r['student_id'] == sid else r for r in self._rows]
                 del self._pending_feedback[key]
                 updated = True
@@ -436,6 +457,7 @@ class Workflow(QObject):
         self._model.columns = self.batch_columns([(key,dict(TABLE_COLUMNS)[key]) for key in self._field_order()])
         self.refresh_dashboard()
         self._rows = self.store.rows(self._batch) if self._batch else self.live_roster(students)
+        self._attach_previous_feedback(self._rows)
         self.apply_filter(prefer, recompute=not keep_query)
         self.changed.emit()
 
@@ -607,6 +629,7 @@ class Workflow(QObject):
             next_id=visible[index+1]['student_id'] if index+1<len(visible) else ''
             self.store.submit(self._batch,sid,content)
             current=self.store.rows(self._batch,sid)[0]
+            self._attach_previous_feedback([current])
             self._rows=[current if r['student_id']==sid else r for r in self._rows]
             self._model.reconcile_rows(self.display_rows())
             self._selected=next((r for r in self._model.rows if r['student_id']==next_id),self._model.rows[0] if self._model.rows else {})
@@ -669,7 +692,39 @@ class Workflow(QObject):
         if stamp:
             day = date.fromisoformat(stamp)
             label += f'（{day.month}月{day.day}号）'
-        return [(key, label if key == 'feedback' else name) for key, name in columns]
+        result = [(key, label if key == 'feedback' else name) for key, name in columns]
+        if self.showPreviousFeedback and self._batch:
+            # 历史批次从新到旧（与批次下拉一致），每次催办一列；本次列紧跟其后的是最近一次历史反馈。
+            for record in self._batches:
+                if record['id'] == self._batch: continue
+                stamp = record['created_at'][:10]
+                try:
+                    day = date.fromisoformat(stamp)
+                    label = f'以往反馈情况（{day.month}月{day.day}号）'
+                except ValueError:
+                    label = '以往反馈情况'
+                result.append((f'previous_feedback_{record["id"]}', label))
+        return result
+
+    def _attach_previous_feedback(self, rows):
+        """为每行附加历史批次的反馈内容（开启查看以往反馈时）。批量一次查询，避免逐行取数。"""
+        if not self.showPreviousFeedback or not self._batch:
+            return
+        previous = [r['id'] for r in self._batches if r['id'] != self._batch]
+        if not previous:
+            return
+        history = {}
+        placeholders = ','.join('?' * len(previous))
+        with self.owner.db.connect() as conn:
+            for rec in conn.execute(
+                    f'SELECT batch_id,student_id,content FROM campaign_feedback WHERE batch_id IN ({placeholders}) ORDER BY id',
+                    previous):
+                history.setdefault(rec['student_id'], {}).setdefault(rec['batch_id'], []).append(rec['content'])
+        for row in rows:
+            by_batch = history.get(row.get('student_id'), {})
+            for bid in previous:
+                contents = by_batch.get(bid)
+                row[f'previous_feedback_{bid}'] = '\n'.join(contents) if contents else ''
 
     def _field_order(self):
         keys=[key for key,_ in TABLE_COLUMNS]
@@ -682,13 +737,21 @@ class Workflow(QObject):
         labels=dict(self.batch_columns(TABLE_COLUMNS))
         try:visible=json.loads(self.owner.repo.get_setting('workflow_field_visibility','{}'))
         except (ValueError,TypeError):visible={}
-        return [dict(field_id=key,name=labels[key],show_column=(key=='name' or bool(visible.get(key,key!='student_id'))),
+        fields=[dict(field_id=key,name=labels[key],show_column=(key=='name' or bool(visible.get(key,key!='student_id'))),
                      locked=key=='name',deletable=False) for key in self._field_order()]
+        if self.showPreviousFeedback and self._batch:
+            # 历史反馈列是动态追加列：显示与否由“查看以往反馈情况”总开关控制，不参与显隐/排序设置。
+            for record in self._batches:
+                if record['id'] == self._batch: continue
+                key=f'previous_feedback_{record["id"]}'
+                fields.append(dict(field_id=key,name=labels[key],show_column=True,
+                                   locked=True,deletable=False,note='（显示受“查看以往反馈情况”控制）'))
+        return fields
 
     @Slot(str,bool,result=bool)
     def setFieldVisible(self,key,visible):
         if key not in dict(TABLE_COLUMNS) or key=='name':return False
-        values={f['field_id']:f['show_column'] for f in self.managedFields}
+        values={f['field_id']:f['show_column'] for f in self.managedFields if not f['field_id'].startswith('previous_feedback_')}
         values[key]=bool(visible)
         self.owner.repo.set_setting('workflow_field_visibility',json.dumps(values,ensure_ascii=False))
         self.changed.emit();self.selectionChanged.emit();self.queryChanged.emit()

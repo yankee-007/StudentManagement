@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+from datetime import date
 from pathlib import Path
 
 from PySide6.QtCore import QCoreApplication
@@ -97,6 +98,42 @@ class WorkbenchRevisionTests(unittest.TestCase):
         self.assertEqual([d['key'] for d in detail],[f['field_id'] for f in self.w.managedFields if f['show_column']])
         self.assertNotIn('student_id',[d['key'] for d in detail])
         self.assertEqual(next(d['value'] for d in detail if d['key']=='name'),'一号')
+
+
+    def test_previous_feedback_columns_toggle(self):
+        first = self.batch
+        self.w.store.save_feedback(first, '1', '第一批反馈内容')
+        self.w.createBatch()
+        current = self.w._batch
+        self.assertNotEqual(first, current)
+        # 默认不勾选：无历史反馈列
+        self.assertFalse(self.w.showPreviousFeedback)
+        self.assertTrue(all(not key.startswith('previous_feedback_') for key in self.w.columnKeys))
+        # 勾选后：按历史催办追加一列，并填充对应批次反馈
+        self.assertTrue(self.w.setShowPreviousFeedback(True))
+        self.assertTrue(self.w.showPreviousFeedback)
+        key = f'previous_feedback_{first}'
+        self.assertIn(key, self.w.columnKeys)
+        day = date.fromisoformat(next(r['created_at'][:10] for r in self.w._batches if r['id'] == first))
+        self.assertEqual(dict(self.w._model.columns)[key], f'以往反馈情况（{day.month}月{day.day}号）')
+        row = self.w.store.rows(current, '1')[0]
+        self.w._attach_previous_feedback([row])
+        self.assertEqual(row[key], '第一批反馈内容')
+        self.assertIn(key, [f['field_id'] for f in self.w.managedFields])
+        self.assertTrue(next(f for f in self.w.managedFields if f['field_id'] == key)['show_column'])
+        # 详情字段跟随显示历史反馈列
+        detail_keys = [d['key'] for d in self.w.detailFieldsFor(row)]
+        self.assertIn(key, detail_keys)
+        # 编辑本次反馈后单行重建不丢失历史反馈列
+        self.w.reload_rows()
+        self.w.selectRow(0)
+        self.assertTrue(self.w.submit('本次新反馈'))
+        kept = next(r for r in self.w._rows if r['student_id'] == '1')
+        self.assertEqual(kept[key], '第一批反馈内容')
+        # 取消勾选后列消失
+        self.assertTrue(self.w.setShowPreviousFeedback(False))
+        self.assertFalse(any(k.startswith('previous_feedback_') for k in self.w.columnKeys))
+        self.assertTrue(all(not f['field_id'].startswith('previous_feedback_') for f in self.w.managedFields))
 
 
 if __name__=='__main__':unittest.main()
