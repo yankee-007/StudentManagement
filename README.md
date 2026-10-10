@@ -71,6 +71,8 @@ python main.py
 
 调试时先保存代码，再点击顶部「调试重启」。独立助手会等待原进程退出，用当前 Python 环境重新启动并重新加载 Python/QML 代码。采集、账号验证、发送或打开联系人期间按钮暂不可用；退出仍走原有保存和关闭流程。新进程独立运行，不自动重新连接 VS Code 调试器。入口在 `app/restart.py`，进程等待与启动在不依赖业务模块的 `app/restart_helper.py`。
 
+所有可切换班期的模块，顶部班期下拉框右侧均显示「重新获取课程和学员」。Windows 群发名单复制和附件读取只获取所需剪贴板格式，占用时提示稍后重试并保留草稿；普通输入框沿用 Qt 的文字粘贴。界面字体优先采用已安装的可缩放字体，补充复杂文字和表情回退；仅关闭 Qt 对不支持某文字的候选字体所输出的 info 诊断，字体警告和错误仍保留。
+
 重启后的进程输出保存在 `%TEMP%/student-management-restart.log`（下次重启覆盖）；Python 启动异常会显示错误提示。
 
 ## 每日使用
@@ -223,6 +225,7 @@ python -B -m tests.smoke_filter_freeze
 python -B -m tests.smoke_remark_renamer
 python -B -m tests.smoke_live_absence
 python -B -m tests.smoke_ui_refresh
+python -B -m tests.smoke_qt_warnings
 python -B -m tests.smoke_ui_refinements
 python -B -m tests.smoke_class_switch
 python -B -m unittest tests.test_learning_overview

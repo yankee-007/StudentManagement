@@ -106,18 +106,19 @@ Item {
         pickedKeys=single
         lastPickedIndex=index
     }
-    function writeClipboard(text) { clipboard.text=text; clipboard.selectAll(); clipboard.copy() }
-    function readClipboard() { clipboard.text=""; clipboard.paste(); var value=clipboard.text; clipboard.text=""; return value }
     function copyPicked() {
         var rows=pickedRows()
         if (!rows.length) { actionNotice="请先点选姓名（Ctrl 或 Shift 可多选）"; return }
         var names=[]
         for (var i=0;i<rows.length;i++) names.push(rows[i]['name'])
-        writeClipboard(names.join("\n"))
+        var error=center.writeClipboardText(names.join("\n"))
+        if(error) { actionNotice=error; return }
         actionNotice="已复制 "+names.length+" 个姓名"
     }
     function pasteFromClipboard() {
-        var text=String(readClipboard())
+        var result=center.readClipboardText()
+        if(result.error) { actionNotice=result.error; return }
+        var text=String(result.text)
         if (!text.trim().length) { actionNotice="剪贴板里没有可粘贴的姓名"; return }
         addNamesFromText(text)
     }
@@ -567,8 +568,6 @@ Item {
             }
         }
     }
-    // QML 侧的系统剪贴板桥：与 TextField 自带的复制粘贴共用同一份文本。
-    TextEdit { id: clipboard; objectName: "groupClipboardBridge"; visible: false; width: 0; height: 0 }
     Dialog {
         id: removeDialog; objectName: "groupRemoveNamesDialog"; anchors.centerIn: parent; modal: true; title: "从群发名单删除"
         property var ids: []

@@ -4,7 +4,6 @@ import csv
 import json
 import hashlib
 from PySide6.QtCore import QObject, Property, Signal, Slot, QCoreApplication, QUrl
-from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QFileDialog
 from .group_dispatch import GroupStore
 from . import group_dispatch as adapter
@@ -13,6 +12,7 @@ from .send_options import normalize
 from .send_controller import F11Hotkey, SendWorker
 from .message_content import render_content, prepare_content
 from .qt_models import DictTableModel
+from . import clipboard
 
 
 class GroupCenter(QObject):
@@ -673,10 +673,24 @@ class GroupCenter(QObject):
 
     @Slot(result='QVariantMap')
     def clipboardMessageFiles(self):
-        mime=QGuiApplication.clipboard().mimeData()
-        urls=mime.urls() if mime and mime.hasUrls() else []
+        try:
+            urls=clipboard.read_file_urls()
+        except Exception as exc:
+            return dict(handled=True,files=[],error=str(exc))
         if not any(url.isLocalFile() for url in urls):return dict(handled=False,files=[],error='')
         return dict(self.messageFiles(urls),handled=True)
+
+    @Slot(result='QVariantMap')
+    def readClipboardText(self):
+        try:return dict(text=clipboard.read_text(),error='')
+        except Exception as exc:return dict(text='',error=str(exc))
+
+    @Slot(str,result=str)
+    def writeClipboardText(self,text):
+        try:
+            clipboard.write_text(text)
+            return ''
+        except Exception as exc:return str(exc)
 
     @Slot(result=str)
     def importNames(self):

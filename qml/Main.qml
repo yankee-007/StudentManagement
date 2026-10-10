@@ -93,8 +93,8 @@ ApplicationWindow {
             UiButton {
                 objectName: "refreshTermRosterButton"
                 text: "重新获取课程和学员"
-                visible: root.moduleIndex === 2
-                enabled: !backend.termsModule.busy && !backend.busy
+                visible: classBox.visible
+                enabled: classBox.enabled
                 onClicked: backend.termsModule.refreshAll()
             }
             Item { Layout.fillWidth: true }

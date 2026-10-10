@@ -78,6 +78,14 @@ def run():
             assert composer.property('text')=='https://example.com/notes' and chat.property('messageCount')==3
             composer.setProperty('text','')
 
+            # Clipboard access failure must preserve both saved messages and the draft.
+            composer.setProperty('text','保留占用时的草稿')
+            with patch('app.clipboard.read_file_urls',side_effect=ValueError('剪贴板正被其他程序占用，请稍后重试。')):
+                QTest.keyClick(window,Qt.Key_V,Qt.ControlModifier); QTest.qWait(80)
+            assert composer.property('text')=='保留占用时的草稿' and chat.property('messageCount')==3
+            assert '稍后重试' in chat.property('feedback')
+            composer.setProperty('text','')
+
             invalid=QMimeData(); invalid.setUrls([urls[0],QUrl.fromLocalFile(folder)]); clipboard.setMimeData(invalid)
             QTest.keyClick(window,Qt.Key_V,Qt.ControlModifier); QTest.qWait(80)
             assert chat.property('messageCount')==3 and chat.property('feedback')

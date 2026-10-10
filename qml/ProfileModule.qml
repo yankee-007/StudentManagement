@@ -25,6 +25,7 @@ Item {
         RowLayout {
             Layout.fillWidth: true; Layout.fillHeight: true; spacing: 12
             UiPanel {
+                id: profileListPanel
                 visible: page.width >= 760 || !page.cardExpanded
                 Layout.fillWidth: true; Layout.fillHeight: true; padding: 10
                 background: Rectangle { color: UiTheme.surface; radius: 10; border.color: UiTheme.line }
@@ -33,7 +34,7 @@ Item {
                     RowLayout {
                         Layout.fillWidth: true
                         Label { text: (profiles.cursorText.length > 0 ? profiles.cursorText + " · " : "") + "显示 " + profiles.visibleCount + " / " + profiles.total + " 人" + (profiles.hasStale ? " · " + profiles.staleCount + " 人已不符合当前筛选" : ""); color: profiles.hasStale ? UiTheme.warning : UiTheme.muted; font.pixelSize: 12; Layout.fillWidth: true; elide: Text.ElideRight }
-                        UiTextField { id: searchInput; objectName: "profileSearchInput"; placeholderText: "搜索班期、学号、姓名、备注"; Layout.preferredWidth: Math.min(280, parent.width * 0.5); onTextEdited: timer.restart(); Timer { id: timer; interval: 180; onTriggered: profiles.search(searchInput.text) } }
+                        UiTextField { id: searchInput; objectName: "profileSearchInput"; placeholderText: "搜索班期、学号、姓名、备注"; Layout.preferredWidth: Math.min(280, Math.max(0, profileListPanel.availableWidth * 0.5)); onTextEdited: timer.restart(); Timer { id: timer; interval: 180; onTriggered: profiles.search(searchInput.text) } }
                     }
                     Flow {
                         Layout.fillWidth: true; spacing: 6
