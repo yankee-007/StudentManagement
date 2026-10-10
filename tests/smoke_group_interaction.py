@@ -405,15 +405,35 @@ def run():
         assert item('groupPlanMenu').property('visible')
         capture('group-plan-menu.png')
         pointer_click('groupRenamePlanAction')
-        assert item('groupRenameDialog').property('visible')
+        popup = item('groupPlanPopup')
+        popup_closes = []
+        popup.closed.connect(lambda: popup_closes.append(True))
+        assert popup.property('visible')
+        assert window.findChild(QObject, 'groupRenameDialog') is None
         assert item('groupRenameInput').property('text') == '消息编辑验证'
-        capture('group-rename-dialog.png')
+        assert item('groupRenameInput').property('activeFocus')
+        assert item('groupRenameInput').property('selectedText') == '消息编辑验证'
+        capture('group-rename-inline.png')
+        # Invalid names stay in the row with feedback, without losing the editor.
+        item('groupRenameInput').setProperty('text', '   ')
+        QTest.keyClick(window, Qt.Key_Return); QTest.qWait(90)
+        assert popup.property('visible') and item('groupRenameInput').property('activeFocus')
+        assert item('groupRenameInput').property('text') == '   '
+        assert '请填写名单名称' in item('groupRenameFeedback').property('text')
+        assert g.store.get(list_id)['title'] == '消息编辑验证'
+        item('groupRenameInput').setProperty('text', '失败保留名称')
+        with patch.object(g.store, 'rename_list', side_effect=RuntimeError('模拟存储失败')):
+            QTest.keyClick(window, Qt.Key_Return); QTest.qWait(90)
+        assert item('groupRenameInput').property('text') == '失败保留名称'
+        assert '模拟存储失败' in item('groupRenameFeedback').property('text')
         item('groupRenameInput').setProperty('text', '聊天模板改名验证')
-        click('confirmRenameList')
-        assert not item('groupRenameDialog').property('visible')
+        QTest.keyClick(window, Qt.Key_Return); QTest.qWait(90)
+        assert popup.property('visible') and page.property('renamePlanId') == 0
+        assert not popup_closes, '改名过程不能先关闭再重新打开列表'
         assert g.selected['title'] == '聊天模板改名验证' and g.store.get(list_id)['title'] == '聊天模板改名验证'
         assert selector.property('currentText').startswith('聊天模板改名验证')
         assert [row['name'] for row in g.rows] == ['张三', '李四', '王五'] and content()[0][0]['text'] == '张三的个人消息'
+        invoke(popup, 'close')
         # Right clicking an unselected popup item must not switch or manage the current plan.
         extra_id=g.store.create('右键目标',[],allow_empty=True);g.refresh();QTest.qWait(80)
         pointer_click('groupListSelector');pointer_click('groupPlanOption0')
@@ -424,10 +444,59 @@ def run():
         assert item('groupPlanOption0').property('visible')
         pointer_click('groupPlanOption0',button=Qt.RightButton)
         assert item('groupPlanMenu').property('listId')==extra_id and g.selected['id']==list_id
+        assert popup.property('visible'), '右键后必须保留下拉列表'
+        capture('group-plan-menu-expanded.png')
+        QTest.keyClick(window, Qt.Key_Escape); QTest.qWait(90)
+        assert not item('groupPlanMenu').property('visible') and popup.property('visible')
+        pointer_click('groupPlanOption0',button=Qt.RightButton)
         pointer_click('groupRenamePlanAction')
         assert item('groupRenameInput').property('text')=='右键目标'
-        item('groupRenameInput').setProperty('text','右键目标已改名');click('confirmRenameList')
+        item('groupRenameInput').setProperty('text','取消改名')
+        QTest.keyClick(window, Qt.Key_Escape); QTest.qWait(90)
+        assert page.property('renamePlanId') == 0 and popup.property('visible')
+        assert g.store.get(extra_id)['title']=='右键目标' and g.selected['id']==list_id
+        pointer_click('groupPlanOption0',button=Qt.RightButton)
+        pointer_click('groupRenamePlanAction')
+        item('groupRenameInput').setProperty('text','外部取消改名')
+        outside = page.mapToScene(QPointF(page.width()/2, 10)).toPoint()
+        QTest.mouseClick(window, Qt.LeftButton, Qt.NoModifier, outside); QTest.qWait(90)
+        assert not popup.property('visible') and page.property('renamePlanId') == 0
+        assert g.store.get(extra_id)['title']=='右键目标'
+        # A collapsed selector can edit its current plan even when that row is not first.
+        pointer_click('groupListSelector', button=Qt.RightButton)
+        pointer_click('groupRenamePlanAction')
+        assert item('groupRenameInput').property('text')=='聊天模板改名验证'
+        assert item('groupRenameInput').property('activeFocus')
+        QTest.keyClick(window, Qt.Key_Escape); QTest.qWait(90)
+        assert popup.property('visible') and page.property('renamePlanId') == 0
+        # Returning from the editor must preserve ordinary keyboard selection.
+        QTest.keyClick(window, Qt.Key_Home)
+        QTest.keyClick(window, Qt.Key_Return); QTest.qWait(90)
+        assert g.selected['id']==extra_id and not popup.property('visible')
+        pointer_click('groupListSelector'); pointer_click('groupPlanOption1')
+        assert g.selected['id']==list_id
+        pointer_click('groupListSelector')
+        pointer_click('groupPlanOption0',button=Qt.RightButton)
+        pointer_click('groupRenamePlanAction')
+        item('groupRenameInput').setProperty('text','刷新仍保留草稿')
+        reordered_id = g.store.create('刷新插入方案', [], allow_empty=True)
+        g.refresh(); QTest.qWait(90)
+        assert item('groupRenameInput').property('text')=='刷新仍保留草稿'
+        assert item('groupRenameInput').property('activeFocus') and popup.property('visible')
+        # IME confirmation must not submit a partially composed name.
+        app.sendEvent(window, QInputMethodEvent('组合名称', []))
+        assert item('groupRenameInput').property('inputMethodComposing')
+        QTest.keyClick(window, Qt.Key_Return); QTest.qWait(90)
+        assert page.property('renamePlanId') == extra_id and g.store.get(extra_id)['title']=='右键目标'
+        event = QInputMethodEvent(); event.setCommitString('组合名称')
+        app.sendEvent(window, event); QTest.qWait(90)
+        item('groupRenameInput').setProperty('text','右键目标已改名')
+        QTest.keyClick(window, Qt.Key_Return); QTest.qWait(90)
         assert g.store.get(extra_id)['title']=='右键目标已改名' and g.selected['id']==list_id
+        assert popup.property('visible')
+        invoke(popup, 'close')
+        assert g.deleteList(reordered_id), g.status
+        QTest.qWait(90)
         pointer_click('groupListSelector');pointer_click('groupPlanOption0',button=Qt.RightButton)
         pointer_click('groupDeletePlanAction');capture('group-delete-dialog.png')
         assert item('groupDeletePlanDialog').property('listId')==extra_id
@@ -476,6 +545,18 @@ def run():
             for width, height in ((1250, 800), (720, 480)):
                 window.resize(width, height); QTest.qWait(100)
                 capture('group-'+mode+'-'+str(width)+'.png')
+                pointer_click('groupListSelector', button=Qt.RightButton)
+                pointer_click('groupRenamePlanAction')
+                field = item('groupRenameInput')
+                assert popup.property('visible') and field.property('activeFocus')
+                field_top = field.mapToScene(QPointF(0, 0))
+                field_bottom = field.mapToScene(QPointF(field.width(), field.height()))
+                assert field_top.x() >= 0 and field_top.y() >= 0
+                assert field_bottom.x() <= window.width() and field_bottom.y() <= window.height()
+                capture('group-rename-'+mode+'-'+str(width)+'.png')
+                QTest.keyClick(window, Qt.Key_Escape); QTest.qWait(90)
+                assert popup.property('visible') and page.property('renamePlanId') == 0
+                invoke(popup, 'close')
                 for name in ('groupChatComposer', 'groupChatSend', 'groupPreviewButton'):
                     control = item(name)
                     top = control.mapToScene(QPointF(0, 0))
@@ -800,6 +881,25 @@ def run():
         # Deleting the current and final temporary plans refreshes selection and empty controls.
         g.store.resolve(protected_list_id,row_id,False);g.refresh();QTest.qWait(80)
         window.show();QTest.qWait(100)
+        # The current plan can be far below the first popup viewport.
+        for number in range(14):
+            g.store.create('下拉滚动验证'+str(number), [], allow_empty=True)
+        g.refresh(); QTest.qWait(90)
+        pointer_click('groupListSelector', button=Qt.RightButton)
+        pointer_click('groupRenamePlanAction')
+        field = item('groupRenameInput')
+        assert field.property('activeFocus') and field.property('text')==g.selected['title']
+        field_top = field.mapToScene(QPointF(0, 0))
+        field_bottom = field.mapToScene(QPointF(field.width(), field.height()))
+        popup_item = popup.property('contentItem')
+        popup_top = popup_item.mapToScene(QPointF(0, 0))
+        popup_bottom = popup_item.mapToScene(QPointF(popup_item.width(), popup_item.height()))
+        assert field_top.y() >= popup_top.y()-1 and field_bottom.y() <= popup_bottom.y()+1
+        capture('group-rename-scrolled.png')
+        assert field.property('activeFocus'), (window.activeFocusItem(), popup.property('visible'), page.property('renamePlanId'))
+        QTest.keyClick(window, Qt.Key_Escape); QTest.qWait(90)
+        assert popup.property('visible') and page.property('renamePlanId')==0, (popup.property('visible'), page.property('renamePlanId'), window.activeFocusItem())
+        invoke(popup, 'close')
         for _ in range(len(g.lists)):
             target_id=g.selected['id']
             pointer_click('groupListSelector',button=Qt.RightButton)

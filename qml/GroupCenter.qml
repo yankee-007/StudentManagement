@@ -7,6 +7,9 @@ Item {
     objectName: "groupCenterPage"
     property var center: backend.groupCenter
     property bool loadingOptions: false
+    property int renamePlanId: 0
+    property string renamePlanText: ""
+    property string renamePlanFeedback: ""
     property bool optionsDirty: recipientPanel.contactPrefix !== (center.selected.prefix || "")
         || Number(searchWait.text) !== center.selected.options.wait || Number(timeout.text) !== center.selected.options.timeout
         || Number(focusDelay.text) !== center.selected.options.focus_delay || Number(pasteDelay.text) !== center.selected.options.paste_delay
@@ -62,17 +65,64 @@ Item {
         }
     }
     function selectList(index) {
+        cancelPlanRename()
         if (saveSettings()) center.selectList(index)
         listSelector.currentIndex=Qt.binding(function() { return center.selectedIndex })
+    }
+    function cancelPlanRename() {
+        renamePlanId=0; renamePlanText=""; renamePlanFeedback=""
+    }
+    function focusPlanRename(selectText) {
+        var index=center.lists.findIndex(function(plan) { return plan.id===page.renamePlanId })
+        if(index<0 || !listSelector.popup.visible) return
+        var view=listSelector.popup.contentItem
+        view.forceLayout()
+        view.positionViewAtIndex(index,ListView.Contain)
+        Qt.callLater(function() {
+            view.forceLayout()
+            var option=view.itemAtIndex(index)
+            if(option && option.renaming) option.focusRename(selectText)
+        })
+    }
+    function beginPlanRename(listId,title) {
+        renamePlanText=title; renamePlanFeedback=""; renamePlanId=listId
+        listSelector.popup.open()
+        Qt.callLater(function() { page.focusPlanRename(true) })
+    }
+    function commitPlanRename(text) {
+        if(!renamePlanId) return
+        renamePlanText=text
+        if(center.renameList(renamePlanId,text)) {
+            cancelPlanRename()
+            listSelector.forceActiveFocus()
+        } else {
+            renamePlanFeedback=center.status
+            focusPlanRename(false)
+        }
     }
     function openPlanMenu(plan,anchor,x,y) {
         if(center.active || !plan || !plan.id) return
         var point=anchor.mapToItem(page,x,y)
+        cancelPlanRename()
         planMenu.listId=plan.id; planMenu.listTitle=plan.title
-        listSelector.popup.close()
+        // Move focus into the list before the menu takes it, so ComboBox keeps its popup open.
+        if(listSelector.popup.visible) listSelector.popup.contentItem.forceActiveFocus()
         planMenu.x=point.x; planMenu.y=point.y
         planMenu.open()
     }
+    Connections {
+        target: listSelector.popup
+        function onOpened() { page.focusPlanRename(true) }
+        function onClosed() { page.cancelPlanRename(); planMenu.close() }
+    }
+    Connections {
+        target: center
+        function onListsChanged() {
+            if(page.renamePlanId) Qt.callLater(function() { page.focusPlanRename(false) })
+        }
+        function onActivityChanged() { if(center.active) listSelector.popup.close() }
+    }
+    onVisibleChanged: if(!visible) { listSelector.popup.close(); planMenu.close() }
     ColumnLayout {
         anchors.fill: parent; spacing: page.height<600 ? 6 : 10
         RowLayout {
@@ -90,6 +140,10 @@ Item {
                     model: center.lists; textRole: "label"; currentIndex: center.selectedIndex
                     displayText: currentIndex<0 ? "暂无名单，请从催办生成或新建自定义名单" : currentText
                     enabled: !center.active; onActivated: page.selectList(currentIndex)
+                    popup.objectName: "groupPlanPopup"
+                    popup.closePolicy: planMenu.visible ? Popup.NoAutoClose
+                        : page.renamePlanId ? Popup.CloseOnPressOutsideParent
+                        : Popup.CloseOnEscape | Popup.CloseOnPressOutsideParent
                     Accessible.name: "选择群发方案"; Accessible.description: "右键重命名或删除方案"
                     ToolTip.visible: hovered && !popup.visible; ToolTip.text: "右键重命名或删除；展开后可右键任一方案"
                     MouseArea {
@@ -103,21 +157,69 @@ Item {
                     }
                     delegate: ItemDelegate {
                         id: planOption; required property int index
+                        property var plan: center.lists[index]
+                        property bool renaming: !!plan && plan.id===page.renamePlanId
+                        function focusRename(selectText) {
+                            planTitleInput.forceActiveFocus()
+                            if(selectText) planTitleInput.selectAll()
+                        }
                         objectName: "groupPlanOption"+index
-                        width: ListView.view ? ListView.view.width : listSelector.width; height: 36
-                        text: listSelector.textAt(index); font: listSelector.font; hoverEnabled: true
+                        width: ListView.view ? ListView.view.width : listSelector.width
+                        height: Math.max(36,implicitContentHeight+topPadding+bottomPadding)
+                        topPadding: 2; bottomPadding: 2; leftPadding: 6; rightPadding: 6
+                        text: listSelector.textAt(index); font: listSelector.font; hoverEnabled: page.renamePlanId===0
                         highlighted: listSelector.highlightedIndex===index
-                        contentItem: Text {
-                            text: planOption.text; font: listSelector.font; color: UiTheme.ink
-                            elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter
+                        contentItem: ColumnLayout {
+                            spacing: 3
+                            Text {
+                                id: planLabel; visible: !planOption.renaming; Layout.fillWidth: true
+                                text: planOption.text; font: listSelector.font; color: UiTheme.ink
+                                elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter
+                            }
+                            UiTextField {
+                                id: planTitleInput; objectName: planOption.renaming ? "groupRenameInput" : ""
+                                visible: planOption.renaming; Layout.fillWidth: true; Layout.preferredHeight: 30
+                                text: page.renamePlanText; selectByMouse: true
+                                property bool acceptOnRelease: false
+                                Accessible.name: "群发方案名称"; Accessible.description: "回车保存，Esc 取消"
+                                onTextChanged: if(planOption.renaming) page.renamePlanText=text
+                                Keys.priority: Keys.BeforeItem
+                                Keys.onPressed: function(event) {
+                                    if(event.key===Qt.Key_Return || event.key===Qt.Key_Enter) {
+                                        event.accepted=true
+                                        if(!event.isAutoRepeat) acceptOnRelease=!inputMethodComposing
+                                    } else if(event.key===Qt.Key_Escape) {
+                                        event.accepted=true
+                                    }
+                                }
+                                // Finish on release so the ComboBox cannot reuse the editor's key to select/close.
+                                Keys.onReleased: function(event) {
+                                    if(event.key===Qt.Key_Return || event.key===Qt.Key_Enter) {
+                                        event.accepted=true
+                                        if(event.isAutoRepeat) return
+                                        var accept=acceptOnRelease; acceptOnRelease=false
+                                        if(accept && !inputMethodComposing) page.commitPlanRename(text)
+                                    } else if(event.key===Qt.Key_Escape) {
+                                        event.accepted=true
+                                        if(!event.isAutoRepeat) { page.cancelPlanRename(); listSelector.forceActiveFocus() }
+                                    }
+                                }
+                                ToolTip.visible: hovered; ToolTip.text: "回车保存 · Esc 取消"
+                            }
+                            Label {
+                                objectName: planOption.renaming ? "groupRenameFeedback" : ""
+                                visible: planOption.renaming && page.renamePlanFeedback.length>0
+                                Layout.fillWidth: true; wrapMode: Text.Wrap; font.pixelSize: 12
+                                text: page.renamePlanFeedback; color: UiTheme.warning
+                            }
                         }
                         background: Rectangle {
                             radius: 4; color: planOption.highlighted || planOption.hovered ? UiTheme.selection : "transparent"
                             border.width: planOption.visualFocus ? 2 : 0; border.color: UiTheme.accent
                         }
-                        ToolTip.visible: hovered && contentItem.truncated; ToolTip.text: text
+                        ToolTip.visible: !renaming && hovered && planLabel.truncated; ToolTip.text: text
                         MouseArea {
-                            anchors.fill: parent; acceptedButtons: Qt.RightButton
+                            anchors.fill: parent; acceptedButtons: Qt.RightButton; enabled: !planOption.renaming
                             onClicked: function(mouse) { page.openPlanMenu(center.lists[planOption.index],planOption,mouse.x,mouse.y) }
                         }
                     }
@@ -192,15 +294,17 @@ Item {
     }
     Menu {
         id: planMenu; objectName: "groupPlanMenu"; parent: page
+        popupType: Popup.Item
         property int listId: 0
         property string listTitle: ""
+        onClosed: if(page.renamePlanId) page.focusPlanRename(true)
         MenuItem {
             objectName: "groupRenamePlanAction"; text: "重命名"; enabled: !center.active
-            onTriggered: if(page.saveSettings()) { renameDialog.listId=planMenu.listId; renameDialog.listTitle=planMenu.listTitle; renameDialog.open() }
+            onTriggered: if(page.saveSettings()) page.beginPlanRename(planMenu.listId,planMenu.listTitle)
         }
         MenuItem {
             objectName: "groupDeletePlanAction"; text: "删除…"; enabled: !center.active
-            onTriggered: if(page.saveSettings()) { deleteDialog.listId=planMenu.listId; deleteDialog.listTitle=planMenu.listTitle; deleteDialog.open() }
+            onTriggered: if(page.saveSettings()) { deleteDialog.listId=planMenu.listId; deleteDialog.listTitle=planMenu.listTitle; listSelector.popup.close(); deleteDialog.open() }
         }
     }
     Dialog {
@@ -219,26 +323,6 @@ Item {
                 UiButton { objectName: "cancelDeletePlan"; text: "取消"; onClicked: deleteDialog.reject() }
                 Item { Layout.fillWidth: true }
                 UiButton { objectName: "confirmDeletePlan"; text: "删除方案"; highlighted: true; enabled: !center.active; onClicked: { if(center.deleteList(deleteDialog.listId)) deleteDialog.close(); else deleteDialog.feedback=center.status } }
-            }
-        }
-    }
-    Dialog {
-        id: renameDialog; objectName: "groupRenameDialog"; anchors.centerIn: parent; modal: true; title: "重命名群发名单"
-        property int listId: 0
-        property string listTitle: ""
-        width: Math.min(page.width-30,480)
-        onOpened: { renameTitle.text=listTitle; renameTitle.forceActiveFocus(); renameTitle.selectAll() }
-        ColumnLayout {
-            anchors.fill: parent
-            Label { text: "只修改名单名称；人员名单、消息内容和发送记录都保持不变。"; wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.muted }
-            UiTextField {
-                id: renameTitle; objectName: "groupRenameInput"; placeholderText: "名单名称"; Layout.fillWidth: true
-                onAccepted: if(center.renameList(renameDialog.listId,renameTitle.text)) renameDialog.close()
-            }
-            Label { text: center.status; wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.warning }
-            RowLayout {
-                UiButton { objectName: "confirmRenameList"; text: "保存名称"; highlighted: true; enabled: !center.active; onClicked: if(center.renameList(renameDialog.listId,renameTitle.text)) renameDialog.close() }
-                UiButton { text: "取消"; onClicked: renameDialog.close() }
             }
         }
     }
