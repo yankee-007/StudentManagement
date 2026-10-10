@@ -76,7 +76,8 @@ AI 催交于2026-10-09接入 Backend.aiCampaign。设置卡片保存非密参数
 
 - createFromCampaignSelection/createFromProfiles 按可见人员生成独立名单，文字变量创建时展开，保留模板和资料元数据。names_only 保存空消息，补齐后才可发送。
 - GroupCenter 缓存名单、选择、待处理/已发送模型；GroupStore 负责持久化、编辑和队列保护。空方案（create allow_empty）允许 0 成员，`save_default_row` 对空名单只写模板；`add_recipients` 手填/粘贴加入成员并按当前模板渲染消息，模板无法解析时留空并回报 no_message，`remove_recipients` 只删没有尝试记录的待处理行。
-- GroupCenter.qml 顶部一行是「选择群发方案」下拉框＋「重命名」（左）与「复制为新名单」「新建群发」（右对齐）；重命名经 GroupCenter.renameList → GroupStore.rename_list 只更新 lists.title（拒绝空白/换行标题与过期 list_id，发送运行中只提示不改名），不触碰 recipients/attempts，也不清空当前预览确认。「新建群发」只收方案名称，调用 createEmptyList 建空方案，成员与消息随后手动补。
+- GroupCenter.qml 顶部一行是「选择群发方案」下拉框（左）与「复制为新名单」「新建群发」（右对齐）；收起的下拉框与展开的方案项均支持右键菜单，捕获目标 list_id，管理未选中方案也不切换当前名单。重命名经 GroupCenter.renameList → GroupStore.rename_list 只更新 lists.title（拒绝空白/换行标题与过期 list_id，发送运行中只提示不改名），不触碰 recipients/attempts，也不清空当前预览确认。删除经确认调用 deleteList → delete_list，事务删除该方案的 attempts、recipients、lists；发送中、待核实和 sync_pending 阻止删除，不改来源库。删除当前方案清空预览并选下一项（末项回退上一项），最后一项删除后为空态；管理其他方案保留当前预览。「新建群发」只收方案名称，调用 createEmptyList 建空方案，成员与消息随后手动补。
+- RecipientMessages 个人弹窗用 Escape 快捷键取消整稿并在关闭时清理编辑状态。GroupCenter 从既有消息 personal_override 聚合人员标记，姓名旁显示「已单独编辑」，表格按消息提示；modelInfoChanged 在模型完成更新后刷新委托数据，避免 rowsChanged 的信号顺序导致旧标记残留。模板覆盖清除消息标记，无新存储字段。
 - GroupCenter.qml 参数 600ms 防抖保存，切名单/预览/关闭另有保存处理；按 list_id 校验，修改后清除预览确认。
 - prepare → GroupStore.plan → confirmation；start 重验计划、参数/文件及 F11 注册，再启动 SendWorker。每人先 claim 后 finish；暂停/结束在当前联系人完成后生效。
 - WeComSender 执行进程/焦点检查、搜索、可选浮窗核验、剪贴板粘贴和回车。“已发送”不证明送达，不确定结果需人工核实。

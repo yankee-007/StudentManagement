@@ -65,6 +65,14 @@ Item {
         if (saveSettings()) center.selectList(index)
         listSelector.currentIndex=Qt.binding(function() { return center.selectedIndex })
     }
+    function openPlanMenu(plan,anchor,x,y) {
+        if(center.active || !plan || !plan.id) return
+        var point=anchor.mapToItem(page,x,y)
+        planMenu.listId=plan.id; planMenu.listTitle=plan.title
+        listSelector.popup.close()
+        planMenu.x=point.x; planMenu.y=point.y
+        planMenu.open()
+    }
     ColumnLayout {
         anchors.fill: parent; spacing: page.height<600 ? 6 : 10
         RowLayout {
@@ -75,14 +83,44 @@ Item {
         RowLayout {
             Layout.fillWidth: true; spacing: 6
             RowLayout {
-                // 选择群发方案的下拉框与「重命名」留在左侧，名单级操作统一右对齐。
+                // 方案管理收进下拉框右键菜单，名单级操作统一右对齐。
                 Layout.fillWidth: true; spacing: 6
-                UiComboBox { id: listSelector; objectName: "groupListSelector"; Layout.fillWidth: true; model: center.lists; textRole: "label"; currentIndex: center.selectedIndex; displayText: currentIndex<0 ? "暂无名单，请从催办生成或新建自定义名单" : currentText; enabled: !center.active; onActivated: page.selectList(currentIndex) }
-                UiButton {
-                    objectName: "groupRenameList"; text: "重命名"; Accessible.name: "重命名当前群发名单"
-                    enabled: !center.active && center.selectedIndex>=0
-                    ToolTip.visible: hovered; ToolTip.text: "只改名单名称，人员、消息和发送记录不变"
-                    onClicked: if(page.saveSettings()) renameDialog.open()
+                UiComboBox {
+                    id: listSelector; objectName: "groupListSelector"; Layout.fillWidth: true
+                    model: center.lists; textRole: "label"; currentIndex: center.selectedIndex
+                    displayText: currentIndex<0 ? "暂无名单，请从催办生成或新建自定义名单" : currentText
+                    enabled: !center.active; onActivated: page.selectList(currentIndex)
+                    Accessible.name: "选择群发方案"; Accessible.description: "右键重命名或删除方案"
+                    ToolTip.visible: hovered && !popup.visible; ToolTip.text: "右键重命名或删除；展开后可右键任一方案"
+                    MouseArea {
+                        anchors.fill: parent; acceptedButtons: Qt.RightButton
+                        onClicked: function(mouse) { page.openPlanMenu(center.selected,listSelector,mouse.x,mouse.y) }
+                    }
+                    Keys.onPressed: function(event) {
+                        if(event.key===Qt.Key_Menu || (event.key===Qt.Key_F10 && event.modifiers & Qt.ShiftModifier)) {
+                            page.openPlanMenu(center.selected,listSelector,0,listSelector.height); event.accepted=true
+                        }
+                    }
+                    delegate: ItemDelegate {
+                        id: planOption; required property int index
+                        objectName: "groupPlanOption"+index
+                        width: ListView.view ? ListView.view.width : listSelector.width; height: 36
+                        text: listSelector.textAt(index); font: listSelector.font; hoverEnabled: true
+                        highlighted: listSelector.highlightedIndex===index
+                        contentItem: Text {
+                            text: planOption.text; font: listSelector.font; color: UiTheme.ink
+                            elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter
+                        }
+                        background: Rectangle {
+                            radius: 4; color: planOption.highlighted || planOption.hovered ? UiTheme.selection : "transparent"
+                            border.width: planOption.visualFocus ? 2 : 0; border.color: UiTheme.accent
+                        }
+                        ToolTip.visible: hovered && contentItem.truncated; ToolTip.text: text
+                        MouseArea {
+                            anchors.fill: parent; acceptedButtons: Qt.RightButton
+                            onClicked: function(mouse) { page.openPlanMenu(center.lists[planOption.index],planOption,mouse.x,mouse.y) }
+                        }
+                    }
                 }
             }
             UiButton { objectName: "groupCopyList"; text: page.width<650 ? "复制名单" : "复制为新名单"; enabled: !center.active && center.selectedIndex>=0; onClicked: if(page.saveSettings()) copyDialog.open() }
@@ -152,20 +190,54 @@ Item {
             UiButton { objectName: "groupPreviewButton"; visible: !center.active; text: "预览并发送"; highlighted: true; enabled: !center.active && center.selectedIndex>=0 && center.editableCount>0; onClicked: page.previewMessages() }
         }
     }
+    Menu {
+        id: planMenu; objectName: "groupPlanMenu"; parent: page
+        property int listId: 0
+        property string listTitle: ""
+        MenuItem {
+            objectName: "groupRenamePlanAction"; text: "重命名"; enabled: !center.active
+            onTriggered: if(page.saveSettings()) { renameDialog.listId=planMenu.listId; renameDialog.listTitle=planMenu.listTitle; renameDialog.open() }
+        }
+        MenuItem {
+            objectName: "groupDeletePlanAction"; text: "删除…"; enabled: !center.active
+            onTriggered: if(page.saveSettings()) { deleteDialog.listId=planMenu.listId; deleteDialog.listTitle=planMenu.listTitle; deleteDialog.open() }
+        }
+    }
+    Dialog {
+        id: deleteDialog; objectName: "groupDeletePlanDialog"; anchors.centerIn: parent; modal: true; title: "删除群发方案"
+        property int listId: 0
+        property string listTitle: ""
+        property string feedback: ""
+        onOpened: feedback=""
+        width: Math.min(page.width-30,480)
+        ColumnLayout {
+            anchors.fill: parent
+            Label { text: "删除群发方案「"+deleteDialog.listTitle+"」？"; wrapMode: Text.Wrap; Layout.fillWidth: true }
+            Label { text: "该方案的人员名单、消息和本地发送记录将一并删除，无法撤销。"; wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.muted }
+            Label { visible: deleteDialog.feedback.length>0; text: deleteDialog.feedback; wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.warning }
+            RowLayout {
+                UiButton { objectName: "cancelDeletePlan"; text: "取消"; onClicked: deleteDialog.reject() }
+                Item { Layout.fillWidth: true }
+                UiButton { objectName: "confirmDeletePlan"; text: "删除方案"; highlighted: true; enabled: !center.active; onClicked: { if(center.deleteList(deleteDialog.listId)) deleteDialog.close(); else deleteDialog.feedback=center.status } }
+            }
+        }
+    }
     Dialog {
         id: renameDialog; objectName: "groupRenameDialog"; anchors.centerIn: parent; modal: true; title: "重命名群发名单"
+        property int listId: 0
+        property string listTitle: ""
         width: Math.min(page.width-30,480)
-        onOpened: { renameTitle.text=center.selected.title || ""; renameTitle.forceActiveFocus(); renameTitle.selectAll() }
+        onOpened: { renameTitle.text=listTitle; renameTitle.forceActiveFocus(); renameTitle.selectAll() }
         ColumnLayout {
             anchors.fill: parent
             Label { text: "只修改名单名称；人员名单、消息内容和发送记录都保持不变。"; wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.muted }
             UiTextField {
                 id: renameTitle; objectName: "groupRenameInput"; placeholderText: "名单名称"; Layout.fillWidth: true
-                onAccepted: if(center.renameList(center.selected.id,renameTitle.text)) renameDialog.close()
+                onAccepted: if(center.renameList(renameDialog.listId,renameTitle.text)) renameDialog.close()
             }
             Label { text: center.status; wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.warning }
             RowLayout {
-                UiButton { objectName: "confirmRenameList"; text: "保存名称"; highlighted: true; enabled: !center.active; onClicked: if(center.renameList(center.selected.id,renameTitle.text)) renameDialog.close() }
+                UiButton { objectName: "confirmRenameList"; text: "保存名称"; highlighted: true; enabled: !center.active; onClicked: if(center.renameList(renameDialog.listId,renameTitle.text)) renameDialog.close() }
                 UiButton { text: "取消"; onClicked: renameDialog.close() }
             }
         }

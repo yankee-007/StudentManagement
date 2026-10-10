@@ -212,11 +212,13 @@ Item {
                 panel.loadDefaults(false)
             }
         }
-        function onRowsChanged() {
+        function onModelInfoChanged() {
             panel.rowsRevision++
             panel.restoreSelection()
-            if(!defaults.dirty && defaults.editingIndex<0) panel.loadDefaults(true)
             Qt.callLater(panel.refreshListGeometry)
+        }
+        function onRowsChanged() {
+            if(!defaults.dirty && defaults.editingIndex<0) panel.loadDefaults(true)
         }
     }
     Component.onCompleted: { currentListId=center.selected.id || 0; loadDefaults(false) }
@@ -345,12 +347,14 @@ Item {
                         required property int index
                         required property string display
                         required property string recordKey
+                        property var rowData: { var revision=panel.rowsRevision; return panel.currentModel.get(index) }
+                        readonly property bool personallyEdited: !!rowData.personal_override
                         objectName: "groupName"+index
                         width: namesTable.width; height: 40; color: "transparent"
                         activeFocusOnTab: true
                         Accessible.role: Accessible.Button
                         Accessible.name: panel.contactPrefix+display
-                        Accessible.description: "双击查看或编辑个人消息；Ctrl 或 Shift 可多选"
+                        Accessible.description: (personallyEdited ? "已单独编辑消息；" : "")+"双击查看或编辑个人消息；Ctrl 或 Shift 可多选"
                         Rectangle {
                             anchors.fill: parent; anchors.topMargin: 2; anchors.bottomMargin: 2; radius: 6
                             color: panel.isPicked(nameCell.recordKey) ? UiTheme.selection : nameMouse.containsMouse ? UiTheme.hover : "transparent"
@@ -362,9 +366,16 @@ Item {
                         }
                         Text {
                             objectName: "groupNameLabel"+nameCell.index
-                            anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
+                            anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: personalFlag.visible ? personalFlag.width+20 : 12
                             text: panel.contactPrefix+nameCell.display; textFormat: Text.PlainText
                             verticalAlignment: Text.AlignVCenter; elide: Text.ElideRight; color: panel.isPicked(nameCell.recordKey) ? UiTheme.accent : UiTheme.ink; font.pixelSize: 14
+                        }
+                        Rectangle {
+                            id: personalFlag; objectName: "groupNamePersonalFlag"+nameCell.index
+                            visible: nameCell.personallyEdited
+                            anchors.right: parent.right; anchors.rightMargin: 8; anchors.verticalCenter: parent.verticalCenter
+                            width: personalFlagLabel.implicitWidth+12; height: 22; radius: 4; color: UiTheme.warningSurface
+                            Text { id: personalFlagLabel; anchors.centerIn: parent; text: namesTable.width<180 ? "已改" : "已单独编辑"; font.pixelSize: 11; color: UiTheme.warning }
                         }
                         // 保留表格式横线，缩进并降低视觉重量。
                         Rectangle { objectName: "groupNameSeparator"+nameCell.index; anchors.left: parent.left; anchors.right: parent.right; anchors.leftMargin: 12; anchors.rightMargin: 12; anchors.bottom: parent.bottom; height: 1; color: UiTheme.line; opacity: 0.45; visible: !panel.isPicked(nameCell.recordKey) }
@@ -386,7 +397,7 @@ Item {
                             else if (event.key===Qt.Key_Return || event.key===Qt.Key_Enter) { panel.openEditor(); event.accepted=true }
                         }
                         ToolTip.visible: nameMouse.containsMouse
-                        ToolTip.text: panel.contactPrefix+display+" · 双击查看或编辑"
+                        ToolTip.text: panel.contactPrefix+display+(nameCell.personallyEdited ? " · 已单独编辑，模板修改默认保留" : "")+" · 双击查看或编辑"
                     }
                 }
                 Label {
@@ -489,21 +500,23 @@ Item {
                         required property string recordKey
                         property var rowData: { var revision=panel.rowsRevision; return panel.currentModel.get(row) }
                         readonly property string fullText: panel.cellText(rowData,column)
+                        readonly property bool personallyEdited: !!((rowData.items || [])[column] || {}).personal_override
                         objectName: "groupMessageCell"+row+"_"+column
                         implicitWidth: panel.messageColumnWidth; implicitHeight: 40
-                        color: panel.isPicked(recordKey) ? UiTheme.selection : messageMouse.containsMouse ? UiTheme.hover : "transparent"
+                        color: panel.isPicked(recordKey) ? UiTheme.selection : messageMouse.containsMouse ? UiTheme.hover : personallyEdited ? UiTheme.warningSurface : "transparent"
                         activeFocusOnTab: true
                         Accessible.role: Accessible.Button; Accessible.name: (rowData.name || "")+"："+fullText
-                        Accessible.description: "双击查看或编辑个人消息"
+                        Accessible.description: (personallyEdited ? "已单独编辑；" : "")+"双击查看或编辑个人消息"
                         Keys.onReturnPressed: { panel.selectedRow=panel.currentModel.get(row); panel.openEditor() }
                         Keys.onEnterPressed: { panel.selectedRow=panel.currentModel.get(row); panel.openEditor() }
                         Text {
                             id: cellLabel; objectName: "groupMessageText"+messageCell.row+"_"+messageCell.column
                             anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
                             text: messageCell.fullText.replace(/[\r\n]+/g," "); textFormat: Text.PlainText; wrapMode: Text.NoWrap; elide: Text.ElideRight
-                            font.pixelSize: 13; color: panel.isPicked(messageCell.recordKey) ? UiTheme.accent : UiTheme.ink; verticalAlignment: Text.AlignVCenter
+                            font.pixelSize: 13; color: panel.isPicked(messageCell.recordKey) ? UiTheme.accent : messageCell.personallyEdited ? UiTheme.warning : UiTheme.ink; verticalAlignment: Text.AlignVCenter
                         }
                         Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: UiTheme.line }
+                        Rectangle { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; width: 2; height: 18; color: UiTheme.warning; visible: messageCell.personallyEdited }
                         Rectangle { anchors.bottom: parent.bottom; width: parent.width; height: 1; color: UiTheme.line; opacity: 0.65 }
                         Rectangle { anchors.fill: parent; color: "transparent"; border.width: messageCell.activeFocus ? 1 : 0; border.color: UiTheme.focus }
                         MouseArea {
@@ -591,8 +604,9 @@ Item {
     Dialog {
         id: editor; objectName: "recipientMessageEditor"
         parent: Overlay.overlay
-        anchors.centerIn: parent; modal: true; closePolicy: Popup.NoAutoClose
-        onClosed: messages.cancelEdit()
+        anchors.centerIn: parent; modal: true; closePolicy: Popup.CloseOnEscape
+        onClosed: messages.load([],false)
+        Shortcut { sequence: "Escape"; enabled: editor.visible; context: Qt.WindowShortcut; onActivated: editor.reject() }
         width: Math.min(parent.width-32,760); height: Math.min(parent.height-32,650)
         property int listId: 0
         property int recipientId: 0
@@ -602,7 +616,7 @@ Item {
         ColumnLayout {
             anchors.fill: parent; spacing: 8
             Label {
-                text: editor.canEdit ? "只修改此人，保存后生效。个人消息按原文保存。" : "该记录只读，保留发送时内容。"
+                text: editor.canEdit ? "只修改此人，保存后生效。按 Esc 取消本次修改。" : "该记录只读，保留发送时内容。"
                 wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.muted; font.pixelSize: 12
             }
             Label { text: editor.personState+(editor.personInfo ? " · "+editor.personInfo : ""); Layout.fillWidth: true; maximumLineCount: 2; elide: Text.ElideRight; wrapMode: Text.Wrap; color: UiTheme.muted; font.pixelSize: 12 }

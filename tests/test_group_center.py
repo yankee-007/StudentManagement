@@ -51,6 +51,87 @@ class GroupCenterTests(unittest.TestCase):
                 g._worker=None
             self.assertEqual(g.store.get(list_id)['title'],'重命名后')
 
+    def test_manage_unselected_plan_keeps_current_content_and_preview(self):
+        with seeded(1) as b:
+            g=b.groupCenter
+            self.assertTrue(g.createCustom('旧方案','甲|旧消息'))
+            old_id=g.selected['id']; task=g.store.plan(old_id)[0]
+            attempt=g.store.claim(old_id,task)
+            g.store.finish(old_id,task,attempt,source.SENT,'模拟已发送')
+            self.assertTrue(g.createCustom('当前方案','乙|当前消息'))
+            current_id=g.selected['id']
+            self.assertTrue(g.prepare('前缀-',{}),g.status)
+            preview=list(g.preview); confirmation=g._confirmation
+            self.assertTrue(g.renameList(old_id,'旧方案新名称'),g.status)
+            self.assertEqual(g.store.get(old_id)['title'],'旧方案新名称')
+            self.assertEqual(g.selected['id'],current_id)
+            self.assertTrue(g.deleteList(old_id),g.status)
+            self.assertIsNone(g.store.get(old_id));self.assertEqual(g.store.rows(old_id),[])
+            with g.store.connect() as conn:
+                self.assertEqual(conn.execute('SELECT count(*) FROM attempts WHERE id=?',(attempt,)).fetchone()[0],0)
+                self.assertEqual(list(conn.execute('PRAGMA foreign_key_check')),[])
+            self.assertEqual(g.selected['id'],current_id)
+            self.assertEqual(g.preview,preview);self.assertEqual(g._confirmation,confirmation)
+            self.assertEqual([row['message'] for row in g.rows],['当前消息'])
+            self.assertFalse(g.deleteList(old_id));self.assertIn('已不存在',g.status)
+            self.assertEqual(g.preview,preview)
+
+    def test_delete_selected_plan_chooses_next_then_clears_the_last(self):
+        with seeded(1) as b:
+            g=b.groupCenter; ids=[]
+            for title in ('最早','中间','最新'):
+                self.assertTrue(g.createCustom(title,'甲|消息'));ids.append(g.selected['id'])
+            g.selectList(1)
+            self.assertTrue(g.prepare('',{}),g.status)
+            self.assertTrue(g.deleteList(ids[1]),g.status)
+            self.assertEqual(g.selected['id'],ids[0]);self.assertEqual(g.selectedIndex,1)
+            self.assertEqual(g.preview,[]);self.assertIsNone(g._confirmation)
+            self.assertTrue(g.deleteList(ids[0]),g.status)
+            self.assertEqual(g.selected['id'],ids[2]);self.assertEqual(g.selectedIndex,0)
+            self.assertTrue(g.deleteList(ids[2]),g.status)
+            self.assertEqual(g.lists,[]);self.assertEqual(g.selected['id'],0)
+            self.assertEqual(g.selectedIndex,-1);self.assertEqual(g.pendingCount+g.sentCount,0)
+            self.assertEqual(g.defaultFields,[])
+
+    def test_delete_plan_protects_unsettled_results_and_rolls_back(self):
+        with seeded(1) as b:
+            g=b.groupCenter
+            self.assertTrue(g.createCustom('事务保护','甲|消息'))
+            list_id=g.selected['id'];task=g.store.plan(list_id)[0]
+            attempt=g.store.claim(list_id,task)
+            g.store.finish(list_id,task,attempt,source.FAILED,'模拟失败')
+            for state,pending,reason in ((source.RUNNING,0,'正在发送'),(source.UNKNOWN,0,'待核实'),
+                                         ('仅粘贴未发送',0,'待核实'),(source.FAILED,1,'来源回写')):
+                with self.subTest(state=state,pending=pending):
+                    with g.store.connect() as conn:
+                        conn.execute('UPDATE recipients SET state=?,sync_pending=? WHERE list_id=?',(state,pending,list_id))
+                    self.assertFalse(g.deleteList(list_id));self.assertIn(reason,g.status)
+                    self.assertIsNotNone(g.store.get(list_id));self.assertEqual(len(g.store.rows(list_id)),1)
+            with g.store.connect() as conn:
+                conn.execute('UPDATE recipients SET state=?,sync_pending=0 WHERE list_id=?',(source.FAILED,list_id))
+                conn.execute("CREATE TRIGGER prevent_recipient_delete BEFORE DELETE ON recipients BEGIN SELECT RAISE(ABORT,'模拟删除失败'); END")
+            g._worker=object()
+            try:
+                self.assertFalse(g.deleteList(list_id));self.assertIn('发送运行中',g.status)
+            finally:g._worker=None
+            self.assertFalse(g.deleteList(list_id));self.assertIn('模拟删除失败',g.status)
+            with g.store.connect() as conn:
+                self.assertEqual(conn.execute('SELECT count(*) FROM attempts WHERE id=?',(attempt,)).fetchone()[0],1)
+            self.assertIsNotNone(g.store.get(list_id));self.assertEqual(len(g.store.rows(list_id)),1)
+
+    def test_delete_plan_keeps_legacy_source_receipts(self):
+        with seeded(1) as b:
+            g=b.groupCenter;w,tasks=prepare(b,1)
+            list_id=g.store.create('旧来源',[dict(name='学员1',student_id=tasks[0]['student_id'],message='消息')],w.store,w._batch)
+            task=g.store.plan(list_id)[0];attempt=g.store.claim(list_id,task)
+            g.store.finish(list_id,task,attempt,source.SENT,'模拟已发送')
+            g.refresh();g.selectList(0)
+            with w.store.db.connect() as conn:
+                before=[tuple(row) for row in conn.execute('SELECT * FROM send_attempts')]
+            self.assertTrue(g.deleteList(list_id),g.status)
+            with w.store.db.connect() as conn:
+                self.assertEqual([tuple(row) for row in conn.execute('SELECT * FROM send_attempts')],before)
+
     def test_new_plan_starts_empty_and_takes_typed_or_pasted_names(self):
         with seeded(1) as b:
             g=b.groupCenter

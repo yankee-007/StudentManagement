@@ -127,6 +127,22 @@ class GroupStore:
                 raise ValueError('群发名单已不存在，请重新选择')
         return title
 
+    def delete_list(self,list_id):
+        """Delete a confirmed local plan, only after its send results are settled."""
+        with self.connect() as conn:
+            conn.execute('BEGIN IMMEDIATE')
+            job=conn.execute('SELECT title FROM lists WHERE id=?',(list_id,)).fetchone()
+            if not job:raise ValueError('群发方案已不存在，请重新选择')
+            rows=list(conn.execute('SELECT state,sync_pending FROM recipients WHERE list_id=?',(list_id,)))
+            if any(row['state']==source.RUNNING for row in rows):raise ValueError('方案正在发送，不能删除')
+            if any(row['state'] in (source.UNKNOWN,'仅粘贴未发送') for row in rows):
+                raise ValueError('方案还有待核实的发送结果，请先在个人消息窗口核实后再删除')
+            if any(row['sync_pending'] for row in rows):raise ValueError('方案还有未完成的来源回写，不能删除')
+            conn.execute('DELETE FROM attempts WHERE recipient_id IN (SELECT id FROM recipients WHERE list_id=?)',(list_id,))
+            conn.execute('DELETE FROM recipients WHERE list_id=?',(list_id,))
+            conn.execute('DELETE FROM lists WHERE id=?',(list_id,))
+        return job['title']
+
     def configure(self,list_id,prefix,options):
         if any(c in prefix for c in '\r\n\0'):raise ValueError('前缀不能包含换行或空字符')
         options=normalize(options)

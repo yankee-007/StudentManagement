@@ -228,6 +228,7 @@ class GroupCenter(QObject):
             content=json.loads(source_row['content'])
             if not content and source_row['message']:content=[dict(type='text',text=source_row['message'])]
             row=dict(source_row,items=content,editable=source_row['state'] not in receipts.PROTECTED,
+                     personal_override=any(item.get('personal_override') for item in content),
                      _record_key=str(source_row['id']))
             for i,item in enumerate(content):row['message_'+str(i)]=item.get('text',item.get('path',''))
             rows.append(row)
@@ -557,7 +558,7 @@ class GroupCenter(QObject):
         if self.active:
             self._notice='发送运行中，不能修改名单名称';self._notify_status();return False
         try:
-            if list_id!=self._id or not self.store.get(list_id):
+            if not self.store.get(list_id):
                 raise ValueError('群发名单已变化，请重新选择')
             title=self.store.rename_list(list_id,title)
             # 只换标题：人员、消息、发送记录与已确认的预览都保持有效。
@@ -566,6 +567,26 @@ class GroupCenter(QObject):
             self._notify_status();return True
         except Exception as exc:
             self._notice='重命名失败：'+str(exc);self._notify_status();return False
+
+    @Slot(int,result=bool)
+    def deleteList(self,list_id):
+        if self.active:
+            self._notice='发送运行中，不能删除群发方案';self._notify_status();return False
+        try:
+            records=self.store.lists()
+            index=next((i for i,row in enumerate(records) if row['id']==list_id),-1)
+            title=self.store.delete_list(list_id)
+            selected_deleted=list_id==self._id
+            if selected_deleted:
+                remaining=[row for row in records if row['id']!=list_id]
+                self._id=remaining[min(index,len(remaining)-1)]['id'] if remaining else 0
+                self._preview=[];self._confirmation=None
+            self._reload_snapshot(lists=True)
+            if selected_deleted:self._notify_preview()
+            self._notice=f'已删除群发方案「{title}」及其本地名单、消息和发送记录'
+            self._notify_status();return True
+        except Exception as exc:
+            self._notice='删除失败：'+str(exc);self._notify_status();return False
 
     @Slot(int,str,'QVariantMap',result=bool)
     def saveOptions(self,list_id,prefix,options):

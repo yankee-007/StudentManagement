@@ -111,11 +111,11 @@ def run():
             QTest.mouseDClick(window, Qt.LeftButton, Qt.NoModifier, pos)
             QTest.qWait(90)
 
-        def pointer_click(name, double=False):
+        def pointer_click(name, double=False, button=Qt.LeftButton):
             obj = item(name)
             pos = obj.mapToScene(QPointF(obj.width()/2, obj.height()/2)).toPoint()
             action = QTest.mouseDClick if double else QTest.mouseClick
-            action(window, Qt.LeftButton, Qt.NoModifier, pos)
+            action(window, button, Qt.NoModifier, pos)
             QTest.qWait(90)
 
         def modifier_click(name, modifier=Qt.NoModifier):
@@ -128,6 +128,8 @@ def run():
         panel = item('recipientMessages')
         chat = item('groupMessageChat')
         assert item('groupTemplatePanel').property('visible')
+        assert item('groupNamePersonalFlag0').property('visible')
+        assert not item('groupNamePersonalFlag1').property('visible')
         for removed in ('groupStatistics', 'groupRecipientList', 'groupInformationTable', 'groupSingleCellDialog'):
             assert window.findChild(QObject, removed) is None, removed
         capture('group-center.png')
@@ -315,6 +317,19 @@ def run():
         item('groupContactPrefix').setProperty('text', '测试班-')
         QTest.qWait(750)
         assert item('groupNameLabel1').property('text') == '测试班-李四'
+        # Esc discards added bubbles, pending input and active inline edits in the whole dialog.
+        before=content()
+        double_name(1)
+        compose('未保存的个人气泡','personChat')
+        compose('未加入的个人草稿','personChat',send=False)
+        QTest.keyClick(window,Qt.Key_Escape);QTest.qWait(80)
+        assert not item('recipientMessageEditor').property('visible') and content()==before
+        assert not item('recipientMessageChat').property('hasPending') and not item('recipientMessageChat').property('dirty')
+        assert not item('groupNamePersonalFlag1').property('visible')
+        double_name(1)
+        edit(0,'Esc 不保存内联修改','personChat',save=False)
+        QTest.keyClick(window,Qt.Key_Escape);QTest.qWait(80)
+        assert not item('recipientMessageEditor').property('visible') and content()==before
         double_name(1)
         editor = item('recipientMessageEditor')
         assert editor.property('visible') and editor.property('canEdit')
@@ -337,6 +352,7 @@ def run():
         capture('group-personal.png')
         click('saveRecipientMessages')
         assert not editor.property('visible') and content()[1][2]['text'] == '李四的补充说明'
+        assert item('groupNamePersonalFlag1').property('visible'), (g.pendingModel.get(1),item('groupName1').property('rowData').toVariant(),panel.property('rowsRevision'))
         assert content()[0][2]['text'] == '完成后请回复，感谢配合。'
         edit(2, '公共补充-{姓名}')
         assert content()[1][2]['text'] == '李四的补充说明'
@@ -373,20 +389,22 @@ def run():
         assert not single_send.property('enabled') and not g.preview
         assert single_send.property('opacity') < 0.5
 
-        # 方案下拉框与「重命名」在左，复制为新名单／新建群发在最右侧的同一行。
+        # 方案操作在下拉框右键菜单，复制为新名单／新建群发仍在最右。
         page = item('groupCenterPage')
         selector = item('groupListSelector')
-        rename_button = item('groupRenameList')
+        assert window.findChild(QObject,'groupRenameList') is None
         copy_button = item('groupCopyList')
         create_button = item('groupCreateList')
         row_y = selector.mapToScene(QPointF(0, 0)).y()
-        for control in (rename_button, copy_button, create_button):
+        for control in (copy_button, create_button):
             assert abs(control.mapToScene(QPointF(0, 0)).y()-row_y) < 2, (control.objectName(), control.mapToScene(QPointF(0, 0)).y(), row_y)
-        assert selector.mapToScene(QPointF(0, 0)).x() < rename_button.mapToScene(QPointF(0, 0)).x()
-        assert rename_button.mapToScene(QPointF(rename_button.width(), 0)).x() <= copy_button.mapToScene(QPointF(0, 0)).x()+1
+        assert selector.mapToScene(QPointF(selector.width(), 0)).x() <= copy_button.mapToScene(QPointF(0, 0)).x()+1
         assert copy_button.mapToScene(QPointF(copy_button.width(), 0)).x() <= create_button.mapToScene(QPointF(0, 0)).x()+1
         assert create_button.mapToScene(QPointF(create_button.width(), 0)).x() >= page.mapToScene(QPointF(page.width(), 0)).x()-1
-        click('groupRenameList')
+        pointer_click('groupListSelector',button=Qt.RightButton)
+        assert item('groupPlanMenu').property('visible')
+        capture('group-plan-menu.png')
+        pointer_click('groupRenamePlanAction')
         assert item('groupRenameDialog').property('visible')
         assert item('groupRenameInput').property('text') == '消息编辑验证'
         capture('group-rename-dialog.png')
@@ -396,6 +414,27 @@ def run():
         assert g.selected['title'] == '聊天模板改名验证' and g.store.get(list_id)['title'] == '聊天模板改名验证'
         assert selector.property('currentText').startswith('聊天模板改名验证')
         assert [row['name'] for row in g.rows] == ['张三', '李四', '王五'] and content()[0][0]['text'] == '张三的个人消息'
+        # Right clicking an unselected popup item must not switch or manage the current plan.
+        extra_id=g.store.create('右键目标',[],allow_empty=True);g.refresh();QTest.qWait(80)
+        pointer_click('groupListSelector');pointer_click('groupPlanOption0')
+        assert g.selected['id']==extra_id and selector.property('currentIndex')==0
+        pointer_click('groupListSelector');pointer_click('groupPlanOption1')
+        assert g.selected['id']==list_id and selector.property('currentIndex')==1
+        pointer_click('groupListSelector')
+        assert item('groupPlanOption0').property('visible')
+        pointer_click('groupPlanOption0',button=Qt.RightButton)
+        assert item('groupPlanMenu').property('listId')==extra_id and g.selected['id']==list_id
+        pointer_click('groupRenamePlanAction')
+        assert item('groupRenameInput').property('text')=='右键目标'
+        item('groupRenameInput').setProperty('text','右键目标已改名');click('confirmRenameList')
+        assert g.store.get(extra_id)['title']=='右键目标已改名' and g.selected['id']==list_id
+        pointer_click('groupListSelector');pointer_click('groupPlanOption0',button=Qt.RightButton)
+        pointer_click('groupDeletePlanAction');capture('group-delete-dialog.png')
+        assert item('groupDeletePlanDialog').property('listId')==extra_id
+        click('cancelDeletePlan');assert g.store.get(extra_id)
+        pointer_click('groupListSelector');pointer_click('groupPlanOption0',button=Qt.RightButton)
+        pointer_click('groupDeletePlanAction');click('confirmDeletePlan')
+        assert g.store.get(extra_id) is None and g.selected['id']==list_id
         click('groupCopyList')
         assert item('groupCopyBatchDialog').property('visible')
         assert item('groupCopyTitleInput').property('text') == '聊天模板改名验证 - 副本'
@@ -567,6 +606,7 @@ def run():
         click('groupConfirmOverride')
         assert content()[0][0]['text'] == '更新预览-张三'
         assert content()[1][2]['text'] == '公共补充-李四'
+        assert not item('groupNamePersonalFlag0').property('visible') and not item('groupNamePersonalFlag1').property('visible')
 
         # Names-only lists accept the first bubble. Switching cannot discard pending text.
         assert g.copyList('仅人员名单', False)
@@ -595,6 +635,7 @@ def run():
         assert [row['label'].split(' · ')[0] for row in g.lists][target_index] == '长名单验证-改名'
 
         # Protected rows are viewed through the same name entry, and expose result resolution.
+        protected_list_id=g.selected['id']
         row_id = g.rows[2]['id']
         with g.store.connect() as conn:
             conn.execute("UPDATE recipients SET state='结果待确认' WHERE id=?", (row_id,))
@@ -605,6 +646,11 @@ def run():
         assert item('groupResolveSent').property('visible')
         assert not item('recipientMessageChat').property('editable')
         click('cancelRecipientMessages')
+        pointer_click('groupListSelector',button=Qt.RightButton)
+        pointer_click('groupDeletePlanAction');click('confirmDeletePlan')
+        assert item('groupDeletePlanDialog').property('visible') and '待核实' in g.status
+        assert g.store.get(protected_list_id)
+        click('cancelDeletePlan')
 
         # 新建群发方案只填名称；名单用手填空单元格和 Ctrl+V 粘贴补，像文件列表一样多选复制。
         saved_clipboard = QGuiApplication.clipboard().text()
@@ -751,6 +797,18 @@ def run():
         assert g.store.get(list_id)['prefix'] == '关闭前前缀-'
         assert len(json.loads(g.store.rows(list_id)[0]['content'])) == 4
         assert len(json.loads(g.store.rows(list_id)[2]['content'])) == 3
+        # Deleting the current and final temporary plans refreshes selection and empty controls.
+        g.store.resolve(protected_list_id,row_id,False);g.refresh();QTest.qWait(80)
+        window.show();QTest.qWait(100)
+        for _ in range(len(g.lists)):
+            target_id=g.selected['id']
+            pointer_click('groupListSelector',button=Qt.RightButton)
+            pointer_click('groupDeletePlanAction');click('confirmDeletePlan')
+            assert g.store.get(target_id) is None,g.status
+        assert selector.property('currentIndex')==-1 and g.selected['id']==0
+        assert item('groupNamesTable').property('count')==0 and chat.property('messageCount')==0
+        assert not item('groupPreviewButton').property('enabled') and not item('groupCopyList').property('enabled')
+        capture('group-empty-after-delete.png')
         assert not warnings, warnings
         driver.assert_not_called()
         import shiboken6
