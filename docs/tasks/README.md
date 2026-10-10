@@ -8,7 +8,6 @@
 
 | Task ID | 标题 | 工作状态 | 分支或范围 | 文件 |
 | --- | --- | --- | --- | --- |
-| TASK-20261010-4e120e797236 | Qt 警告修复及 main 开发基线 | verifying | codex/daily-workspace → main | [任务](TASK-20261010-4e120e797236-qt-warnings-main-baseline.md) |
-| TASK-20261010-9471b8c036da | 催办工作台性能与群发名单弹窗 | awaiting_acceptance | codex/daily-workspace | [任务](TASK-20261010-9471b8c036da-workbench-performance-list-dialog.md) |
+| TASK-20261010-9471b8c036da | 催办工作台性能与群发名单弹窗 | awaiting_acceptance | main（已按授权集成） | [任务](TASK-20261010-9471b8c036da-workbench-performance-list-dialog.md) |
 
 规则见 [任务协议](../agent/workflow.md)。启用跟踪时先更新任务，再同步索引；done/cancelled 从活动表删除并保留原文件路径，核对 ID 不再留在活动表。历史任务可重开；新需求另建并关联，不登记模板示例。
