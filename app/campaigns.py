@@ -217,14 +217,16 @@ class CampaignStore:
                     conn.execute('UPDATE campaign_dashboards SET data=? WHERE batch_id=?',(json.dumps(data,ensure_ascii=False),latest))
         return refreshed
 
-    def sync_current_identity(self):
+    def sync_current_identity(self, student_id=None):
         """Only the newest batch follows current identity; prior snapshots are frozen."""
         with self.db.connect() as conn:
             latest=conn.execute('SELECT max(id) FROM campaigns').fetchone()[0]
             if latest is None:return
+            clause=' AND c.student_id=?' if student_id is not None else ''
+            args=(latest,student_id) if student_id is not None else (latest,)
             rows=list(conn.execute('''SELECT c.student_id,c.name AS snapshot_name,c.snapshot,r.name,r.status,r.is_placeholder,p.fields
                 FROM campaign_students c JOIN class_roster r ON r.student_id=c.student_id
-                LEFT JOIN profiles p ON p.student_id=c.student_id WHERE c.batch_id=?''',(latest,)))
+                LEFT JOIN profiles p ON p.student_id=c.student_id WHERE c.batch_id=?'''+clause,args))
             for row in rows:
                 snap=json.loads(row['snapshot'])
                 fields=json.loads(row['fields'] or '{}')
@@ -237,7 +239,7 @@ class CampaignStore:
                              (row['name'],json.dumps(snap,ensure_ascii=False),latest,row['student_id']))
 
     def rows(self, batch, student_id=None):
-        self.sync_current_identity()
+        self.sync_current_identity(student_id)
         with self.db.connect() as conn:
             latest = conn.execute('SELECT max(id) FROM campaigns').fetchone()[0]
             current_students = {}

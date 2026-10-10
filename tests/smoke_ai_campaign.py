@@ -80,6 +80,10 @@ def run():
         assert item('createCampaignSelection').property('enabled')
         assert window.grabWindow().save(str(output/'ai-dialog-light.png'))
         backend.settingsModule.setAppearanceMode('dark'); window.resize(720,480); QTest.qWait(100)
+        results=item('aiCampaignResults')
+        results.setProperty('contentY',0)
+        QTest.qWait(60)
+        assert results.property('contentHeight')>results.property('height')
         assert window.grabWindow().save(str(output/'ai-dialog-dark-720.png'))
         assert item('createCampaignSelection').property('width')>100
         button=item('createCampaignSelection')

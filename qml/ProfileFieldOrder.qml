@@ -48,6 +48,14 @@ Item {
         cancelDrag(); recentId = ""
         Qt.callLater(function() { if (!order.dragging) fieldList.positionViewAtBeginning() })
     }
+    function positionField(fieldId) {
+        for (var i=0;i<fieldModel.count;i++) {
+            if (fieldModel.get(i).record.field_id===fieldId) {
+                fieldList.positionViewAtIndex(i,ListView.Beginning)
+                return
+            }
+        }
+    }
 
     function cancelDrag() {
         dragGeneration += 1

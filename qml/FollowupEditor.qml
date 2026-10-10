@@ -44,6 +44,7 @@ ColumnLayout {
         }
     }
     function load() {
+        if (!visible) return
         var next = daily.detailsFor(studentId)
         if (loadedKey !== (next.key || "") && dirty && daily.hasDraft(loadedKey, editorToken)) return
         var changedKey = loadedKey !== (next.key || "")
@@ -117,6 +118,7 @@ ColumnLayout {
     }
     Component.onCompleted: { ready=true; load() }
     onStudentIdChanged: if (ready) load()
+    onVisibleChanged: if (ready && visible) load()
     Connections {
         target: editor.daily
         function onChanged() { editor.load() }

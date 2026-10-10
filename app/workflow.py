@@ -22,6 +22,8 @@ class Workflow(QObject):
     overviewSourceChanged = Signal()
     selectionChanged = Signal()
     queryChanged = Signal()
+    fieldsChanged = Signal()
+    scopeChanged = Signal()
     feedbackSaved = Signal(str, bool)
     feedbackShortcutsChanged = Signal()
     def __init__(self, owner):
@@ -45,6 +47,9 @@ class Workflow(QObject):
         self._sort_descending = False
         self._selected = {}
         self._rows = []
+        self._managed_fields_cache = None
+        self._recipient_keys_cache = None
+        self._loaded_revision = None
         self._pending_feedback = {}
         self._feedback_timer = QTimer(self)
         self._feedback_timer.setSingleShot(True)
@@ -91,16 +96,22 @@ class Workflow(QObject):
 
     @Property(bool, notify=changed)
     def showPreviousFeedback(self):
-        # 按班保存：开启后在表格按历史催办追加“以往反馈情况（日期）”列，一次催办一列。
-        try:
-            return self.owner.repo.get_setting('workflow_show_previous_feedback','') == '1'
-        except Exception:
-            return False
+        return any(field['show_column'] and field['field_id'].startswith('previous_feedback_')
+                   for field in self.managedFields)
 
     @Slot(bool, result=bool)
     def setShowPreviousFeedback(self, visible):
+        # Compatibility for the former all-history switch. The UI now manages
+        # each batch through the same visibility/order controls as other fields.
         try:
-            self.owner.repo.set_setting('workflow_show_previous_feedback','1' if visible else '')
+            if not self.flushFeedback():return False
+            values=json.loads(self.owner.repo.get_setting('workflow_field_visibility','{}'))
+            values.update({field['field_id']:bool(visible) for field in self.managedFields
+                           if field['field_id'].startswith('previous_feedback_')})
+            if not self._save_field_settings({
+                    'workflow_field_visibility':json.dumps(values,ensure_ascii=False),
+                    'workflow_show_previous_feedback':'1' if visible else '',
+                    'workflow_history_fields_configured':'1'}):return False
             self.reload_rows(keep_query=True)
             self.changed.emit()
             return True
@@ -144,7 +155,12 @@ class Workflow(QObject):
                 return False
             if not self.flushFeedback():return False
             self.store.set_followup_status(batch, sid, value)
-            self.reload_rows(prefer=self._selected.get('student_id'), keep_query=True)
+            current = self.store.rows(batch, sid)[0]
+            self._attach_previous_feedback([current])
+            self._rows = [current if row['student_id'] == sid else row for row in self._rows]
+            self._refresh_changed_rows()
+            self._attach_followable()
+            self.overviewSourceChanged.emit()
             self.owner.toast.emit('可跟进状态已保存')
             return True
         except (ValueError, TypeError) as exc:
@@ -226,11 +242,7 @@ class Workflow(QObject):
                 results.append((key, False))
                 self.owner.toast.emit('反馈保存失败：' + str(exc))
         if updated:
-            sid = self._selected.get('student_id')
-            self._model.reconcile_rows(self.display_rows())
-            self._selected = next((r for r in self._model.rows if r['student_id'] == sid), {})
-            self.selectionChanged.emit()
-            self.changed.emit()
+            self._refresh_changed_rows()
         for key, saved in results:
             self.feedbackSaved.emit(key, saved)
         return success
@@ -260,11 +272,13 @@ class Workflow(QObject):
     @Property('QVariantList',notify=changed)
     def columnKeys(self): return [key for key,_ in self._model.columns]
 
-    @Property('QVariantList',notify=selectionChanged)
+    @Property('QVariantList',notify=scopeChanged)
     def recipientKeys(self):
         if not self._batch:return []
-        return [json.dumps([str(self.owner.db.path),self._batch,r['student_id']],ensure_ascii=False)
+        if self._recipient_keys_cache is None:
+            self._recipient_keys_cache = [json.dumps([str(self.owner.db.path),self._batch,r['student_id']],ensure_ascii=False)
                 for r in self._scope_rows() if r.get('student_id') and str(r.get('name') or '').strip() and not r.get('is_placeholder')]
+        return self._recipient_keys_cache
 
     def _searched_rows(self):
         return [r for r in self._rows if self._matches_view(r) and self._matches_search(r)]
@@ -365,6 +379,8 @@ class Workflow(QObject):
             self._column_filters[key]=dict(mode=mode,values=[str(v) for v in values])
         else:
             self._column_filters[key] = dict(mode=mode,value=value)
+        if key.startswith('previous_feedback_'):
+            self._attach_previous_feedback(self._rows)
         self.apply_filter()
         self.queryChanged.emit()
 
@@ -402,7 +418,7 @@ class Workflow(QObject):
         try:
             opened=data.get('opened',0)
             states={}
-            for row in self.store.rows(self._batch):
+            for row in self._rows:
                 if row.get('is_placeholder'):continue
                 try:value=int(row.get('completed_courses') or 0)
                 except (TypeError,ValueError):continue
@@ -454,9 +470,11 @@ class Workflow(QObject):
         self.reload_rows(students=students)
 
     def reload_rows(self, prefer=None, students=None, keep_query=False):
-        self._model.columns = self.batch_columns([(key,dict(TABLE_COLUMNS)[key]) for key in self._field_order()])
-        self.refresh_dashboard()
+        self._managed_fields_cache = None
+        self._model.columns = [(field['field_id'],field['name']) for field in self.managedFields]
+        self.fieldsChanged.emit()
         self._rows = self.store.rows(self._batch) if self._batch else self.live_roster(students)
+        self.refresh_dashboard()
         self._attach_previous_feedback(self._rows)
         self.apply_filter(prefer, recompute=not keep_query)
         self.changed.emit()
@@ -515,7 +533,22 @@ class Workflow(QObject):
         else:
             self.refresh_dashboard()
             self.changed.emit()
+        self._loaded_revision = self._data_revision()
         return refreshed
+
+    def _data_revision(self):
+        # Database.connect uses short-lived connections. File revisions cover
+        # commits from other modules/processes without holding a DB open; include
+        # the WAL if a database uses it, and the day for expiring exemptions.
+        path=self.owner.db.path
+        revisions=[]
+        for file in (path, Path(str(path)+'-wal'), Path(str(path)+'-journal')):
+            try:
+                stat=file.stat()
+                revisions.append((stat.st_mtime_ns,stat.st_size))
+            except FileNotFoundError:
+                revisions.append(None)
+        return str(path),date.today(),tuple(revisions)
 
     def display_rows(self):
         rows = self._visible_rows()
@@ -534,6 +567,7 @@ class Workflow(QObject):
         return sum(int(v) for v in str(row.get('missing_total') or '').split('/') if v.isdigit())
 
     def apply_filter(self, prefer=None, recompute=True):
+        self._recipient_keys_cache = None
         previous = [r['student_id'] for r in self._model.rows]
         if recompute:self._recompute_freeze()
         rows = self.display_rows()
@@ -541,6 +575,17 @@ class Workflow(QObject):
         sid = prefer if prefer is not None else self._selected.get('student_id')
         self._selected = next_cursor(rows, lambda r: r['student_id'], sid or '', previous)
         self.selectionChanged.emit()
+        self.scopeChanged.emit()
+
+    def _refresh_changed_rows(self):
+        """Update values without resetting the table or its frozen membership."""
+        sid = self._selected.get('student_id')
+        self._recipient_keys_cache = None
+        self._model.reconcile_rows(self.display_rows())
+        self._selected = next((r for r in self._model.rows if r['student_id'] == sid), {})
+        self.selectionChanged.emit()
+        self.scopeChanged.emit()
+        self.changed.emit()
 
     @Slot()
     def reapplyFilters(self):
@@ -569,6 +614,7 @@ class Workflow(QObject):
     @Slot()
     def activate(self):
         # 进入模块只重读数据，不重新筛选：处理中的名单不因切换页面而改变（ADR-007）。
+        if self._loaded_revision == self._data_revision():return
         self.refresh_live(keep_query=True)
 
     @Slot(int)
@@ -612,6 +658,8 @@ class Workflow(QObject):
             self.store.draft(self._batch,sid,content)
             for row in self._rows:
                 if row['student_id']==sid: row['draft']=content
+            self._recipient_keys_cache = None
+            self.scopeChanged.emit()
             self.selectionChanged.emit()
             self.changed.emit()
             return True
@@ -631,9 +679,11 @@ class Workflow(QObject):
             current=self.store.rows(self._batch,sid)[0]
             self._attach_previous_feedback([current])
             self._rows=[current if r['student_id']==sid else r for r in self._rows]
+            self._recipient_keys_cache = None
             self._model.reconcile_rows(self.display_rows())
             self._selected=next((r for r in self._model.rows if r['student_id']==next_id),self._model.rows[0] if self._model.rows else {})
             self.selectionChanged.emit()
+            self.scopeChanged.emit()
             self.changed.emit()
             self.owner.toast.emit('反馈已记录')
             return True
@@ -693,8 +743,8 @@ class Workflow(QObject):
             day = date.fromisoformat(stamp)
             label += f'（{day.month}月{day.day}号）'
         result = [(key, label if key == 'feedback' else name) for key, name in columns]
-        if self.showPreviousFeedback and self._batch:
-            # 历史批次从新到旧（与批次下拉一致），每次催办一列；本次列紧跟其后的是最近一次历史反馈。
+        if self._batch:
+            # Available history fields; each batch has its own visibility/order.
             for record in self._batches:
                 if record['id'] == self._batch: continue
                 stamp = record['created_at'][:10]
@@ -707,18 +757,27 @@ class Workflow(QObject):
         return result
 
     def _attach_previous_feedback(self, rows):
-        """为每行附加历史批次的反馈内容（开启查看以往反馈时）。批量一次查询，避免逐行取数。"""
-        if not self.showPreviousFeedback or not self._batch:
+        """Load selected history fields (and active filters) in one query."""
+        if not self._batch:
             return
-        previous = [r['id'] for r in self._batches if r['id'] != self._batch]
+        previous = [int(field['field_id'].removeprefix('previous_feedback_')) for field in self.managedFields
+                    if field['field_id'].startswith('previous_feedback_')
+                    and (field['show_column'] or field['field_id'] in self._column_filters)]
+        required={f'previous_feedback_{bid}' for bid in previous}
+        for row in rows:
+            for key in list(row):
+                if key.startswith('previous_feedback_') and key not in required:row.pop(key)
         if not previous:
             return
         history = {}
         placeholders = ','.join('?' * len(previous))
+        # Single-person saves must not reread every student's historical feedback.
+        single=' AND student_id=?' if len(rows)==1 else ''
+        args=previous+[rows[0]['student_id']] if single else previous
         with self.owner.db.connect() as conn:
             for rec in conn.execute(
-                    f'SELECT batch_id,student_id,content FROM campaign_feedback WHERE batch_id IN ({placeholders}) ORDER BY id',
-                    previous):
+                    f'SELECT batch_id,student_id,content FROM campaign_feedback WHERE batch_id IN ({placeholders})'+single+' ORDER BY id',
+                    args):
                 history.setdefault(rec['student_id'], {}).setdefault(rec['batch_id'], []).append(rec['content'])
         for row in rows:
             by_batch = history.get(row.get('student_id'), {})
@@ -727,33 +786,45 @@ class Workflow(QObject):
                 row[f'previous_feedback_{bid}'] = '\n'.join(contents) if contents else ''
 
     def _field_order(self):
-        keys=[key for key,_ in TABLE_COLUMNS]
+        keys=[key for key,_ in self.batch_columns(TABLE_COLUMNS)]
         try:saved=json.loads(self.owner.repo.get_setting('workflow_field_order','[]'))
         except (ValueError,TypeError):saved=[]
         return list(dict.fromkeys(key for key in saved if key in keys))+[key for key in keys if key not in saved]
 
-    @Property('QVariantList',notify=changed)
+    @Property('QVariantList',notify=fieldsChanged)
     def managedFields(self):
+        if self._managed_fields_cache is not None:
+            return self._managed_fields_cache
         labels=dict(self.batch_columns(TABLE_COLUMNS))
         try:visible=json.loads(self.owner.repo.get_setting('workflow_field_visibility','{}'))
         except (ValueError,TypeError):visible={}
-        fields=[dict(field_id=key,name=labels[key],show_column=(key=='name' or bool(visible.get(key,key!='student_id'))),
+        legacy_history=(self.owner.repo.get_setting('workflow_history_fields_configured')!='1'
+                        and self.owner.repo.get_setting('workflow_show_previous_feedback')=='1')
+        fields=[dict(field_id=key,name=labels[key],show_column=(key=='name' or bool(visible.get(key,
+                     legacy_history if key.startswith('previous_feedback_') else key!='student_id'))),
                      locked=key=='name',deletable=False) for key in self._field_order()]
-        if self.showPreviousFeedback and self._batch:
-            # 历史反馈列是动态追加列：显示与否由“查看以往反馈情况”总开关控制，不参与显隐/排序设置。
-            for record in self._batches:
-                if record['id'] == self._batch: continue
-                key=f'previous_feedback_{record["id"]}'
-                fields.append(dict(field_id=key,name=labels[key],show_column=True,
-                                   locked=True,deletable=False,note='（显示受“查看以往反馈情况”控制）'))
+        for field in fields:
+            if field['field_id'].startswith('previous_feedback_'):
+                field['note']='第 '+field['field_id'].removeprefix('previous_feedback_')+' 次催办'
+        self._managed_fields_cache = fields
         return fields
 
     @Slot(str,bool,result=bool)
     def setFieldVisible(self,key,visible):
-        if key not in dict(TABLE_COLUMNS) or key=='name':return False
-        values={f['field_id']:f['show_column'] for f in self.managedFields if not f['field_id'].startswith('previous_feedback_')}
+        if key not in dict(self.batch_columns(TABLE_COLUMNS)) or key=='name':return False
+        if not self.flushFeedback():return False
+        values=json.loads(self.owner.repo.get_setting('workflow_field_visibility','{}'))
+        values.update({f['field_id']:f['show_column'] for f in self.managedFields})
         values[key]=bool(visible)
-        self.owner.repo.set_setting('workflow_field_visibility',json.dumps(values,ensure_ascii=False))
+        settings={'workflow_field_visibility':json.dumps(values,ensure_ascii=False)}
+        if key.startswith('previous_feedback_'):
+            settings['workflow_history_fields_configured']='1'
+        if not self._save_field_settings(settings):return False
+        self._managed_fields_cache = None
+        if key.startswith('previous_feedback_'):
+            self._attach_previous_feedback(self._rows)
+            self._refresh_changed_rows()
+        self.fieldsChanged.emit()
         self.changed.emit();self.selectionChanged.emit();self.queryChanged.emit()
         return True
 
@@ -761,12 +832,33 @@ class Workflow(QObject):
     def moveField(self,key,index):
         keys=self._field_order()
         if key not in keys:return False
+        if not self.flushFeedback():return False
         keys.remove(key)
         keys.insert(max(0,min(index,len(keys))),key)
-        self.owner.repo.set_setting('workflow_field_order',json.dumps(keys,ensure_ascii=False))
-        self.reload_rows()
+        # Preserve the selected batch's own history-field position while it is
+        # temporarily absent from the available layout in that batch.
+        saved=json.loads(self.owner.repo.get_setting('workflow_field_order','[]'))
+        known={field for field,_ in TABLE_COLUMNS} | {f'previous_feedback_{record["id"]}' for record in self._batches}
+        full=list(dict.fromkeys(field for field in saved+keys if field in known))
+        reordered=iter(keys)
+        order=[next(reordered) if field in keys else field for field in full]
+        if not self._save_field_settings({'workflow_field_order':json.dumps(order,ensure_ascii=False)}):return False
+        self._managed_fields_cache=None
+        self._model.columns=[(field['field_id'],field['name']) for field in self.managedFields]
+        self.apply_filter(recompute=False)
+        self.fieldsChanged.emit();self.changed.emit()
         self.selectionChanged.emit();self.queryChanged.emit()
         return True
+
+    def _save_field_settings(self, settings):
+        try:
+            with self.owner.db.connect() as conn:
+                conn.executemany('INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value',
+                                 settings.items())
+            return True
+        except Exception as exc:
+            self.owner.toast.emit('字段设置保存失败：'+str(exc))
+            return False
 
     @Slot('QVariantMap',result='QVariantList')
     def detailFieldsFor(self,row):

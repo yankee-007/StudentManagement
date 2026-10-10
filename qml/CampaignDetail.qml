@@ -38,7 +38,7 @@ ColumnLayout {
     Component.onCompleted: { refreshFields(); loadSelection(true) }
     Connections {
         target: card.workflow
-        function onChanged() { card.refreshFields() }
+        function onFieldsChanged() { card.refreshFields() }
         function onFeedbackSaved(key, saved) {
             if (key === card.loadedKey) card.saveState = saved ? "已自动保存" : "保存失败，内容已保留，请重新尝试"
         }

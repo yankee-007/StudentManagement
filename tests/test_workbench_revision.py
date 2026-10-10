@@ -108,7 +108,8 @@ class WorkbenchRevisionTests(unittest.TestCase):
         self.assertNotEqual(first, current)
         # 默认不勾选：无历史反馈列
         self.assertFalse(self.w.showPreviousFeedback)
-        self.assertTrue(all(not key.startswith('previous_feedback_') for key in self.w.columnKeys))
+        self.assertTrue(all(not field['show_column'] for field in self.w.managedFields
+                            if field['field_id'].startswith('previous_feedback_')))
         # 勾选后：按历史催办追加一列，并填充对应批次反馈
         self.assertTrue(self.w.setShowPreviousFeedback(True))
         self.assertTrue(self.w.showPreviousFeedback)
@@ -132,8 +133,9 @@ class WorkbenchRevisionTests(unittest.TestCase):
         self.assertEqual(kept[key], '第一批反馈内容')
         # 取消勾选后列消失
         self.assertTrue(self.w.setShowPreviousFeedback(False))
-        self.assertFalse(any(k.startswith('previous_feedback_') for k in self.w.columnKeys))
-        self.assertTrue(all(not f['field_id'].startswith('previous_feedback_') for f in self.w.managedFields))
+        self.assertTrue(all(not f['show_column'] for f in self.w.managedFields
+                            if f['field_id'].startswith('previous_feedback_')))
+        self.assertNotIn(key, self.w._rows[0])
 
 
 if __name__=='__main__':unittest.main()

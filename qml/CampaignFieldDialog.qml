@@ -17,18 +17,18 @@ Dialog {
             text: "仅影响当前班期。拖动手柄排序；勾选控制表格、详情和跟随聊天浮窗。姓名固定显示。"
             Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted
         }
-        CheckBox {
-            id: prevFeedbackBox
-            objectName: "campaignShowPreviousFeedback"
-            text: "查看以往反馈情况"
-            checked: dialog.workflow.showPreviousFeedback
-            Layout.fillWidth: true
-            onToggled: dialog.workflow.setShowPreviousFeedback(checked)
-        }
         Label {
-            text: "勾选后，表格按历史催办追加“以往反馈情况（日期）”列，每次催办一列，位于本次反馈情况之后；不勾选只显示本次反馈情况。"
+            text: "往期反馈按每次催办单独列出，可勾选指定记录并调整顺序；只加载所选记录。"
             Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted
         }
-        ProfileFieldOrder { Layout.fillWidth: true; Layout.fillHeight: true; profiles: dialog.workflow }
+        UiButton {
+            objectName: "campaignLocateHistory"; text: "定位往期反馈"
+            visible: dialog.workflow.managedFields.some(function(f) { return f.field_id.indexOf("previous_feedback_")===0 })
+            onClicked: {
+                var history=dialog.workflow.managedFields.filter(function(f) { return f.field_id.indexOf("previous_feedback_")===0 })
+                if(history.length) fieldOrder.positionField(history[0].field_id)
+            }
+        }
+        ProfileFieldOrder { id: fieldOrder; Layout.fillWidth: true; Layout.fillHeight: true; profiles: dialog.workflow }
     }
 }

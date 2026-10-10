@@ -15,6 +15,7 @@ ApplicationWindow {
     property bool campaignDetailOpen: width >= 1000
     readonly property var moduleNames: ["催办工作台", "学员画像", "班期学员", "设置", "群发中心", "备注批改", "未进直播间", "学习概览", "今日工作台"]
     property var wf: backend.workflow
+    readonly property string selectedStudentId: wf.selected.student_id || ""
     property var sender: backend.groupCenter
     property var restartService: typeof restartController !== "undefined" ? restartController : null
     onClosing: function(close) {
@@ -229,10 +230,11 @@ ApplicationWindow {
                         }
                         TableView {
                             id: table; objectName: "studentTable"; model: wf.tableModel
+                            readonly property var fieldLayout: wf.managedFields
                             anchors.top: header.bottom; anchors.bottom: parent.bottom; anchors.left: parent.left; anchors.right: parent.right
                             clip: true; reuseItems: true; columnSpacing: 1; rowSpacing: 1
                             columnWidthProvider: function(c) {
-                                var fields = wf.managedFields
+                                var fields = table.fieldLayout
                                 if (c < 0 || c >= fields.length || !fields[c].show_column) return 0
                                 var key = fields[c].field_id
                                 return key === "student_id" ? 120 : (key === "feedback" || key.indexOf("previous_feedback_") === 0 || key === "courses" || key === "homework") ? 180 : 100
@@ -248,7 +250,7 @@ ApplicationWindow {
                                 required property bool expiredCell
                                 required property bool staleRow
                                 implicitHeight: UiTheme.rowHeight; implicitWidth: 90
-                                color: studentId === wf.selected.student_id ? UiTheme.selection : staleRow ? UiTheme.warningSurface : row % 2 ? UiTheme.stripe : UiTheme.surface
+                                color: studentId === root.selectedStudentId ? UiTheme.selection : staleRow ? UiTheme.warningSurface : row % 2 ? UiTheme.stripe : UiTheme.surface
                                 Text { anchors.fill: parent; anchors.leftMargin: 6; anchors.rightMargin: 6; text: display; elide: Text.ElideRight; verticalAlignment: Text.AlignVCenter; font.pixelSize: 13; color: expiredCell ? UiTheme.subtle : staleRow ? UiTheme.warning : UiTheme.ink }
                                 TapHandler { onTapped: wf.selectRow(row) }
                             }
@@ -288,45 +290,10 @@ ApplicationWindow {
             TextArea { text: backend.fetchIssues; readOnly: true; selectByMouse: true; wrapMode: TextEdit.Wrap }
         }
     }
-    Dialog {
-        id: templateDialog; objectName: "campaignListDialog"; parent: Overlay.overlay; anchors.centerIn: parent; modal: true
-        title: "从当前筛选生成群发名单"; width: Math.min(root.width-40,650); height: Math.min(root.height-20,590)
-        property var recordKeys: []
-        closePolicy: backend.aiCampaign.busy ? Popup.NoAutoClose : Popup.CloseOnEscape | Popup.CloseOnPressOutside
-        onOpened: {
-            recordKeys=wf.recipientKeys.slice()
-            groupTitle.text=wf.className + " · 催办筛选名单"
-            messageFields.load([{type:"text",text:"{姓名}同学，你好！"}])
-            namesOnly.checked=false
-            aiMode.checked=false
-            aiPanel.reset()
-        }
-        ColumnLayout {
-            anchors.fill: parent
-            UiTextField { id: groupTitle; objectName: "campaignListTitle"; placeholderText: "名单名称"; Layout.fillWidth: true }
-            Label { visible: !aiMode.checked; text: "当前筛选中 " + templateDialog.recordKeys.length + " 位有姓名的学员。可添加多条文字或文件；创建后在群发中心检查名单。"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted }
-            Label { visible: !aiMode.checked; text: "可用变量：{姓名}、{学号}、{班期}、{状态}、{免催日期}、{欠课}、{欠作业}、{" + backend.profilesModule.messagePlaceholders.join("}、{") + "}"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted }
-            RowLayout {
-                Layout.fillWidth: true
-                CheckBox { id: namesOnly; objectName: "campaignNamesOnly"; text: "只生成姓名名单"; enabled: !backend.aiCampaign.busy; onToggled: if(checked) aiMode.checked=false }
-                CheckBox { id: aiMode; objectName: "campaignAiMode"; text: "AI 催交话术"; enabled: !backend.aiCampaign.busy; onToggled: if(checked) namesOnly.checked=false }
-            }
-            ScrollView {
-                id: messageScroll
-                visible: !namesOnly.checked && !aiMode.checked; Layout.fillWidth: true; Layout.fillHeight: true; contentWidth: availableWidth; clip: true
-                MessageFields { id: messageFields; objectName: "campaignMessageFields"; width: messageScroll.availableWidth }
-            }
-            AiCampaignPanel { id: aiPanel; objectName: "aiCampaignPanel"; visible: aiMode.checked; recordKeys: templateDialog.recordKeys; Layout.fillWidth: true; Layout.fillHeight: true }
-            Label { visible: !aiMode.checked; text: sender.status; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.warning }
-            RowLayout {
-                UiButton { objectName: "createCampaignSelection"; text: "创建并打开群发中心"; enabled: templateDialog.recordKeys.length > 0 && !backend.aiCampaign.busy && (!aiMode.checked || backend.aiCampaign.ready); onClicked: {
-                    if(aiMode.checked ? backend.aiCampaign.createList(groupTitle.text,templateDialog.recordKeys) : sender.createFromCampaignSelection(groupTitle.text,messageFields.values(),templateDialog.recordKeys,namesOnly.checked)) {
-                        templateDialog.close(); root.switchModule(4)
-                    }
-                } }
-                UiButton { text: "取消"; enabled: !backend.aiCampaign.busy; onClicked: templateDialog.close() }
-            }
-        }
+    CampaignListDialog {
+        id: templateDialog; anchors.centerIn: parent
+        workflow: root.wf; center: root.sender
+        onCreated: root.switchModule(4)
     }
     Dialog {
         id: noReplyDialog; anchors.centerIn: parent; modal: true; title: "确认批量标记未回复"; standardButtons: Dialog.Ok | Dialog.Cancel
@@ -336,5 +303,5 @@ ApplicationWindow {
     Snackbar { id: snack }
     FloatingProfile { id: profileFloat }
     Connections { target: backend; function onToast(message) { snack.text=message; snack.open() } }
-    Connections { target: wf; function onChanged() { table.forceLayout() } }
+    Connections { target: wf; function onFieldsChanged() { table.forceLayout() } }
 }

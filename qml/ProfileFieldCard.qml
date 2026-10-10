@@ -47,7 +47,7 @@ Rectangle {
             }
             Label {
                 Layout.fillWidth: true
-                text: card.field.locked ? (card.field.note || "固定显示") : !card.field.deletable ? "系统字段" : card.field.kind === "date" ? "日期" : card.field.kind === "choice" ? "下拉选项" : "文本"
+                text: card.field.note || (card.field.locked ? "固定显示" : !card.field.deletable ? "系统字段" : card.field.kind === "date" ? "日期" : card.field.kind === "choice" ? "下拉选项" : "文本")
                 color: UiTheme.muted; font.pixelSize: 11; elide: Text.ElideRight
             }
         }

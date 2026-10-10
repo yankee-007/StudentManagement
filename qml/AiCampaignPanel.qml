@@ -2,61 +2,68 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 
-ColumnLayout {
+Item {
     id: panel
     property var ai: backend.aiCampaign
     property var recordKeys: []
-    property string selectedMode: ["person", "batch", "all"][mode.currentIndex] || "batch"
-    property int selectedTemplate: templateChoice.currentIndex
+    property string selectedMode: "batch"
+    property int selectedTemplate: 0
     function reset() {
         ai.reset()
-        templateChoice.currentIndex = 0
-        mode.currentIndex = ["person", "batch", "all"].indexOf(ai.config.mode)
+        selectedTemplate = 0
+        selectedMode = ai.config.mode || "batch"
+        results.positionViewAtBeginning()
     }
-    spacing: 8
-    Label {
-        Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted
-        text: "当前筛选 " + panel.recordKeys.length + " 人。模板按课程节次选；AI 会收到姓名、学号及当前欠账，不读取反馈历史。"
-    }
-    GridLayout {
-        Layout.fillWidth: true; columns: 2; columnSpacing: 8
-        enabled: !panel.ai.busy
-        Label { text: "话术模板"; color: UiTheme.muted }
-        UiComboBox {
-            id: templateChoice; objectName: "aiTemplateSelector"; Layout.fillWidth: true
-            Accessible.name: "AI 催交话术模板"
-            model: {
-                var items = ["自动 · 当前第 " + panel.ai.currentLesson + " 节课" + (panel.ai.currentLesson > 32 ? "（取第32份）" : "")]
-                for(var i=1;i<=32;i++) items.push("第 " + i + " 份话术")
-                return items
-            }
-            onActivated: panel.ai.reset()
-        }
-        Label { text: "生成方式"; color: UiTheme.muted }
-        UiComboBox {
-            id: mode; objectName: "aiGenerationMode"; Layout.fillWidth: true
-            model: ["逐人", "分批（推荐）", "一次生成全部"]
-            Accessible.name: "本次 AI 生成方式"
-        }
-    }
-    Flow {
-        Layout.fillWidth: true; spacing: 8
-        UiButton { objectName: "generateAiCampaign"; text: panel.ai.ready ? "重新生成" : "生成 AI 话术"; highlighted: true; enabled: !panel.ai.busy && panel.recordKeys.length>0; onClicked: panel.ai.start(panel.recordKeys,panel.selectedTemplate,panel.selectedMode) }
-        UiButton { objectName: "retryAiFailures"; text: "重试失败项（" + panel.ai.failureCount + "）"; visible: panel.ai.failureCount>0; enabled: !panel.ai.busy && panel.ai.ready; onClicked: panel.ai.retryFailed(panel.recordKeys,panel.selectedMode) }
-        UiButton { objectName: "cancelAiCampaign"; text: "停止生成"; visible: panel.ai.busy; onClicked: panel.ai.cancel() }
-    }
-    ProgressBar { Layout.fillWidth: true; visible: panel.ai.busy; from: 0; to: Math.max(1,panel.ai.total); value: panel.ai.completed }
-    Label { objectName: "aiCampaignNotice"; text: panel.ai.notice; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted }
-    Label { text: "已处理 " + panel.ai.completed + " / " + panel.ai.total + " 人"; visible: panel.ai.busy; color: UiTheme.muted; Layout.fillWidth: true; wrapMode: Text.Wrap }
     ListView {
-        id: results; objectName: "aiCampaignResults"; Layout.fillWidth: true; Layout.fillHeight: true
+        id: results; objectName: "aiCampaignResults"; anchors.fill: parent
         clip: true; spacing: 8; model: panel.ai.results
         ScrollBar.vertical: ScrollBar {}
+        header: ColumnLayout {
+            width: results.width; spacing: 8
+            Label {
+                Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted
+                text: "当前筛选 " + panel.recordKeys.length + " 人。模板按课程节次选；AI 会收到姓名、学号及当前欠账，不读取反馈历史。"
+            }
+            GridLayout {
+                Layout.fillWidth: true; columns: 2; columnSpacing: 8
+                enabled: !panel.ai.busy
+                Label { text: "话术模板"; color: UiTheme.muted }
+                UiComboBox {
+                    id: templateChoice; objectName: "aiTemplateSelector"; Layout.fillWidth: true
+                    currentIndex: panel.selectedTemplate
+                    Accessible.name: "AI 催交话术模板"
+                    model: {
+                        var items = ["自动 · 当前第 " + panel.ai.currentLesson + " 节课" + (panel.ai.currentLesson > 32 ? "（取第32份）" : "")]
+                        for(var i=1;i<=32;i++) items.push("第 " + i + " 份话术")
+                        return items
+                    }
+                    onActivated: { panel.selectedTemplate=currentIndex; panel.ai.reset() }
+                }
+                Label { text: "生成方式"; color: UiTheme.muted }
+                UiComboBox {
+                    id: mode; objectName: "aiGenerationMode"; Layout.fillWidth: true
+                    currentIndex: ["person", "batch", "all"].indexOf(panel.selectedMode)
+                    model: ["逐人", "分批（推荐）", "一次生成全部"]
+                    Accessible.name: "本次 AI 生成方式"
+                    onActivated: panel.selectedMode=["person", "batch", "all"][currentIndex] || "batch"
+                }
+            }
+            Flow {
+                Layout.fillWidth: true; spacing: 8
+                UiButton { objectName: "generateAiCampaign"; text: panel.ai.ready ? "重新生成" : "生成 AI 话术"; highlighted: true; enabled: !panel.ai.busy && panel.recordKeys.length>0; onClicked: panel.ai.start(panel.recordKeys,panel.selectedTemplate,panel.selectedMode) }
+                UiButton { objectName: "retryAiFailures"; text: "重试失败项（" + panel.ai.failureCount + "）"; visible: panel.ai.failureCount>0; enabled: !panel.ai.busy && panel.ai.ready; onClicked: panel.ai.retryFailed(panel.recordKeys,panel.selectedMode) }
+                UiButton { objectName: "cancelAiCampaign"; text: "停止生成"; visible: panel.ai.busy; onClicked: panel.ai.cancel() }
+            }
+            ProgressBar { Layout.fillWidth: true; visible: panel.ai.busy; from: 0; to: Math.max(1,panel.ai.total); value: panel.ai.completed }
+            Label { objectName: "aiCampaignNotice"; text: panel.ai.notice; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted }
+            Label { text: "已处理 " + panel.ai.completed + " / " + panel.ai.total + " 人"; visible: panel.ai.busy; color: UiTheme.muted; Layout.fillWidth: true; wrapMode: Text.Wrap }
+            Item { height: 8; width: 1 }
+        }
         delegate: UiPanel {
             required property var modelData
-            width: results.width; implicitHeight: rowContent.implicitHeight + 20
+            width: results.width; padding: 10; implicitHeight: rowContent.implicitHeight + 20
             ColumnLayout {
-                id: rowContent; anchors.fill: parent; anchors.margins: 10; spacing: 4
+                id: rowContent; anchors.fill: parent; spacing: 4
                 Label { text: modelData.name + " · " + modelData.studentId + " · " + modelData.kind; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.ink }
                 Label { text: modelData.error || "生成成功"; color: modelData.error ? UiTheme.warning : UiTheme.success; Layout.fillWidth: true; wrapMode: Text.Wrap }
                 Label { text: modelData.text; visible: !!modelData.text; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.ink }
