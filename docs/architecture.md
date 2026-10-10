@@ -29,7 +29,7 @@ Backend / TermModule / SettingsModule / LiveAbsence → AcquisitionTask（QThrea
 
 这些 QObject 同时承担界面状态和业务协调，没有统一独立的 Service 层。Backend 保留旧表格接口；当前工作台主要使用 backend.workflow.tableModel。
 
-AI 催交于2026-10-09接入 Backend.aiCampaign。设置卡片保存非密参数至主registry、API Key至keyring；催办生成窗口冻结当前真正匹配的学员／欠账，按本批dashboard.opened课程节次选只读模板（可手选）。GenerationWorker运行JSON请求、分批并发及失败退避重试，创建时复核身份和数据版本。结果直接写独立名单content，learning_data保留失败项重试所需的诊断／模板索引／错误；不会保存反馈记忆或改动发送协议。重试回写仅填仍为空且未受发送保护的失败项，个人编辑优先。见ADR-015；本地32次催交话术库当前为未跟踪运行依赖。
+AI 催交于2026-10-09接入 Backend.aiCampaign。设置卡片保存非密参数至主registry、API Key至keyring；催办生成窗口冻结当前真正匹配的学员／欠账，按本批dashboard.opened课程节次选只读模板（可手选）。GenerationWorker运行JSON请求、分批并发及失败退避重试，创建时复核身份和数据版本。结果直接写独立名单content，learning_data保留失败项重试所需的诊断／模板索引／错误；不会保存反馈记忆或改动发送协议。重试回写仅填仍为空且未受发送保护的失败项，个人编辑优先。见ADR-015；根目录32次催交话术库为已随仓库提交的只读运行依赖。
 
 ## Python ↔ QML 与状态
 

@@ -118,6 +118,6 @@ Python ↔ QML 通过 Backend 暴露的 QObject、Property/Signal/Slot 和 DictT
 
 现有功能、业务约束和已知限制见上文；具体实现与历史验证记录已移至 [历史记录](docs/history/project-validation.md)，不作为本轮或后续 Session 的通过保证。旧任务待定数据口径与人工验收见 [任务索引](docs/tasks/README.md)。
 
-2026-10-06 仅核对项目记忆组织、main.py 启动入口及看板相关符号，未启动默认应用、连接真实平台或运行业务回归。架构和上文业务概览沿用既有资料，仅相关条目作静态核验，不能推定整个项目已重审。
+2026-10-10 的记忆升级仅核对治理文档、Git/工作区基线、main.py 启动入口、依赖清单和话术库的入库状态，未启动默认应用、连接真实平台或运行业务回归。架构和上文业务概览沿用既有资料，仅相关条目作静态核验，不能推定整个项目已重审。
 
-项目记忆协议已适配为 Bootstrap 0.3.0；常规入口为 [AGENTS.md](AGENTS.md)、[策略](docs/agent/policy.md)、当前上下文与 ADR 索引。原 HANDOFF 正文已迁入独立 Task，根 HANDOFF 仅为旧 Session 导航；新复杂任务使用独立 Task。运行与安全验证方式见 README。
+项目记忆协议已适配为 Bootstrap 0.4.0；常规入口为 [AGENTS.md](AGENTS.md)、[策略](docs/agent/policy.md)、当前上下文与 ADR 索引。有 Task ID 时直接读取对应任务，否则查任务索引；新复杂任务使用独立 Task。根交接兼容入口已删除，历史 Task/ADR 保留，不改变旧业务验收状态。既有单 Agent、adaptive/single-writer/follow-existing/authorized-milestones 策略继续生效；按请求备份、隔离与集成边界见本地工作/Git 协议。运行与安全验证方式见 README。
