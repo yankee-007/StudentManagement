@@ -37,8 +37,8 @@ Item {
             else {
                 if (existing !== i) fieldModel.move(existing, i, 1)
                 if (fieldModel.get(i).signature !== signature) {
-                    fieldModel.setProperty(i, "record", record)
-                    fieldModel.setProperty(i, "signature", signature)
+                    // Match insert's nested-object conversion without replacing the delegate.
+                    fieldModel.set(i, {record: record, signature: signature})
                 }
             }
         }

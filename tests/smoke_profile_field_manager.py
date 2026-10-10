@@ -1,10 +1,11 @@
 """Real pointer gestures and adaptive field management, using disposable data."""
 import json
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
-from PySide6.QtCore import QObject, QPoint, QPointF, QUrl, Qt
+from PySide6.QtCore import QObject, QPoint, QPointF, QUrl, Qt, qInstallMessageHandler
 from PySide6.QtGui import QFontDatabase, QWheelEvent
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
@@ -16,6 +17,23 @@ from app.fonts import configure_font
 from tests.profile_fixtures import insert_profile
 
 
+@contextmanager
+def capture_role_warnings():
+    warnings = []
+
+    def capture(kind, context, message):
+        if "Can't assign to existing role" in message:
+            warnings.append(message)
+        if previous_handler is not None:
+            previous_handler(kind, context, message)
+
+    previous_handler = qInstallMessageHandler(capture)
+    try:
+        yield warnings
+    finally:
+        qInstallMessageHandler(previous_handler)
+
+
 def run():
     QQuickStyle.setStyle('Fusion')
     app = QApplication([])
@@ -23,7 +41,7 @@ def run():
     configure_font(app)
     output = Path('output/profile-field-manager')
     output.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory() as folder, patch('app.settings_module.get_password', return_value=None):
+    with tempfile.TemporaryDirectory() as folder, patch('app.settings_module.get_password', return_value=None), capture_role_warnings() as role_warnings:
         db_path = Path(folder) / 'fields.db'
         b = Backend(db_path)
         with b.db.connect() as conn:
@@ -219,8 +237,16 @@ def run():
         assert not locked.isEnabled() and locked.property('checked')
         visible_index = next(i for i, f in enumerate(b.profilesModule.managedFields) if not f['locked'])
         key = ids()[visible_index]
-        click(named(row(visible_index), 'fieldVisibility'))
+        visible_row = row(visible_index)
+        visibility = named(visible_row, 'fieldVisibility')
+        click(visibility)
         assert not next(f for f in b.profilesModule.managedFields if f['field_id'] == key)['show_column']
+        assert row(visible_index) is visible_row and not visibility.property('checked')
+        b.profilesModule.setFieldVisible(key, True); QTest.qWait(60)
+        assert row(visible_index) is visible_row and visibility.property('checked')
+        b.profilesModule.setFieldVisible(key, False); QTest.qWait(60)
+        assert row(visible_index) is visible_row and not visibility.property('checked')
+        assert not role_warnings, role_warnings
         # Add a choice field with explicit labels; it remains present after reopening the database.
         name_input = manager.findChild(QObject, 'profileFieldName')
         type_input = manager.findChild(QObject, 'profileFieldType')
@@ -301,6 +327,7 @@ def run():
             assert not manager.property('visible') and not order.property('dragging')
         window.close(); app.processEvents()
         assert not warnings, warnings
+        assert not role_warnings, role_warnings
         print('Profile fields UI OK: compact cards, reset preserving custom fields and values, stable delegates on drop, translucent narrower card, stable pointer anchor, exact gaps, cancellation, scrolling, visibility, add/delete confirmation, persistence, light/dark, 720x480 and 1280x860')
 
 
