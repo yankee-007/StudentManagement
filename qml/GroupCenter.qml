@@ -419,7 +419,15 @@ Item {
                                     ColumnLayout {
                                         anchors.fill: parent
                                         Label { text: "消息 "+(index+1)+(modelData.type==="file" ? " · 文件" : " · 文字"); color: UiTheme.muted }
-                                        TextArea { text: modelData.type==="file" ? modelData.path : modelData.text; readOnly: true; selectByMouse: true; textFormat: TextEdit.PlainText; wrapMode: TextEdit.Wrap; Layout.fillWidth: true; background: null }
+                                        TextArea { visible: modelData.type!=="file"; text: modelData.text || ""; readOnly: true; selectByMouse: true; textFormat: TextEdit.PlainText; wrapMode: TextEdit.Wrap; Layout.fillWidth: true; background: null }
+                                        MessageAttachment {
+                                            objectName: "groupPreviewAttachment"+index
+                                            visible: modelData.type==="file"
+                                            fileChooser: center; path: modelData.type==="file" ? modelData.path : ""
+                                            availableWidth: parent.width
+                                            Layout.preferredWidth: implicitWidth; Layout.preferredHeight: implicitHeight
+                                            Layout.maximumWidth: parent.width
+                                        }
                                     }
                                 }
                             }

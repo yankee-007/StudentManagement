@@ -63,6 +63,7 @@ Item {
     function showMessagePreview(cell) {
         var point=cell.mapToItem(Overlay.overlay,0,cell.height)
         messagePreview.text=cell.fullText
+        messagePreview.message=(cell.rowData.items || [])[cell.column] || ({})
         messagePreview.heading=contactPrefix+(cell.rowData.name || "")+" · 消息"+(cell.column+1)
         messagePreview.x=Math.max(8,Math.min(point.x,Overlay.overlay.width-messagePreview.width-8))
         messagePreview.y=point.y+4
@@ -501,6 +502,7 @@ Item {
                         required property string recordKey
                         property var rowData: { var revision=panel.rowsRevision; return panel.currentModel.get(row) }
                         readonly property string fullText: panel.cellText(rowData,column)
+                        readonly property var message: (rowData.items || [])[column] || ({})
                         readonly property bool personallyEdited: !!((rowData.items || [])[column] || {}).personal_override
                         objectName: "groupMessageCell"+row+"_"+column
                         implicitWidth: panel.messageColumnWidth; implicitHeight: 40
@@ -512,9 +514,19 @@ Item {
                         Keys.onEnterPressed: { panel.selectedRow=panel.currentModel.get(row); panel.openEditor() }
                         Text {
                             id: cellLabel; objectName: "groupMessageText"+messageCell.row+"_"+messageCell.column
+                            visible: messageCell.message.type!=="file"
                             anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 12
                             text: messageCell.fullText.replace(/[\r\n]+/g," "); textFormat: Text.PlainText; wrapMode: Text.NoWrap; elide: Text.ElideRight
                             font.pixelSize: 13; color: panel.isPicked(messageCell.recordKey) ? UiTheme.accent : messageCell.personallyEdited ? UiTheme.warning : UiTheme.ink; verticalAlignment: Text.AlignVCenter
+                        }
+                        MessageAttachment {
+                            objectName: "groupTableAttachment"+messageCell.row+"_"+messageCell.column
+                            visible: messageCell.message.type==="file"
+                            anchors.left: parent.left; anchors.right: parent.right; anchors.verticalCenter: parent.verticalCenter
+                            anchors.leftMargin: 12; anchors.rightMargin: 12
+                            height: implicitHeight; compact: true; availableWidth: width
+                            fileChooser: center; path: visible ? messageCell.message.path : ""
+                            revision: panel.rowsRevision
                         }
                         Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: UiTheme.line }
                         Rectangle { anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter; width: 2; height: 18; color: UiTheme.warning; visible: messageCell.personallyEdited }
@@ -539,6 +551,7 @@ Item {
     Popup {
         id: messagePreview; objectName: "groupMessagePreview"; parent: Overlay.overlay
         property string text: ""; property string heading: ""
+        property var message: ({})
         width: Math.min(parent.width-32,460); height: Math.min(parent.height-32,300)
         padding: 12; closePolicy: Popup.CloseOnEscape
         HoverHandler { id: previewHover; parent: messagePreview.contentItem; onHoveredChanged: if(hovered) closePreview.stop(); else closePreview.restart() }
@@ -548,7 +561,18 @@ Item {
             Label { text: messagePreview.heading; font.pixelSize: 12; color: UiTheme.muted; Layout.fillWidth: true; elide: Text.ElideRight }
             ScrollView {
                 id: previewScroll; objectName: "groupMessagePreviewScroll"; Layout.fillWidth: true; Layout.fillHeight: true; contentWidth: availableWidth; clip: true
-                TextArea { objectName: "groupMessagePreviewText"; width: previewScroll.availableWidth; text: messagePreview.text; textFormat: TextEdit.PlainText; wrapMode: TextEdit.Wrap; readOnly: true; selectByMouse: true; color: UiTheme.ink; font.pixelSize: 14; background: null }
+                ColumnLayout {
+                    width: previewScroll.availableWidth
+                    TextArea { objectName: "groupMessagePreviewText"; visible: messagePreview.message.type!=="file"; Layout.fillWidth: true; text: messagePreview.text; textFormat: TextEdit.PlainText; wrapMode: TextEdit.Wrap; readOnly: true; selectByMouse: true; color: UiTheme.ink; font.pixelSize: 14; background: null }
+                    MessageAttachment {
+                        objectName: "groupHoverAttachment"; visible: messagePreview.message.type==="file"
+                        fileChooser: center; path: visible ? messagePreview.message.path : ""
+                        revision: panel.rowsRevision
+                        availableWidth: previewScroll.availableWidth
+                        Layout.preferredWidth: implicitWidth; Layout.preferredHeight: implicitHeight
+                        Layout.maximumWidth: previewScroll.availableWidth
+                    }
+                }
                 MouseArea { parent: previewScroll; anchors.fill: parent; acceptedButtons: Qt.NoButton; onWheel: function(wheel) { panel.scrollRows(previewScroll.contentItem,wheel,false) } }
             }
         }

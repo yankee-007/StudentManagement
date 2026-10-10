@@ -5,6 +5,7 @@ import json
 import hashlib
 from PySide6.QtCore import QObject, Property, Signal, Slot, QCoreApplication, QUrl
 from PySide6.QtWidgets import QFileDialog
+from PySide6.QtGui import QImageReader, QImageIOHandler
 from .group_dispatch import GroupStore
 from . import group_dispatch as adapter
 from . import sending_store as receipts
@@ -657,6 +658,33 @@ class GroupCenter(QObject):
     def chooseMessageFile(self):
         path,_=QFileDialog.getOpenFileName(None,'选择要群发的文件','','所有文件 (*)')
         return path
+
+    @Slot(str,result='QVariantMap')
+    def messageFileInfo(self,value):
+        """Read presentation metadata only; attachments keep their original paths."""
+        path=Path(value)
+        info=dict(name=path.name,extension=path.suffix[1:].lower(),sizeLabel='',
+                  available=False,image=False,url='',width=0,height=0)
+        try:
+            if not value or not path.is_file():return info
+            stat=path.stat()
+            size=float(stat.st_size)
+            unit='B'
+            for unit in ('B','KB','MB','GB','TB'):
+                if size<1024 or unit=='TB':break
+                size/=1024
+            info.update(available=True,sizeLabel=f'{size:.0f} B' if unit=='B' else f'{size:.2f} {unit}')
+            reader=QImageReader(str(path))
+            if reader.canRead():
+                dimensions=reader.size()
+                if dimensions.isValid():
+                    if reader.transformation() & QImageIOHandler.TransformationRotate90:dimensions.transpose()
+                    url=QUrl.fromLocalFile(str(path.resolve()))
+                    url.setQuery(f'v={stat.st_mtime_ns}-{stat.st_size}')
+                    info.update(image=True,width=dimensions.width(),height=dimensions.height(),
+                                url=url.toString(QUrl.FullyEncoded))
+        except (OSError,ValueError):pass
+        return info
 
     @Slot('QVariantList',result='QVariantMap')
     def messageFiles(self,urls):

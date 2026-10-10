@@ -82,6 +82,7 @@ AI 催交于2026-10-09接入 Backend.aiCampaign。设置卡片保存非密参数
 - GroupCenter.qml 顶部一行是「选择群发方案」下拉框（左）与「复制为新名单」「新建群发」（右对齐）；收起的下拉框与展开的方案项均支持右键菜单，捕获目标 list_id，管理未选中方案也不切换当前名单。右键菜单不收起已展开列表；重命名直接在目标行的输入框完成，回车保存、Esc 取消，关闭下拉列表取消未保存名称；草稿绑定 list_id，列表刷新后按身份恢复焦点，输入法组合确认不提交，失败保留输入与行内提示，保存／取消后列表继续展开。重命名经 GroupCenter.renameList → GroupStore.rename_list 只更新 lists.title（拒绝空白/换行标题与过期 list_id，发送运行中只提示不改名），不触碰 recipients/attempts，也不清空当前预览确认。删除经确认调用 deleteList → delete_list，事务删除该方案的 attempts、recipients、lists；发送中、待核实和 sync_pending 阻止删除，不改来源库。删除当前方案清空预览并选下一项（末项回退上一项），最后一项删除后为空态；管理其他方案保留当前预览。「新建群发」只收方案名称，调用 createEmptyList 建空方案，成员与消息随后手动补。
 - RecipientMessages 个人弹窗用 Escape 快捷键取消整稿并在关闭时清理编辑状态。GroupCenter 从既有消息 personal_override 聚合人员标记，姓名旁显示「已单独编辑」，表格按消息提示；modelInfoChanged 在模型完成更新后刷新委托数据，避免 rowsChanged 的信号顺序导致旧标记残留。模板覆盖清除消息标记，无新存储字段。
 - GroupCenter.qml 参数 600ms 防抖保存，切名单/预览/关闭另有保存处理；按 list_id 校验，修改后清除预览确认。
+- MessageAttachment.qml 复用于聊天模板、个人消息、发送预览与表格悬停预览；表格紧凑模式保留40px行高。GroupCenter.messageFileInfo 只读文件名/大小及QImageReader图像头部尺寸（含EXIF方向），不改有序消息或存储格式。图片等比缩小、不放大小图，上限240×180，聊天区域较短时进一步限制高度；异步加载限定解码尺寸，文件修改时间/大小作为本地图片URL版本，重载或替换同路径附件时更新显示元信息。损坏图片回退文件卡片，失效文件提示。
 - prepare → GroupStore.plan → confirmation；start 重验计划、参数/文件及 F11 注册，再启动 SendWorker。每人先 claim 后 finish；暂停/结束在当前联系人完成后生效。
 - WeComSender 执行进程/焦点检查、搜索、可选浮窗核验、剪贴板粘贴和回车。“已发送”不证明送达，不确定结果需人工核实。
 - 旧 generateCampaign/sending_store 路径仍处理来源名单：复核源批次/资格、防重复、结果回写和待回写恢复。当前独立名单不具有源批次约束，不可混同。
@@ -142,7 +143,7 @@ Database 顶部 SCHEMA 不是最终 schema 全貌：构造还执行 learning_sto
 | 班期/学习/快照 | test_term_roster、test_fetch_workflow、test_business_logic、test_dashboard、test_linked_identity；smoke_class_switch |
 | 画像/隔离 | test_profile_module、test_profile_extensions、test_class_isolation_regressions；smoke_profile_ui |
 | 工作台/浮窗 | test_workbench_revision、test_campaign_generation、test_campaign_companion、test_workbench_ui、test_editor_identity |
-| 群发/恢复 | test_group_center、test_group_interaction、test_real_sending、test_message_content；smoke_group_interaction、smoke_group_list_view、smoke_group_message_input、smoke_profile_group |
+| 群发/恢复 | test_group_center、test_group_interaction、test_real_sending、test_message_content；smoke_group_interaction、smoke_group_list_view、smoke_group_message_input、smoke_group_attachments、smoke_profile_group |
 | 备注批改 | test_remark_renamer；smoke_remark_renamer（默认测试不真实登录企微、不改名） |
 | 未进直播间 | test_live_absence；smoke_live_absence（注入假直播间结果，不登录平台、不发送） |
 

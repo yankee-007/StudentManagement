@@ -18,6 +18,7 @@ Item {
     property bool committing: false
     property bool commitAccepted: true
     property bool pendingOutsideCommit: false
+    property int attachmentRevision: 0
     // Text inset inside a bubble; the cap keeps long messages readable at the thread width.
     readonly property int bubblePadding: 12
     readonly property int bubbleSlack: 2
@@ -42,6 +43,7 @@ Item {
             else fields.append(field)
         }
         if(fields.count>items.length) fields.remove(items.length,fields.count-items.length)
+        attachmentRevision++
         if(!preserveComposer) composer.text=""
         dirty=false
         feedback=""
@@ -108,7 +110,7 @@ Item {
         var item=fields.get(index)
         if(item.kind==="file") {
             var path=fileChooser.chooseMessageFile()
-            if(path) { fields.setProperty(index,"value",path); fields.setProperty(index,"mixed",false); changed() }
+            if(path) { fields.setProperty(index,"value",path); fields.setProperty(index,"mixed",false); attachmentRevision++; changed() }
         } else {
             activeEditor=null; activeEditViewport=null
             editText=item.value
@@ -211,6 +213,7 @@ Item {
                 required property string kind
                 required property string value
                 required property bool mixed
+                readonly property bool attachmentContent: kind==="file" && !mixed
                 readonly property string displayText: mixed ? "各人内容不同 · 编辑后统一" : kind==="file" ? "附件  ·  "+chat.fileName(value) : value
                 readonly property string bubbleText: chat.keepTokens(displayText)
                 // Hug the widest line instead of letting a rounded card wrap the last glyph:
@@ -268,6 +271,7 @@ Item {
                     }
                     Rectangle {
                         objectName: chat.controlPrefix+"BubbleCard"+bubble.index
+                        visible: !bubble.attachmentContent
                         Layout.alignment: Qt.AlignRight
                         Layout.minimumWidth: Math.min(44,bubbleColumn.width)
                         Layout.maximumWidth: bubbleColumn.width
@@ -328,6 +332,18 @@ Item {
                             }
                             }
                         }
+                    }
+                    MessageAttachment {
+                        objectName: chat.controlPrefix+"Attachment"+bubble.index
+                        visible: bubble.attachmentContent
+                        fileChooser: chat.fileChooser; path: bubble.attachmentContent ? bubble.value : ""
+                        revision: chat.attachmentRevision
+                        availableWidth: bubbleColumn.width
+                        maximumImageHeight: Math.max(32,Math.min(180,thread.height-40))
+                        Layout.alignment: Qt.AlignRight
+                        Layout.preferredWidth: implicitWidth; Layout.preferredHeight: implicitHeight
+                        Layout.maximumWidth: bubbleColumn.width
+                        TapHandler { enabled: chat.editable; onDoubleTapped: chat.beginEdit(bubble.index) }
                     }
                 }
             }
