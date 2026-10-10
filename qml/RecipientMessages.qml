@@ -6,6 +6,7 @@ Item {
     id: panel
     objectName: "recipientMessages"
     required property var center
+    property bool clipboardMode: false
     property alias contactPrefix: prefix.text
     property var selectedRow: ({})
     property int currentListId: -1
@@ -420,30 +421,32 @@ Item {
                     Layout.maximumHeight: Layout.preferredHeight
                     RowLayout {
                         Layout.fillWidth: true
-                        Label { objectName: "groupTemplateTitle"; text: "消息模板"; font.bold: true; font.pixelSize: 17; Layout.fillWidth: true; Layout.minimumWidth: 0; elide: Text.ElideRight }
+                        Label { objectName: "groupTemplateTitle"; text: panel.clipboardMode ? "剪贴板消息" : "消息模板"; font.bold: true; font.pixelSize: 17; Layout.fillWidth: true; Layout.minimumWidth: 0; elide: Text.ElideRight }
                         ToolButton {
                             objectName: "groupToggleMessageView"; font.pixelSize: 12; implicitHeight: 28; leftPadding: 4; rightPadding: 4
+                            visible: !panel.clipboardMode
                             text: panel.listMode ? (templatePanel.width<350 ? "聊天查看" : "切换为聊天查看") : (templatePanel.width<350 ? "表格查看" : "切换为表格查看")
                             Accessible.name: panel.listMode ? "切换为聊天查看" : "切换为表格查看"
                             onClicked: panel.setListMode(!panel.listMode)
                         }
-                        UiButton { objectName: "groupResetDefaults"; text: "重载"; visible: defaults.dirty || (defaults.editingIndex>=0 && defaults.feedback.length>0); enabled: !center.active; implicitHeight: 28; onClicked: panel.loadDefaults(true) }
-                        UiButton { objectName: "groupRetryDefaults"; text: panel.width<500 ? "重试" : "重试保存"; visible: defaults.dirty || (defaults.editingIndex>=0 && defaults.feedback.length>0); enabled: panel.canManage; implicitHeight: 28; onClicked: panel.saveDefaults() }
+                        UiButton { objectName: "groupResetDefaults"; text: "重载"; visible: !panel.clipboardMode && (defaults.dirty || (defaults.editingIndex>=0 && defaults.feedback.length>0)); enabled: !center.active; implicitHeight: 28; onClicked: panel.loadDefaults(true) }
+                        UiButton { objectName: "groupRetryDefaults"; text: panel.width<500 ? "重试" : "重试保存"; visible: !panel.clipboardMode && (defaults.dirty || (defaults.editingIndex>=0 && defaults.feedback.length>0)); enabled: panel.canManage; implicitHeight: 28; onClicked: panel.saveDefaults() }
                         ToolButton {
                             text: "更多"; font.pixelSize: 12; enabled: panel.canManage; implicitHeight: 28
+                            visible: !panel.clipboardMode
                             Accessible.name: "模板更多操作"; onClicked: templateMenu.popup()
                         }
                     }
                     Label {
                         objectName: "groupTemplateHint"
-                        text: center.selectedIndex<0 ? "先新建或生成名单" : center.active ? "发送中，消息模板暂不可编辑" : "加入后自动保存 · 保留个人改动 · 预览后开始群发"
+                        text: panel.clipboardMode ? "无需准备模板 · 所有人使用同一份剪贴板内容" : center.selectedIndex<0 ? "先新建或生成名单" : center.active ? "发送中，消息模板暂不可编辑" : "加入后自动保存 · 保留个人改动 · 预览后开始群发"
                         Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted; font.pixelSize: 12
                     }
                     Item { Layout.fillHeight: true }
                     Item {
                         Layout.fillWidth: true; Layout.preferredHeight: tabs.height; Layout.minimumHeight: tabs.height; Layout.maximumHeight: tabs.height
                         Flickable {
-                            id: messageHeader; objectName: "groupMessageHeader"; anchors.fill: parent; visible: panel.listMode
+                            id: messageHeader; objectName: "groupMessageHeader"; anchors.fill: parent; visible: panel.listMode && !panel.clipboardMode
                             contentWidth: panel.messageFieldCount*panel.messageColumnWidth; contentHeight: height
                             contentX: messageList.contentX; clip: true; interactive: false
                             Row {
@@ -469,9 +472,20 @@ Item {
                         }
                     }
                 }
-                Item { id: chatHost; visible: !panel.listMode; Layout.fillWidth: true; Layout.fillHeight: true }
+                ScrollView {
+                    id: clipboardInstructions; objectName: "groupClipboardInstructions"; visible: panel.clipboardMode
+                    Layout.fillWidth: true; Layout.fillHeight: true; contentWidth: availableWidth; clip: true
+                    ColumnLayout {
+                        width: clipboardInstructions.availableWidth; spacing: 12
+                        Label { text: "先复制，后群发"; font.pixelSize: 18; font.bold: true; Layout.fillWidth: true; wrapMode: Text.Wrap }
+                        Label { text: "1. 准备左侧群发名单。\n2. 在其他应用中复制要发送的文字、图片或文件。\n3. 点击「预览并发送」，核对联系人和剪贴板内容。\n4. 点击「开始发送」。"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.ink; lineHeight: 1.5 }
+                        Label { text: "本轮会保存预览时的剪贴板内容，并给每位联系人粘贴一次。内容不替换姓名或其他变量；已有模板和个人消息会保留，切回模板模式即可继续使用。"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted }
+                    }
+                }
+                Item { id: chatHost; visible: !panel.listMode && !panel.clipboardMode; Layout.fillWidth: true; Layout.fillHeight: true }
                 MessageChatEditor {
                     id: defaults; objectName: "groupMessageChat"
+                    visible: !panel.clipboardMode
                     parent: panel.listMode ? unifiedHost : chatHost
                     anchors.fill: parent
                     fileChooser: center; controlPrefix: "groupChat"; defaultTemplate: true; editable: panel.canManage
@@ -479,7 +493,7 @@ Item {
                     onEditCancelled: if(!dirty && panel.draftRevision!==center.contentRevision) panel.loadDefaults(true)
                 }
                 TableView {
-                    id: messageList; objectName: "groupRecipientMessageList"; visible: panel.listMode
+                    id: messageList; objectName: "groupRecipientMessageList"; visible: panel.listMode && !panel.clipboardMode
                     Layout.fillWidth: true; Layout.fillHeight: true; Layout.minimumWidth: 0
                     model: tabs.currentIndex===0 ? center.pendingMessageModel : center.sentMessageModel
                     clip: true; reuseItems: true; rowSpacing: 0; columnSpacing: 0
@@ -639,7 +653,7 @@ Item {
         ColumnLayout {
             anchors.fill: parent; spacing: 8
             Label {
-                text: editor.canEdit ? "只修改此人，保存后生效。按 Esc 取消本次修改。" : "该记录只读，保留发送时内容。"
+                text: panel.clipboardMode ? "本轮统一使用剪贴板；下面的模板/个人消息仅保留供切回模板模式使用。" : editor.canEdit ? "只修改此人，保存后生效。按 Esc 取消本次修改。" : "该记录只读，保留发送时内容。"
                 wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.muted; font.pixelSize: 12
             }
             Label { text: editor.personState+(editor.personInfo ? " · "+editor.personInfo : ""); Layout.fillWidth: true; maximumLineCount: 2; elide: Text.ElideRight; wrapMode: Text.Wrap; color: UiTheme.muted; font.pixelSize: 12 }

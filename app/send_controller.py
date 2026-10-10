@@ -93,7 +93,9 @@ class SendWorker(QThread):
                     self.rowFinished.emit()
                     self.progress.emit('发送阶段异常，结果待人工确认；本轮停止：'+str(exc));return
                 state='仅粘贴未发送' if result=='仅粘贴未发送' else receipts.SENT
-                self.receipts.finish(self.store,self.batch,task,attempt,state,'仅粘贴，未执行回车' if state!='已发送' else '已发送')
+                detail='仅粘贴，未执行回车' if state!='已发送' else '已发送'
+                if self.options.get('clipboard_mode'):detail='剪贴板模式：'+detail
+                self.receipts.finish(self.store,self.batch,task,attempt,state,detail)
                 self.rowFinished.emit()
                 self.wake.wait(self.options.get('interval',0));self.wake.clear()
             if failed or uncertain:

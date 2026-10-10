@@ -56,6 +56,8 @@ AI 催交于2026-10-09接入 Backend.aiCampaign。设置卡片保存非密参数
 
 ## 关键调用链
 
+群发另支持按名单保存的 `options.clipboard_mode`（默认 false）。GroupCenter.prepare 在显式预览时通过 app/clipboard_payload.py 捕获内存快照，clipboardPreview 仅返回类型/文字/文件摘要；GroupStore.plan 在此模式不校验模板，生成 clipboard 标记任务，原人员消息保持不变。WeComSender 使用注入的快照，在每人搜索后（包含搜索失败）恢复数据，再进行一次粘贴和可选回车；不读取运行中后来复制的内容。Windows 捕获 Unicode、DIB、HDROP 和可复制的注册数据，跳过来源拥有的位图/元文件/OLE句柄；文件按大小/修改时间在启动及每人发送前复核。快照不入库，attempts 记录模式标记，人员结果注明剪贴板模式；原 claim/旧来源资格复核/回写/暂停和不确定结果保护沿用。切换来源先保存有效编辑并检查待加入稿，模板模式仍校验消息完整。
+
 ### 班期、学习数据与快照
 
 1. TermModule 通过 AcquisitionTask 获取班期、课程、名单；TermRosterStore 在原主库缓存，Workflow.sync_terms/roster_sync 同步到各班库。

@@ -10,12 +10,14 @@ Item {
     property int renamePlanId: 0
     property string renamePlanText: ""
     property string renamePlanFeedback: ""
+    readonly property bool clipboardMode: sendMode.currentIndex===1
     property bool optionsDirty: recipientPanel.contactPrefix !== (center.selected.prefix || "")
         || Number(searchWait.text) !== center.selected.options.wait || Number(timeout.text) !== center.selected.options.timeout
         || Number(focusDelay.text) !== center.selected.options.focus_delay || Number(pasteDelay.text) !== center.selected.options.paste_delay
         || Number(gap.text) !== center.selected.options.interval || (match.currentIndex===1) !== center.selected.options.substring_mode
         || doSend.checked !== center.selected.options.confirm_send || verifyContact.checked !== center.selected.options.verify_contact
         || singleSend.checked !== center.selected.options.single_send
+        || clipboardMode !== !!center.selected.options.clipboard_mode
     function loadOptions() {
         settingsTimer.stop()
         loadingOptions=true
@@ -27,6 +29,7 @@ Item {
         focusDelay.text=String(o.focus_delay); pasteDelay.text=String(o.paste_delay); gap.text=String(o.interval)
         match.currentIndex=o.substring_mode ? 1 : 0
         doSend.checked=o.confirm_send; verifyContact.checked=o.verify_contact; singleSend.checked=o.single_send
+        sendMode.currentIndex=o.clipboard_mode ? 1 : 0
         loadingOptions=false
     }
     function scheduleSave() {
@@ -41,7 +44,14 @@ Item {
         settingsTimer.stop()
         if (loadingOptions || !optionsDirty) return true
         if (center.active || settingsPanel.listId !== (center.selected.id || 0) || center.selectedIndex < 0) return false
-        return center.saveOptions(settingsPanel.listId,recipientPanel.contactPrefix,{wait:Number(searchWait.text),timeout:Number(timeout.text),focus_delay:Number(focusDelay.text),paste_delay:Number(pasteDelay.text),interval:Number(gap.text),substring_mode:match.currentIndex===1,verify_contact:verifyContact.checked,single_send:singleSend.checked,confirm_send:doSend.checked})
+        return center.saveOptions(settingsPanel.listId,recipientPanel.contactPrefix,{wait:Number(searchWait.text),timeout:Number(timeout.text),focus_delay:Number(focusDelay.text),paste_delay:Number(pasteDelay.text),interval:Number(gap.text),substring_mode:match.currentIndex===1,verify_contact:verifyContact.checked,single_send:singleSend.checked,confirm_send:doSend.checked,clipboard_mode:clipboardMode})
+    }
+    function changeSendMode(index) {
+        var previous=center.selected.options.clipboard_mode ? 1 : 0
+        sendMode.currentIndex=previous
+        if(!saveSettings()) return
+        sendMode.currentIndex=index
+        if(!saveOptions()) sendMode.currentIndex=previous
     }
     Timer { id: settingsTimer; interval: 600; repeat: false; onTriggered: page.saveOptions() }
     Connections {
@@ -128,7 +138,7 @@ Item {
         RowLayout {
             Layout.fillWidth: true
             Label { text: "群发中心"; font.pixelSize: 22; font.bold: true; Layout.fillWidth: true }
-            Label { text: "配置默认消息 → 核对预览 → 开始发送"; visible: page.width>900; color: UiTheme.muted }
+            Label { text: page.clipboardMode ? "复制发送内容 → 核对预览 → 开始发送" : "配置默认消息 → 核对预览 → 开始发送"; visible: page.width>900; color: UiTheme.muted }
         }
         RowLayout {
             Layout.fillWidth: true; spacing: 6
@@ -237,6 +247,7 @@ Item {
             Layout.fillWidth: true; Layout.fillHeight: true; spacing: 10
             RecipientMessages {
                 id: recipientPanel; Layout.fillWidth: true; Layout.fillHeight: true; center: page.center
+                clipboardMode: page.clipboardMode
                 onPrefixEdited: page.scheduleSave()
                 onResolveRequested: function(recipientId,wasSent) {
                     resolveDialog.listId=center.selected.id; resolveDialog.recipientId=recipientId
@@ -254,13 +265,19 @@ Item {
                         width: optionsScroll.availableWidth; enabled: !center.active && center.selectedIndex>=0; spacing: 6
                         Label { text: "发送配置"; font.bold: true; font.pixelSize: 15 }
                         Label { text: "当前名单自动保存"; color: UiTheme.muted; font.pixelSize: 11; Layout.fillWidth: true }
+                        Label { text: "消息来源"; font.pixelSize: 12 }
+                        UiComboBox {
+                            id: sendMode; objectName: "groupSendMode"; model: ["模板模式","剪贴板模式"]
+                            Layout.fillWidth: true; Accessible.name: "消息来源"
+                            onActivated: function(index) { page.changeSendMode(index) }
+                        }
                         Label { text: "联系人匹配"; font.pixelSize: 12 }
                         UiComboBox { id: match; model: ["完整匹配（推荐）","包含匹配"]; Layout.fillWidth: true; onActivated: page.scheduleSave() }
                         CheckBox { id: verifyContact; text: "使用浮窗验证联系人"; font.pixelSize: 12; Layout.fillWidth: true; onToggled: page.scheduleSave() }
                         CheckBox { id: doSend; objectName: "groupConfirmSend"; text: "粘贴后回车发送"; font.pixelSize: 12; Layout.fillWidth: true; onToggled: page.scheduleSave() }
                         CheckBox {
                             id: singleSend; objectName: "groupSingleSend"; text: "每条消息单独发送"
-                            font.pixelSize: 12; Layout.fillWidth: true; enabled: doSend.checked; opacity: enabled ? 1 : 0.45
+                            font.pixelSize: 12; Layout.fillWidth: true; enabled: doSend.checked && !page.clipboardMode; opacity: enabled ? 1 : 0.45
                             onToggled: page.scheduleSave()
                         }
                         Label { text: doSend.checked ? "预览确认后才开始发送" : "仅粘贴，不发送"; font.pixelSize: 12; wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.muted }
@@ -350,7 +367,7 @@ Item {
             anchors.fill: parent
             UiTextField { id: customTitle; objectName: "groupCustomTitle"; placeholderText: "群发方案名称"; Layout.fillWidth: true }
             Label {
-                text: "只创建空的群发方案；创建后在左侧「群发名单」逐个填写姓名（也可用 Ctrl+V 粘贴多个），再到「消息模板」配置消息。"
+                text: "创建后在左侧「群发名单」填写姓名（也可用 Ctrl+V 粘贴多个），再配置消息模板，或在「发送配置 → 消息来源」选择剪贴板模式。"
                 wrapMode: Text.Wrap; Layout.fillWidth: true; color: UiTheme.muted
             }
             Label { text: center.status; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.warning }
@@ -385,7 +402,7 @@ Item {
         ColumnLayout {
             anchors.fill: parent
             Label { text: "本轮处理 " + center.preview.length + " 人 · 其余 " + Math.max(0,center.pendingCount+center.sentCount-center.preview.length) + " 人跳过（已发送、待核实或不符合条件）"; font.bold: true; Layout.fillWidth: true; wrapMode: Text.Wrap }
-            Label { objectName: "groupPreviewSummary"; text: (center.selected.options.confirm_send ? "回车发送" : "仅粘贴，不发送") + " · " + (center.selected.options.confirm_send && center.selected.options.single_send ? "按下列顺序逐条处理" : "按下列顺序粘贴"+(center.selected.options.confirm_send ? "后统一发送" : "")) + " · " + (center.selected.options.substring_mode ? "包含匹配" : "完整匹配") + " · " + (center.selected.options.verify_contact ? "验证联系人" : "不验证联系人"); Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted }
+            Label { objectName: "groupPreviewSummary"; text: (center.selected.options.confirm_send ? "回车发送" : "仅粘贴，不发送") + " · " + (center.selected.options.clipboard_mode ? "剪贴板模式 · 所有人使用同一份内容" : center.selected.options.confirm_send && center.selected.options.single_send ? "按下列顺序逐条处理" : "按下列顺序粘贴"+(center.selected.options.confirm_send ? "后统一发送" : "")) + " · " + (center.selected.options.substring_mode ? "包含匹配" : "完整匹配") + " · " + (center.selected.options.verify_contact ? "验证联系人" : "不验证联系人"); Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted }
             RowLayout {
                 Layout.fillWidth: true; Layout.fillHeight: true; spacing: 12
                 UiPanel {
@@ -410,8 +427,23 @@ Item {
                         id: previewContent; Layout.fillWidth: true; Layout.fillHeight: true; contentWidth: availableWidth; clip: true
                         ColumnLayout {
                             width: previewContent.availableWidth; spacing: 10
+                            ColumnLayout {
+                                objectName: "groupClipboardPreview"; visible: !!center.selected.options.clipboard_mode
+                                Layout.fillWidth: true; spacing: 10
+                                Label { text: "已保存本轮剪贴板："+(center.clipboardPreview.kindLabel || ""); font.bold: true; Layout.fillWidth: true; wrapMode: Text.Wrap }
+                                Label { text: "每位联系人粘贴一次。使用本次预览保存的内容；需要更换时，返回重新复制并预览。图片、富文本的实际粘贴效果以企业微信为准。"; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.muted }
+                                TextArea { objectName: "groupClipboardPreviewText"; visible: !!center.clipboardPreview.text; text: center.clipboardPreview.text || ""; readOnly: true; selectByMouse: true; textFormat: TextEdit.PlainText; wrapMode: TextEdit.Wrap; Layout.fillWidth: true; background: null }
+                                Repeater {
+                                    model: center.clipboardPreview.files || []
+                                    MessageAttachment {
+                                        required property string modelData
+                                        fileChooser: center; path: modelData; availableWidth: previewContent.availableWidth
+                                        Layout.maximumWidth: previewContent.availableWidth
+                                    }
+                                }
+                            }
                             Repeater {
-                                model: previewDialog.currentRecipient.content || []
+                                model: center.selected.options.clipboard_mode ? [] : previewDialog.currentRecipient.content || []
                                 UiPanel {
                                     required property var modelData
                                     required property int index
@@ -445,7 +477,7 @@ Item {
             Label { text: center.status; Layout.fillWidth: true; wrapMode: Text.Wrap; color: UiTheme.warning }
             RowLayout {
                 UiButton { objectName: "groupPreviewBack"; text: "返回编辑"; onClicked: previewDialog.close() }
-                UiButton { objectName: "groupPreviewEditPerson"; text: "修改此人消息"; enabled: !center.active && !!previewDialog.currentRecipient.student_id; onClicked: { var recipientId=Number(previewDialog.currentRecipient.student_id); previewDialog.close(); recipientPanel.editRecipient(recipientId) } }
+                UiButton { objectName: "groupPreviewEditPerson"; text: "修改此人消息"; visible: !center.selected.options.clipboard_mode; enabled: !center.active && !!previewDialog.currentRecipient.student_id; onClicked: { var recipientId=Number(previewDialog.currentRecipient.student_id); previewDialog.close(); recipientPanel.editRecipient(recipientId) } }
                 Item { Layout.fillWidth: true }
                 UiButton { objectName: "groupStartButton"; text: (center.selected.options.confirm_send ? "开始发送 · " : "开始粘贴 · ")+center.preview.length+" 人"; highlighted: true; enabled: !center.active && center.preview.length>0 && ((!center.selected.options.substring_mode && center.selected.options.verify_contact) || acceptRisk.checked); onClicked: { if(center.start()) previewDialog.close() } }
             }

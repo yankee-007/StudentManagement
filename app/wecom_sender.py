@@ -113,6 +113,7 @@ class WeComSender:
         return self.search_contact_v2(contact,options,close_on_success=not (verify_contact and keep_float))
 
     def send(self,contact,content):
+        if getattr(self,'options',{}).get('clipboard_mode'):return self.send_clipboard(contact)
         started=False;submitted=0;pasted=0
         options=getattr(self,'options',normalize())
         try:
@@ -131,5 +132,28 @@ class WeComSender:
                     self.keys.press('enter');submitted+=1
                     time.sleep(options['paste_delay'])
             return '已发送' if options['confirm_send'] else '仅粘贴未发送'
+        except Exception as exc:
+            raise DispatchError(f'{exc}（已粘贴 {pasted} 项，已执行发送 {submitted} 次）',uncertain=started) from exc
+
+    def send_clipboard(self,contact):
+        started=False;submitted=0;pasted=0
+        payload=getattr(self,'clipboard_payload',None)
+        try:
+            if payload is None:raise ValueError('请重新复制内容并预览')
+            payload.validate()
+            # Search writes the contact into the clipboard. Always put the frozen
+            # content back, including when contact verification fails.
+            try:main_hwnd,pid=self.search_contact_v2(contact,self.options)
+            finally:payload.restore(self.clip)
+            time.sleep(self.options['focus_delay'])
+            self._check(main_hwnd,'企业微信',pid)
+            started=True
+            self.keys.hotkey('ctrl','v');pasted=1
+            time.sleep(self.options['paste_delay'])
+            if self.options['confirm_send']:
+                self._check(main_hwnd,'企业微信',pid)
+                self.keys.press('enter');submitted=1
+                time.sleep(self.options['paste_delay'])
+            return '已发送' if self.options['confirm_send'] else '仅粘贴未发送'
         except Exception as exc:
             raise DispatchError(f'{exc}（已粘贴 {pasted} 项，已执行发送 {submitted} 次）',uncertain=started) from exc

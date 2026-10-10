@@ -8,6 +8,7 @@
 
 | Task ID | 标题 | 工作状态 | 分支或范围 | 文件 |
 | --- | --- | --- | --- | --- |
+| TASK-20261010-ec62960cf424 | 群发中心剪贴板模式 | awaiting_acceptance | main | [任务](TASK-20261010-ec62960cf424-clipboard-mode.md) |
 | TASK-20261010-e6f409a58d72 | 群发消息附件预览 | awaiting_acceptance | main | [任务](TASK-20261010-e6f409a58d72-message-attachments.md) |
 | TASK-20261010-9471b8c036da | 催办工作台性能与群发名单弹窗 | awaiting_acceptance | main（已按授权集成） | [任务](TASK-20261010-9471b8c036da-workbench-performance-list-dialog.md) |
 

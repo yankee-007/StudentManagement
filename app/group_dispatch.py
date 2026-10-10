@@ -456,13 +456,18 @@ class GroupStore:
             if r['state'] in source.PROTECTED:continue
             if eligible is not None and (r['source_sid'] not in eligible or eligible[r['source_sid']]['name']!=r['name']):continue
             if eligible is not None and counts[r['name']]!=1:raise ValueError('来源班级出现同名学员，请核实名单后重新生成')
-            raw_content=json.loads(r['content'])
-            if not raw_content and r['message']:raw_content=[dict(type='text',text=r['message'])]
-            if not raw_content:raise ValueError(f"{r['name']} 尚未配置消息字段，不能预览发送")
-            content=prepare_content(raw_content)
-            for item in content:
-                if item['type']=='text':_ensure_resolved(item['text'],json.loads(r['learning_data'] or '{}').get('profile_fields',{}),r['name'],r.get('source_sid'))
-            result.append(dict(student_id=str(r['id']),name=r['name'],contact=job['prefix']+r['name'],message=r['message'],content=content,file_versions=file_versions(content),learning_data=json.loads(r['learning_data'])))
+            if job['options']['clipboard_mode']:
+                content=[dict(type='clipboard')]
+                message='剪贴板内容（本轮预览时固定）'
+            else:
+                raw_content=json.loads(r['content'])
+                if not raw_content and r['message']:raw_content=[dict(type='text',text=r['message'])]
+                if not raw_content:raise ValueError(f"{r['name']} 尚未配置消息字段，不能预览发送")
+                content=prepare_content(raw_content)
+                for item in content:
+                    if item['type']=='text':_ensure_resolved(item['text'],json.loads(r['learning_data'] or '{}').get('profile_fields',{}),r['name'],r.get('source_sid'))
+                message=r['message']
+            result.append(dict(student_id=str(r['id']),name=r['name'],contact=job['prefix']+r['name'],message=message,content=content,file_versions=file_versions(content),learning_data=json.loads(r['learning_data'])))
         counts=Counter(r['contact'] for r in result)
         if any(n>1 for n in counts.values()):raise ValueError('联系人备注重复，未发送')
         return result

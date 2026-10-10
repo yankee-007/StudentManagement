@@ -14,6 +14,7 @@ from .send_controller import F11Hotkey, SendWorker
 from .message_content import render_content, prepare_content
 from .qt_models import DictTableModel
 from . import clipboard
+from . import clipboard_payload
 
 
 class GroupCenter(QObject):
@@ -42,6 +43,7 @@ class GroupCenter(QObject):
         self._default_fields_cache=[]
         self._content_revision=''
         self._preview=[];self._confirmation=None
+        self._clipboard_payload=None
         self._worker=None;self._paused=False;self._pause_requested=False
         self._hotkey=F11Hotkey(self.pause)
         self._pending_model=DictTableModel([],self)
@@ -68,6 +70,9 @@ class GroupCenter(QObject):
         return self.store.rows(self._id)
     @Property('QVariantList',notify=previewChanged)
     def preview(self):return self._preview
+    @Property('QVariantMap',notify=previewChanged)
+    def clipboardPreview(self):
+        return self._clipboard_payload.preview if self._preview and self._clipboard_payload else {}
     @Property(str,notify=statusChanged)
     def status(self):return self._notice
     @Property(bool,notify=activityChanged)
@@ -210,6 +215,7 @@ class GroupCenter(QObject):
         self.statusChanged.emit();self.changed.emit()
 
     def _notify_preview(self):
+        if not self._preview and not self.active:self._clipboard_payload=None
         self.previewChanged.emit();self.changed.emit()
 
     def _notify_activity(self):
@@ -535,7 +541,7 @@ class GroupCenter(QObject):
             summary=[]
             if result['added']:summary.append(f"已添加 {len(result['added'])} 人")
             if result['skipped']:summary.append(f"名单里已有同名，跳过 {len(result['skipped'])} 人")
-            if result['no_message']:summary.append(f"{len(result['no_message'])} 人还没有套用上模板消息（模板含无法解析的变量或文件），请双击单独填写")
+            if result['no_message'] and not self.selected['options']['clipboard_mode']:summary.append(f"{len(result['no_message'])} 人还没有套用上模板消息（模板含无法解析的变量或文件），请双击单独填写")
             self._notice=('；'.join(summary)+'；请重新预览') if summary else '没有可添加的姓名'
             self._reload_snapshot(lists=True);self._notify_preview();self._notify_status()
             return dict(result,list_id=list_id)
@@ -737,12 +743,15 @@ class GroupCenter(QObject):
     def prepare(self,prefix,options):
         if self.active:return False
         self._preview=[];self._confirmation=None
+        self._clipboard_payload=None
         try:
             self.store.configure(self._id,prefix,dict(options))
             self._selected_cache=self.store.get(self._id) or self._selected_cache
+            if self.selected['options']['clipboard_mode']:self._clipboard_payload=clipboard_payload.capture()
             self._preview=self.store.plan(self._id)
             self._confirmation=(self._id,self.selected['options'])
             self._notice=f'本轮待处理 {len(self._preview)} 人；已执行、待确认、仅粘贴及不再符合催办条件者均跳过'
+            if self._clipboard_payload:self._notice+='；本轮统一使用预览时保存的剪贴板内容'
             self.selectionChanged.emit();self._notify_preview();self._notify_status();return bool(self._preview)
         except Exception as exc:self._notice='预览失败：'+str(exc);self._notify_preview();self._notify_status();return False
 
@@ -756,7 +765,11 @@ class GroupCenter(QObject):
             if self._confirmation!=(self._id,self.selected['options']) or self.store.plan(self._id)!=self._preview:raise ValueError('名单或参数已变更，请重新预览')
             from .wecom_sender import WeComSender
             options=self.selected['options']
+            if options['clipboard_mode']:
+                if self._clipboard_payload is None:raise ValueError('请先复制内容并重新预览')
+                self._clipboard_payload.validate()
             driver=WeComSender(options)
+            if options['clipboard_mode']:driver.clipboard_payload=self._clipboard_payload
             self._hotkey.start()
             # 发送失败不中断本轮：失败者保留在待处理，其余联系人继续处理。
             self._worker=SendWorker(self.store,self._id,list(self._preview),lambda:driver,self,adapter=adapter,options=options,continue_on_failure=True)
