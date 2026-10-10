@@ -13,7 +13,6 @@ ColumnLayout {
         Layout.fillWidth: true
         Label { text: "班期学员"; font.pixelSize: 22; font.bold: true; color: UiTheme.ink }
         Label { text: "账号班期 · 完整名单 · 自动补位"; color: UiTheme.muted; Layout.fillWidth: true }
-        UiButton { text: "重新获取课程和学员"; enabled: !service.busy && !backend.busy; onClicked: service.refreshAll() }
     }
     UiPanel {
         Layout.fillWidth: true; padding: 12

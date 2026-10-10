@@ -90,6 +90,13 @@ ApplicationWindow {
                     }, size < 0 || size >= 300)
                 }
             }
+            UiButton {
+                objectName: "refreshTermRosterButton"
+                text: "重新获取课程和学员"
+                visible: root.moduleIndex === 2
+                enabled: !backend.termsModule.busy && !backend.busy
+                onClicked: backend.termsModule.refreshAll()
+            }
             Item { Layout.fillWidth: true }
             UiButton {
                 objectName: "debugRestartButton"
